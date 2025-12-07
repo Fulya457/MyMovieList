@@ -1,5 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application
+
+
+    <uses-permission android:name="android.permission.INTERNET"/> 
+
+    <application 
+   
         android:label="mymovielist"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
