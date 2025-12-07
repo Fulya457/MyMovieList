@@ -68,42 +68,65 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                   ),
             ),
             
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // --- BAŞLIK VE PUAN ---
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          widget.movie.title,
-                          style: const TextStyle(
-                            fontSize: 24, 
-                            fontWeight: FontWeight.bold, 
-                            color: Colors.white // Yazı Beyaz
-                          ),
-                        ),
-                      ),
-                      Row(
-                        children: [
-                          const Icon(Icons.star, color: AppTheme.primaryBlue), // Yıldız Mavi
-                          const SizedBox(width: 5),
-                          Text(
-                            widget.movie.rating.toString(),
-                            style: const TextStyle(
-                              fontSize: 18, 
-                              color: Colors.white, 
-                              fontWeight: FontWeight.bold
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+          Padding(
+  padding: const EdgeInsets.all(16.0),
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      
+      // --- YENİ EKLENEN KISIM: RESİM + BAŞLIK ---
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Süzülerek gelen resim burada (Hero)
+          Hero(
+            tag: 'poster_${widget.movie.id}', // HomeView'daki tag ile AYNISI olmak zorunda
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.network(
+                widget.movie.poster,
+                width: 100, // Detayda daha büyük görünür
+                height: 150,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+          const SizedBox(width: 16), // Resim ile yazı arası boşluk
+          
+          // Başlık ve Puan (Yazı taşmasın diye Expanded kullandık)
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.movie.title,
+                  style: const TextStyle(
+                    fontSize: 24, 
+                    fontWeight: FontWeight.bold, 
+                    color: Colors.white
                   ),
-                  const SizedBox(height: 10),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    const Icon(Icons.star, color: AppTheme.primaryBlue, size: 20),
+                    const SizedBox(width: 5),
+                    Text(
+                      "${widget.movie.rating} / 10",
+                      style: const TextStyle(
+                        fontSize: 16, 
+                        color: AppTheme.primaryBlue, 
+                        fontWeight: FontWeight.bold
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+                  const SizedBox(height: 20),
 
                   // --- KATEGORİ ETİKETLERİ (GENRES) ---
                   Wrap(

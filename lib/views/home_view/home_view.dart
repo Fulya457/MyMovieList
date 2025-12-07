@@ -114,12 +114,15 @@ class _HomeViewState extends State<HomeView> {
                                       borderRadius: BorderRadius.circular(12),
                                       child: ListTile(
                                         contentPadding: const EdgeInsets.all(8),
-                                        leading: ClipRRect(
+                                        leading: Hero(
+                                          tag: 'poster_${movie.id}',
+                                          child :ClipRRect(
                                           borderRadius: BorderRadius.circular(8),
                                           child: Image.network(
                                             movie.poster, width: 50, height: 75, fit: BoxFit.cover,
                                             errorBuilder: (c,o,s) => Container(width: 50, height: 75, color: Colors.grey[800], child: const Icon(Icons.movie, color: Colors.white)),
                                           ),
+                                        ),
                                         ),
                                         title: Text(movie.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                                         subtitle: Text(
