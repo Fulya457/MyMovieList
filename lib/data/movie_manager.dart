@@ -8,7 +8,7 @@ class Movie {
   final List<String> genres;
   final String plot;
   final List<String> actors;
-  final String trailerId; // YENİ: Youtube ID'si
+  final String trailerId;
 
   Movie({
     required this.id,
@@ -30,7 +30,7 @@ class Movie {
       genres: (json['genre'] as List?)?.map((e) => e.toString()).toList() ?? ['General'],
       plot: json['plot'] ?? 'No description available.',
       actors: (json['actors'] as List?)?.map((e) => e.toString()).toList() ?? [],
-      trailerId: json['trailerId'] ?? '', // Hata vermemesi için
+      trailerId: json['trailerId'] ?? '',
     );
   }
 }
@@ -39,14 +39,27 @@ class MovieManager extends ChangeNotifier {
   static final MovieManager instance = MovieManager._privateConstructor();
   MovieManager._privateConstructor();
 
+  // --- LİSTELER ---
   List<Movie> _allMovies = [];
+  List<Movie> _trendingMovies = [];
   final List<Movie> _favoriteMovies = [];
 
+  // --- GETTER'LAR (Dışarıdan Erişim) ---
   List<Movie> get allMovies => _allMovies;
-  List<Movie> get favoriteMovies => _favoriteMovies;
+  List<Movie> get trendingMovies => _trendingMovies;
+  
+  // İŞTE EKSİK OLAN SATIR BUYDU:
+  List<Movie> get favoriteMovies => _favoriteMovies; 
 
+  // --- FONKSİYONLAR ---
+  
   void setMovies(List<Movie> movies) {
     _allMovies = movies;
+    notifyListeners();
+  }
+
+  void setTrendingMovies(List<Movie> movies) {
+    _trendingMovies = movies;
     notifyListeners();
   }
 

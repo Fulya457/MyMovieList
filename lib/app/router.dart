@@ -6,9 +6,14 @@ import 'package:mymovielist/views/home_view/home_view.dart';
 import 'package:mymovielist/views/recommended_view/recommended_view.dart';
 import 'package:mymovielist/views/list_view/list_view.dart';
 
+// --- BU SATIRI MUTLAKA EKLE ---
+import 'package:mymovielist/views/login_view/login_view.dart'; 
+// ------------------------------
+
 final _rooterKey = GlobalKey<NavigatorState>();
 
 class AppRouters {
+  static const String login = '/login';
   static const String home = '/';
   static const String favorites = '/favorites';
   static const String list = '/list';
@@ -17,8 +22,15 @@ class AppRouters {
 
 final router = GoRouter(
   navigatorKey: _rooterKey,
-  initialLocation: AppRouters.home,
+  initialLocation: AppRouters.login, // Açılış sayfası Login
   routes: [
+    // --- LOGIN ROUTE ---
+    GoRoute(
+      path: AppRouters.login,
+      builder: (context, state) => const LoginView(),
+    ),
+
+    // --- ANA UYGULAMA ---
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) =>
           AppView(navigationShell: navigationShell),
@@ -43,7 +55,7 @@ final router = GoRouter(
           routes: [
             GoRoute(
               path: AppRouters.favorites,
-              builder: (context, state) => FavoritesView(),
+              builder: (context, state) => const FavoritesView(),
             ),
           ],
         ),
