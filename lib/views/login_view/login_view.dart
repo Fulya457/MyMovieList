@@ -1,5 +1,4 @@
-import 'dart:async';
-import 'dart:ui'; // Blur efekti için
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mymovielist/app/router.dart';
@@ -12,133 +11,134 @@ class LoginView extends StatefulWidget {
   State<LoginView> createState() => _LoginViewState();
 }
 
-class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMixin {
-  final TextEditingController _usernameController = TextEditingController();
+class _LoginViewState extends State<LoginView> {
+  // Kullanıcının yazdıklarını tutan denetleyiciler
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  
-  // Animasyonlu yazı için değişkenler
-  int _textIndex = 0;
-  final List<String> _loadingTexts = [
-    "Loading Scenes...",
-    "Preparing Popcorn...",
-    "Dimming Lights...",
-    "Welcome to Cinema..."
-  ];
-  late Timer _timer;
 
-  @override
-  void initState() {
-    super.initState();
-    // Yazıları 2 saniyede bir değiştir
-    _timer = Timer.periodic(const Duration(seconds: 2), (timer) {
-      setState(() {
-        _textIndex = (_textIndex + 1) % _loadingTexts.length;
-      });
-    });
-  }
+  bool isLoading = false; // Yükleniyor dönmesi için
 
-  @override
-  void dispose() {
-    _timer.cancel();
-    _usernameController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
-
-  void _login() {
-    final user = _usernameController.text;
-    final pass = _passwordController.text;
-
-    // Şifre Kontrolü: a / b
-    if (user == 'a' && pass == 'b') {
-      context.go(AppRouters.home); // Başarılıysa Home'a git
-    } else {
-      // Hata Mesajı
+  // --- GERÇEK FIREBASE GİRİŞ FONKSİYONU ---
+  Future<void> _login() async {
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Incorrect username or password!", style: TextStyle(color: Colors.white)),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-        ),
+        const SnackBar(content: Text("Please fill in all fields")),
       );
+      return;
+    }
+
+    setState(() => isLoading = true);
+
+    try {
+      // Firebase'e soruyoruz: Bu kullanıcı var mı?
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+
+      // Giriş başarılıysa Home sayfasına git
+      if (mounted) {
+        context.go(AppRouters.home);
+      }
+    } on FirebaseAuthException catch (e) {
+      // Hata varsa kullanıcıya göster (Örn: Şifre yanlış)
+      String message = "Login failed";
+      if (e.code == 'user-not-found') message = "No user found for that email.";
+      if (e.code == 'wrong-password') message = "Wrong password.";
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Klavye açılınca ekran kayabilsin diye SingleChildScrollView
     return Scaffold(
+      backgroundColor: Colors.black, // Arka plan tamamen siyah
       body: Stack(
-        fit: StackFit.expand,
         children: [
-          // --- 1. ARKA PLAN (Sanki film izleniyor) ---
-          Image.network(
-            "https://m.media-amazon.com/images/M/MV5BMDFkYTc0MGEtZmNhMC00ZDIzLWFmNTEtODM1ZmRlYWMwMWFmXkEyXkFqcGdeQXVyMTMxODk2OTU@._V1_QL75_UX380_CR0,4,380,562_.jpg",
-            fit: BoxFit.cover,
-          ),
-
-          // --- 2. BLUR EFEKTİ (Televizyon hissi) ---
-          BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-            child: Container(
-              color: Colors.black.withOpacity(0.6), // Hafif karartma
+          // 1. ARKA PLAN RESMİ (BLUR EFEKTLİ)
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.network(
+                "https://image.tmdb.org/t/p/original/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg", // Dune Poster
+                fit: BoxFit.cover,
+                errorBuilder: (c, o, s) => Container(color: Colors.black),
+              ),
             ),
           ),
 
-          // --- 3. İÇERİK ---
+          // 2. LOGO VE FORM ALANI
           Center(
-            child: Padding(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.all(24.0),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Logo ve Animasyonlu Yazı
-                  const Icon(Icons.movie_filter, size: 80, color: AppTheme.primaryBlue),
+                  // Logo / Başlık
+                  const Icon(
+                    Icons.movie_filter,
+                    size: 80,
+                    color: AppTheme.primaryBlue,
+                  ),
                   const SizedBox(height: 20),
-                  
-                  // Animasyonlu Yazı (Fade Effect)
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 800),
-                    child: Text(
-                      _loadingTexts[_textIndex],
-                      key: ValueKey<int>(_textIndex),
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 18,
-                        letterSpacing: 2,
-                        fontWeight: FontWeight.w300,
+                  const Text(
+                    "MyMovieList",
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 50),
+
+                  // Email Kutusu
+                  TextField(
+                    controller: _emailController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      prefixIcon: const Icon(
+                        Icons.email,
+                        color: AppTheme.primaryBlue,
+                      ),
+                      hintText: "Email",
+                      hintStyle: const TextStyle(color: Colors.white54),
+                      filled: true,
+                      fillColor: Colors.white.withOpacity(0.1),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
                       ),
                     ),
                   ),
-
-                  const SizedBox(height: 50),
-
-                  // Kullanıcı Adı
-                  TextField(
-                    controller: _usernameController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: Colors.white.withOpacity(0.1),
-                      prefixIcon: const Icon(Icons.person, color: AppTheme.primaryBlue),
-                      hintText: "Username (a)",
-                      hintStyle: const TextStyle(color: Colors.white54),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                    ),
-                  ),
                   const SizedBox(height: 20),
 
-                  // Şifre
+                  // Şifre Kutusu
                   TextField(
                     controller: _passwordController,
-                    obscureText: true,
+                    obscureText: true, // Şifreyi gizle
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
+                      prefixIcon: const Icon(
+                        Icons.lock,
+                        color: AppTheme.primaryBlue,
+                      ),
+                      hintText: "Password",
+                      hintStyle: const TextStyle(color: Colors.white54),
                       filled: true,
                       fillColor: Colors.white.withOpacity(0.1),
-                      prefixIcon: const Icon(Icons.lock, color: AppTheme.primaryBlue),
-                      hintText: "Password (b)",
-                      hintStyle: const TextStyle(color: Colors.white54),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 40),
@@ -148,17 +148,25 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: _login,
+                      onPressed: isLoading
+                          ? null
+                          : _login, // Yükleniyorsa tıklanamaz
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primaryBlue,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 10,
-                        shadowColor: AppTheme.primaryBlue.withOpacity(0.5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                      child: const Text(
-                        "ENTER THEATER",
-                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
+                      child: isLoading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text(
+                              "LOGIN",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                     ),
                   ),
                 ],
