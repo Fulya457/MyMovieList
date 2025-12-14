@@ -1,25 +1,17 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/app/theme.dart';
-import 'firebase_options.dart';
 import 'package:mymovielist/data/movie_manager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase Başlatma
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  await MovieManager.instance.fetchGenres();
+  await Firebase.initializeApp();
 
-  // Ekran Döndürme Ayarları
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ]);
+  await MovieManager.instance.fetchGenres();
+  await MovieManager.instance.fetchNextPageMovies(initial: true);
 
   runApp(const MyApp());
 }
@@ -30,9 +22,21 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
+      title: 'My Movie List',
+      debugShowCheckedModeBanner: false, // <-- DEBUG YAZISINI SİLDİK
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: AppTheme.backgroundBlack,
+        colorScheme: const ColorScheme.dark(
+          primary: AppTheme.primaryBlue,
+          surface: AppTheme.surfaceDark,
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: AppTheme.backgroundBlack,
+          elevation: 0,
+        ),
+      ),
       routerConfig: router,
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
     );
   }
 }

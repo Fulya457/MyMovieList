@@ -7,8 +7,7 @@ import 'package:mymovielist/data/movie_manager.dart' as manager;
 
 // KRİTİK DÜZELTME: manager. öneki ile global sabitlere doğru erişim
 const String TMDB_API_KEY = manager.TMDB_API_KEY;
-const String TMDB_IMAGE_BASE_URL =
-    manager.TMDB_IMAGE_BASE_URL; // <-- Düzeltilmiş erişim
+const String TMDB_IMAGE_BASE_URL = manager.TMDB_IMAGE_BASE_URL;
 
 class GenreService extends ChangeNotifier {
   static final GenreService instance = GenreService._privateConstructor();
@@ -17,9 +16,8 @@ class GenreService extends ChangeNotifier {
   final Map<String, GenreState> _genreStates = {};
   Map<String, int> _genreNameToId = {};
 
-  // Yeni: Her kategori adı için poster URL'sini tutacak harita
   final Map<String, String> _genrePosterUrls = {};
-  Map<String, String> get genrePosterUrls => _genrePosterUrls; // Getter
+  Map<String, String> get genrePosterUrls => _genrePosterUrls;
 
   GenreState getGenreState(String genreName) {
     if (!_genreStates.containsKey(genreName)) {
@@ -37,7 +35,6 @@ class GenreService extends ChangeNotifier {
 
   // Yeni Metot: Kategoriye ait en popüler filmin posterini çekme
   Future<void> fetchGenrePosterUrl(String genreName, int genreId) async {
-    // Eğer poster zaten çekilmişse veya ID 0 ise tekrar çekme
     if (_genrePosterUrls.containsKey(genreName) || genreId == 0) return;
 
     final url = Uri.parse(
@@ -53,12 +50,9 @@ class GenreService extends ChangeNotifier {
         if (results.isNotEmpty) {
           final posterPath = results.first['poster_path'];
           if (posterPath != null) {
-            // KRİTİK DÜZELTME: MovieManager.TMDB_IMAGE_BASE_URL yerine
-            // doğru global sabiti kullanıyoruz
             final fullUrl = TMDB_IMAGE_BASE_URL + posterPath;
             _genrePosterUrls[genreName] = fullUrl;
-            // Poster yüklendiğinde CategoriesView'i güncellemek için notifyListeners ekliyoruz
-            notifyListeners();
+            notifyListeners(); // Poster yüklendiğinde CategoriesView'i güncelle
           }
         }
       }
@@ -67,7 +61,7 @@ class GenreService extends ChangeNotifier {
     }
   }
 
-  // --- FİLM ÇEKME FONKSİYONU (Hata Kontrollü) ---
+  // --- FİLM ÇEKME FONKSİYONU ---
   Future<void> fetchNextPageGenreMovies(
     String genreName, {
     bool initial = false,
@@ -76,7 +70,6 @@ class GenreService extends ChangeNotifier {
     final genreId = _genreNameToId[genreName];
     final String apiKey = TMDB_API_KEY;
 
-    // KRİTİK ID VE API KEY KONTROLÜ
     if (genreId == null ||
         genreId == 0 ||
         apiKey.isEmpty ||

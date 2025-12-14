@@ -3,12 +3,12 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:mymovielist/data/genre_service.dart';
 
-// TMDB API KEY ve URL'ler
-// DİKKAT: Anahtarınızı değiştirmeyin.
+// TMDB API KEY ve URL'ler (GLOBAL)
 const String TMDB_API_KEY = "cea49e6756dd9655a98066426a1b934d";
 const String TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
 const String TMDB_TRAILER_BASE_URL = "https://api.themoviedb.org/3/movie/";
 
+// --- Movie Sınıfı Tanımı ---
 class Movie {
   final int id;
   final String title;
@@ -36,7 +36,6 @@ class Movie {
     List<String> genresList = [];
     final manager = MovieManager.instance;
 
-    // Genre ID'lerini, MovieManager'daki harita ile isimlere çeviriyoruz
     if (json['genre_ids'] is List) {
       for (var id in json['genre_ids']) {
         final genreName = manager._genreMap[id] ?? 'Unknown';
@@ -47,7 +46,6 @@ class Movie {
       genresList.add("Unknown");
     }
 
-    // Rating kontrolü
     double safeRating = 0.0;
     final ratingValue = json['vote_average'];
     if (ratingValue is num) {
@@ -63,7 +61,7 @@ class Movie {
       poster: posterPath.isNotEmpty
           ? TMDB_IMAGE_BASE_URL + posterPath
           : 'https://via.placeholder.com/500x750',
-      genres: genresList.take(2).toList(), // İlk 2 türü al
+      genres: genresList.take(2).toList(),
       plot: json['overview'] ?? 'No description available.',
       actors: ["Loading..."],
       trailerId: '',
@@ -71,19 +69,18 @@ class Movie {
   }
 }
 
+// --- MovieManager Sınıfı ---
 class MovieManager extends ChangeNotifier {
   static final MovieManager instance = MovieManager._privateConstructor();
 
-  // YENİ HARİTA VE GETTER'LAR (CategoriesView ve GenreService için gerekli)
   Map<int, String> _genreMap = {};
-  Map<int, String> get idToNameMap => _genreMap; // GenreService'e erişim için
-  List<String> get allGenreNames =>
-      _genreMap.values.toList(); // CategoriesView için
+  Map<int, String> get idToNameMap => _genreMap;
+  List<String> get allGenreNames => _genreMap.values.toList();
 
   MovieManager._privateConstructor();
 
   final List<Movie> _allMovies = [];
-  final List<Movie> _trendingMovies = []; // Carousel için kullanıyoruz
+  final List<Movie> _trendingMovies = [];
   final List<Movie> _favoriteMovies = [];
 
   int _currentPage = 1;
@@ -91,7 +88,6 @@ class MovieManager extends ChangeNotifier {
   bool _hasMorePages = true;
 
   List<Movie> get allMovies => _allMovies;
-  // Artık Trending Movies listesini sadece ilk sayfadan alıyoruz
   List<Movie> get trendingMovies => _trendingMovies;
   List<Movie> get favoriteMovies => _favoriteMovies;
   bool get isFetching => _isFetching;
@@ -108,9 +104,49 @@ class MovieManager extends ChangeNotifier {
     notifyListeners();
   }
 
+  // --- YENİ METOTLAR: ÖNERİLER İÇİN (TEKRAR BURAYA TAŞINDI) ---
+
+  // 1. 7.5 ve Üzeri Puanlı Filmleri Filtreler
+  List<Movie> get topRatedMovies {
+    return _allMovies.where((movie) => movie.rating >= 7.5).toList();
+  }
+
+  // 2. Kullanıcının Favori Türlerine Göre 5 Rastgele Film Önerir
+  List<Movie> recommendByFavoriteGenres() {
+    if (_favoriteMovies.isEmpty) return [];
+
+    Map<String, int> genreCounts = {};
+    for (var movie in _favoriteMovies) {
+      for (var genre in movie.genres) {
+        genreCounts[genre] = (genreCounts[genre] ?? 0) + 1;
+      }
+    }
+
+    String? topGenre;
+    int maxCount = 0;
+    genreCounts.forEach((genre, count) {
+      if (count > maxCount) {
+        maxCount = count;
+        topGenre = genre;
+      }
+    });
+
+    if (topGenre == null) return [];
+
+    final potentialMovies = _allMovies.where((movie) {
+      return movie.genres.contains(topGenre!) &&
+          !_favoriteMovies.contains(movie);
+    }).toList();
+
+    if (potentialMovies.isEmpty) return [];
+
+    potentialMovies.shuffle();
+    return potentialMovies.take(5).toList();
+  }
+
   // --- 1. TÜM KATEGORİLERİ ÇEKME VE POSTER İSTEĞİNİ BAŞLATMA ---
   Future<void> fetchGenres() async {
-    if (_genreMap.isNotEmpty) return; // Zaten yüklüyse tekrar çekme
+    if (_genreMap.isNotEmpty) return;
 
     final url = Uri.parse(
       'https://api.themoviedb.org/3/genre/movie/list?api_key=$TMDB_API_KEY',
@@ -130,14 +166,8 @@ class MovieManager extends ChangeNotifier {
                 genreJson['id'] as int: genreJson['name'] as String,
           };
 
-          print(
-            'TMDB BAŞARILI: Tür Eşleştirmesi Yüklendi. Boyut: ${_genreMap.length}',
-          );
-
-          // GenreService'e haritayı aktar
           GenreService.instance.setGenreMapping(_genreMap);
 
-          // YENİ: Poster çekimini başlat
           _genreMap.forEach((id, name) {
             GenreService.instance.fetchGenrePosterUrl(name, id);
           });
@@ -150,8 +180,6 @@ class MovieManager extends ChangeNotifier {
 
   // --- 2. ANA LİSTEYİ VE TRENDİNG FİLMLERİ ÇEKME FONKSİYONU ---
   Future<void> fetchNextPageMovies({bool initial = false}) async {
-    // Burada fetchGenres() çağrısı yok, çünkü bu çağrı main.dart'a taşındı.
-
     if (!initial && (_isFetching || !_hasMorePages)) return;
 
     _isFetching = true;
@@ -159,12 +187,11 @@ class MovieManager extends ChangeNotifier {
     if (initial) {
       _currentPage = 1;
       _allMovies.clear();
-      _trendingMovies.clear(); // Trend listesini de temizle
+      _trendingMovies.clear();
       _hasMorePages = true;
     }
 
-    // API anahtarı kontrolü
-    if (TMDB_API_KEY.isEmpty) {
+    if (TMDB_API_KEY.isEmpty || TMDB_API_KEY.contains("YAPIŞTIR")) {
       print(
         'TMDB HATA: Lütfen API anahtarını movie_manager.dart dosyasına girin!',
       );
@@ -189,9 +216,7 @@ class MovieManager extends ChangeNotifier {
 
         _allMovies.addAll(newMovies);
 
-        // İlk sayfa yükleniyorsa, ilk 5-10 filmi Trending listesine ekle
         if (initial) {
-          // Örnek: İlk 10 filmi trending yap
           _trendingMovies.addAll(newMovies.take(10));
         }
 
@@ -201,10 +226,6 @@ class MovieManager extends ChangeNotifier {
         } else {
           _currentPage++;
         }
-
-        print(
-          'TMDB: Sayfa $_currentPage yüklendi. Toplam film: ${_allMovies.length}',
-        );
       } else {
         print('Failed to load movies from TMDB: ${response.statusCode}');
         _hasMorePages = false;
@@ -218,7 +239,7 @@ class MovieManager extends ChangeNotifier {
     }
   }
 
-  // --- DETAY SAYFASI İÇİN: CAST BİLGİSİNİ ÇEKME ---
+  // --- DETAY SAYFASI İÇİN: CAST BİLGİSİNİ ÇEKME (AYNI KALDI)---
   Future<void> fetchCast(Movie movie) async {
     if (movie.actors.isNotEmpty && movie.actors.first != "Loading...") return;
 
@@ -243,7 +264,7 @@ class MovieManager extends ChangeNotifier {
     }
   }
 
-  // --- DETAY SAYFASI İÇİN: FRAGMAN BİLGİSİNİ ÇEKME ---
+  // --- DETAY SAYFASI İÇİN: FRAGMAN BİLGİSİNİ ÇEKME (AYNI KALDI)---
   Future<void> fetchTrailerId(Movie movie) async {
     if (movie.trailerId.isNotEmpty) return;
 
@@ -269,13 +290,11 @@ class MovieManager extends ChangeNotifier {
     }
   }
 
-  // --- DİĞER METOTLAR ---
+  // --- DİĞER METOTLAR (OYUNCU FOTOĞRAFLARI) (AYNI KALDI)---
   final Map<String, String> _actorPhotos = {
-    // ... (Oyuncu fotoğraf listesi)
     "Timothée Chalamet":
         "https://image.tmdb.org/t/p/w500/BE2sdjpgEHr2WlOuto5xSVXH2S.jpg",
     "Zendaya": "https://image.tmdb.org/t/p/w500/cbCibOA1yQOgeqIVMlTPZjNdB4.jpg",
-    // ... (Diğer tüm oyuncu listesi aynı kalmalı)
     "Ryan Reynolds":
         "https://image.tmdb.org/t/p/w500/2752kUofqaFv8dUc2vZ4Q2c0s1Q.jpg",
     "Hugh Jackman":

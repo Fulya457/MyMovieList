@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/data/movie_manager.dart';
 import 'package:mymovielist/views/home_view/movie_detail_view.dart';
-import 'package:mymovielist/views/recommended_view/recommended_view.dart';
 import 'package:mymovielist/app/theme.dart';
 import 'dart:async';
 
@@ -19,8 +18,7 @@ class HomeView extends StatefulWidget {
 class _HomeViewState extends State<HomeView> {
   String searchQuery = "";
   bool isLoading = true;
-  final ScrollController _scrollController =
-      ScrollController(); // KAYDIRMA DENETLEYİCİSİ
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -30,8 +28,6 @@ class _HomeViewState extends State<HomeView> {
   }
 
   void _scrollListener() {
-    // Listenin sonuna yaklaştıysa (son 300 piksel)
-    // Eğer hali hazırda çekim yapılmıyorsa ve daha fazla sayfa varsa çekimi başlat
     final manager = MovieManager.instance;
     if (_scrollController.position.pixels >=
             _scrollController.position.maxScrollExtent - 300 &&
@@ -42,24 +38,18 @@ class _HomeViewState extends State<HomeView> {
   }
 
   Future<void> _loadData() async {
-    // İlk 20 filmi yükle
     try {
-      // İlk 20 filmi yükle
       await MovieManager.instance.fetchNextPageMovies(initial: true);
     } catch (e) {
-      // Hata olsa bile devam et
       print('Movie loading error: $e');
     } finally {
-      // Başarısız olsa bile yükleniyor ekranını kapat
       if (mounted) setState(() => isLoading = false);
     }
   }
 
   @override
   void dispose() {
-    _scrollController.removeListener(
-      _scrollListener,
-    ); // Listener'ı kaldırmayı unutma
+    _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
     super.dispose();
   }
@@ -69,6 +59,54 @@ class _HomeViewState extends State<HomeView> {
     if (mounted) context.go(AppRouters.login);
   }
 
+  // APP BAR İÇERİĞİ TEKRAR ESKİ HALİNE DÖNDÜRÜLDÜ
+  Widget _homeAppBarContent(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.movie_filter_rounded,
+                color: AppTheme.primaryBlue,
+                size: 28,
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                "MY MOVIE LIST", // BÜYÜK HARFE DÖNDÜ
+                style: TextStyle(
+                  color: AppTheme.primaryBlue,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2, // ESKİ STİL EKLENDİ
+                ),
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              // ÖNERİLER SAYFASINA GİTME BUTONU (ŞİMDİLİK AYNI YERİ GÖSTERİYOR AMA İÇERİĞİ ALT MENÜYE TAŞIDIK)
+              IconButton(
+                icon: const Icon(Icons.recommend, color: Colors.amber),
+                onPressed: () {
+                  // Alt menüdeki sekmeye atlamak için context.go kullanıyoruz
+                  context.go(AppRouters.recommends);
+                },
+                tooltip: "For You",
+              ),
+              IconButton(
+                onPressed: _signOut,
+                icon: const Icon(Icons.logout, color: Colors.red),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -76,10 +114,8 @@ class _HomeViewState extends State<HomeView> {
       builder: (context, child) {
         final allMovies = MovieManager.instance.allMovies;
         final trendingMovies = MovieManager.instance.trendingMovies;
-        final isFetching =
-            MovieManager.instance.isFetching; // Yükleniyor durumu
-        final hasMore =
-            MovieManager.instance.hasMorePages; // Daha fazla sayfa var mı?
+        final isFetching = MovieManager.instance.isFetching;
+        final hasMore = MovieManager.instance.hasMorePages;
 
         final filteredMovies = allMovies
             .where(
@@ -99,51 +135,7 @@ class _HomeViewState extends State<HomeView> {
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     children: [
                       // --- BAŞLIK, ÖNERİ VE ÇIKIŞ BUTONLARI ---
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              "MyMovieList",
-                              style: TextStyle(
-                                color: AppTheme.primaryBlue,
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Row(
-                              children: [
-                                // ÖNERİLER SAYFASINA GİTME BUTONU
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.recommend,
-                                    color: Colors.amber,
-                                  ),
-                                  onPressed: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const RecommendedView(),
-                                    ),
-                                  ),
-                                  tooltip: "For You",
-                                ),
-                                IconButton(
-                                  onPressed: _signOut,
-                                  icon: const Icon(
-                                    Icons.logout,
-                                    color: Colors.red,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
+                      _homeAppBarContent(context),
 
                       // --- ARAMA KUTUSU ---
                       Padding(
@@ -173,8 +165,6 @@ class _HomeViewState extends State<HomeView> {
 
                       // --- ÖZEL LİSTELER ---
                       if (!isLoading && searchQuery.isEmpty) ...[
-                        // *** DİKKAT: Kategori Çipleri Listesi Bu Kısımdan Kaldırılmıştır.
-                        // *** Kategori listeleme artık 'CategoriesView' (eski /list rotası) içinde yapılmaktadır.
                         const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 16),
                           child: Row(
@@ -210,12 +200,9 @@ class _HomeViewState extends State<HomeView> {
                           items: trendingMovies
                               .map(
                                 (movie) => GestureDetector(
-                                  onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          MovieDetailView(movie: movie),
-                                    ),
+                                  onTap: () => context.push(
+                                    '/movie-detail',
+                                    extra: movie,
                                   ),
                                   child: Hero(
                                     tag: 'trend_${movie.id}',
@@ -275,13 +262,8 @@ class _HomeViewState extends State<HomeView> {
                               margin: const EdgeInsets.only(bottom: 12),
                               color: AppTheme.surfaceDark,
                               child: ListTile(
-                                onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        MovieDetailView(movie: movie),
-                                  ),
-                                ),
+                                onTap: () =>
+                                    context.push('/movie-detail', extra: movie),
                                 leading: ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
                                   child: Image.network(

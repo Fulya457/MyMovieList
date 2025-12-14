@@ -3,24 +3,22 @@ import 'package:go_router/go_router.dart';
 import 'package:mymovielist/app/theme.dart';
 import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/data/movie_manager.dart';
-import 'package:mymovielist/data/genre_service.dart'; // Poster URL'lerini çekmek için
+import 'package:mymovielist/data/genre_service.dart';
 
 class CategoriesView extends StatelessWidget {
   const CategoriesView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // MovieManager'dan gelen tür isimlerini çekiyoruz
-    final allGenres = MovieManager.instance.allGenreNames;
-
-    // GenreService'i dinleyerek poster URL'lerinin yüklenmesini bekliyoruz
+    // Hem GenreService'i (posterler için) hem de MovieManager'ı (isimler için) dinleyin
     return ListenableBuilder(
       listenable: Listenable.merge([
         GenreService.instance,
-        MovieManager.instance, // <-- Bu satırı ekleyin/kontrol edin
+        MovieManager.instance,
       ]),
       builder: (context, child) {
         final allGenres = MovieManager.instance.allGenreNames;
+
         return Scaffold(
           backgroundColor: AppTheme.backgroundBlack,
           appBar: AppBar(
@@ -80,23 +78,22 @@ class GenreCard extends StatelessWidget {
     // Poster URL'sini GenreService'ten dinamik olarak çekiyoruz
     final imageUrl = GenreService.instance.genrePosterUrls[genreName];
 
-    // Eğer görsel yüklenmemişse veya hala yükleniyorsa
+    // Yükleniyor veya boş durum için placeholder
     Widget imageWidget = imageUrl != null
         ? Image.network(
             imageUrl,
             fit: BoxFit.cover,
             loadingBuilder: (context, child, loadingProgress) {
               if (loadingProgress == null) return child;
-              return Container(
-                color: AppTheme.surfaceDark,
-              ); // Yüklenirken koyu arka plan
+              // Yüklenirken (veya hata verirse) gri alan göster
+              return Container(color: AppTheme.surfaceDark);
             },
             errorBuilder: (c, o, s) =>
                 Container(color: Colors.red.withOpacity(0.5)),
           )
         : Container(
             color: AppTheme.surfaceDark,
-          ); // Poster URL'si yoksa veya yükleniyorsa
+          ); // Poster URL'si henüz gelmediyse
 
     return GestureDetector(
       onTap: onTap,

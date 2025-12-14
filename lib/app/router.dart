@@ -7,6 +7,8 @@ import 'package:mymovielist/views/recommended_view/recommended_view.dart';
 import 'package:mymovielist/views/list_view/list_view.dart';
 import 'package:mymovielist/views/login_view/login_view.dart';
 import 'package:mymovielist/views/categories_view/categories_view.dart';
+import 'package:mymovielist/views/home_view/movie_detail_view.dart';
+import 'package:mymovielist/data/movie_manager.dart';
 
 final _rooterKey = GlobalKey<NavigatorState>();
 
@@ -21,7 +23,7 @@ class AppRouters {
 
 final router = GoRouter(
   navigatorKey: _rooterKey,
-  initialLocation: AppRouters.login, // Açılış sayfası Login
+  initialLocation: AppRouters.login,
   routes: [
     // --- LOGIN ROUTE ---
     GoRoute(
@@ -29,14 +31,24 @@ final router = GoRouter(
       builder: (context, state) => const LoginView(),
     ),
 
-    // --- KATEGORİ FİLM LİSTESİ (SHELL DIŞI) ---
-    // Bu rotayı Shell'in dışına taşıyarak Geri Butonunu aktif hale getiriyoruz.
+    // --- SHELL DIŞI ROTLAR (Geri Butonu Gerekenler) ---
+
+    // KATEGORİ FİLM LİSTESİ (GenreMoviesView)
     GoRoute(
       path: '${AppRouters.list}/:genre',
       name: AppRouters.genreMovies,
       builder: (context, state) {
         final genreName = state.pathParameters['genre']!;
         return GenreMoviesView(genre: genreName);
+      },
+    ),
+
+    // FİLM DETAY SAYFASI (MovieDetailView)
+    GoRoute(
+      path: '/movie-detail',
+      builder: (context, state) {
+        final movie = state.extra;
+        return MovieDetailView(movie: movie as Movie);
       },
     ),
 
@@ -75,7 +87,7 @@ final router = GoRouter(
           ],
         ),
 
-        // BRANCH 4: ÖNERİLER (Index 3)
+        // BRANCH 4: ÖNERİLER (RecommendedView Shell içine geri alındı) (Index 3)
         StatefulShellBranch(
           routes: [
             GoRoute(

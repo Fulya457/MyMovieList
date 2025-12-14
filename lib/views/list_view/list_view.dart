@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // GoRouter eklendi
 import 'package:mymovielist/app/theme.dart';
 import 'package:mymovielist/data/movie_manager.dart';
-import 'package:mymovielist/data/genre_service.dart'; // YENİ SERVİS
-import 'package:mymovielist/views/home_view/movie_detail_view.dart';
+import 'package:mymovielist/data/genre_service.dart';
+import 'package:mymovielist/views/home_view/movie_detail_view.dart'; // Import edildi
 
 class GenreMoviesView extends StatefulWidget {
   final String genre;
@@ -16,7 +17,6 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
   final GenreService _genreService = GenreService.instance;
   late final ScrollController _scrollController;
 
-  // Kategorinin anlık durumunu al
   GenreState get _state => _genreService.getGenreState(widget.genre);
 
   @override
@@ -25,12 +25,10 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
     _scrollController = ScrollController();
     _scrollController.addListener(_scrollListener);
 
-    // İlk 20 filmi yükle
     _genreService.fetchNextPageGenreMovies(widget.genre, initial: true);
   }
 
   void _scrollListener() {
-    // Listenin sonuna yaklaştıysa (son 300 piksel)
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 300) {
       _genreService.fetchNextPageGenreMovies(widget.genre);
@@ -47,7 +45,6 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      // GenreService'daki değişiklikleri dinle
       listenable: _genreService,
       builder: (context, child) {
         final movies = _state.movies;
@@ -58,6 +55,8 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
         return Scaffold(
           backgroundColor: AppTheme.backgroundBlack,
           appBar: AppBar(
+            // Geri butonu burada otomatik görünmelidir.
+            automaticallyImplyLeading: true,
             title: Text(
               widget.genre,
               style: const TextStyle(color: Colors.white),
@@ -117,13 +116,9 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
                         margin: const EdgeInsets.only(bottom: 12),
                         color: AppTheme.surfaceDark,
                         child: ListTile(
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  MovieDetailView(movie: movie),
-                            ),
-                          ),
+                          // KRİTİK DÜZELTME: Navigator.push yerine GoRouter push kullanıyoruz
+                          onTap: () =>
+                              context.push('/movie-detail', extra: movie),
                           leading: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: Image.network(
