@@ -4,12 +4,14 @@ import 'package:flutter/services.dart';
 import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/app/theme.dart';
 import 'firebase_options.dart';
+import 'package:mymovielist/data/movie_manager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Firebase Başlatma
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await MovieManager.instance.fetchGenres();
 
   // Ekran Döndürme Ayarları
   await SystemChrome.setPreferredOrientations([

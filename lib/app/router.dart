@@ -5,10 +5,8 @@ import 'package:mymovielist/views/favorites_view/favorites_view.dart';
 import 'package:mymovielist/views/home_view/home_view.dart';
 import 'package:mymovielist/views/recommended_view/recommended_view.dart';
 import 'package:mymovielist/views/list_view/list_view.dart';
-
-// --- BU SATIRI MUTLAKA EKLE ---
-import 'package:mymovielist/views/login_view/login_view.dart'; 
-// ------------------------------
+import 'package:mymovielist/views/login_view/login_view.dart';
+import 'package:mymovielist/views/categories_view/categories_view.dart';
 
 final _rooterKey = GlobalKey<NavigatorState>();
 
@@ -16,8 +14,9 @@ class AppRouters {
   static const String login = '/login';
   static const String home = '/';
   static const String favorites = '/favorites';
-  static const String list = '/list';
+  static const String list = '/list'; // Categories View rotası
   static const String recommends = '/recommends';
+  static const String genreMovies = 'genre-movies';
 }
 
 final router = GoRouter(
@@ -30,11 +29,23 @@ final router = GoRouter(
       builder: (context, state) => const LoginView(),
     ),
 
-    // --- ANA UYGULAMA ---
+    // --- KATEGORİ FİLM LİSTESİ (SHELL DIŞI) ---
+    // Bu rotayı Shell'in dışına taşıyarak Geri Butonunu aktif hale getiriyoruz.
+    GoRoute(
+      path: '${AppRouters.list}/:genre',
+      name: AppRouters.genreMovies,
+      builder: (context, state) {
+        final genreName = state.pathParameters['genre']!;
+        return GenreMoviesView(genre: genreName);
+      },
+    ),
+
+    // --- ANA UYGULAMA (BOTTOM NAVIGATION BAR) ---
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) =>
           AppView(navigationShell: navigationShell),
       branches: [
+        // BRANCH 1: HOME (Index 0)
         StatefulShellBranch(
           routes: [
             GoRoute(
@@ -43,14 +54,18 @@ final router = GoRouter(
             ),
           ],
         ),
+
+        // BRANCH 2: KATEGORİ SEÇİM EKRANI (/list) (Index 1)
         StatefulShellBranch(
           routes: [
             GoRoute(
-              path: AppRouters.list,
-              builder: (context, state) => const MyListView(),
+              path: AppRouters.list, // Parametresiz /list rotası
+              builder: (context, state) => const CategoriesView(),
             ),
           ],
         ),
+
+        // BRANCH 3: FAVORİLER (Index 2)
         StatefulShellBranch(
           routes: [
             GoRoute(
@@ -59,6 +74,8 @@ final router = GoRouter(
             ),
           ],
         ),
+
+        // BRANCH 4: ÖNERİLER (Index 3)
         StatefulShellBranch(
           routes: [
             GoRoute(

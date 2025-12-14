@@ -1,4 +1,13 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:mymovielist/data/genre_service.dart';
+
+// TMDB API KEY ve URL'ler
+// DİKKAT: Anahtarınızı değiştirmeyin.
+const String TMDB_API_KEY = "cea49e6756dd9655a98066426a1b934d";
+const String TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
+const String TMDB_TRAILER_BASE_URL = "https://api.themoviedb.org/3/movie/";
 
 class Movie {
   final int id;
@@ -7,8 +16,8 @@ class Movie {
   final String poster;
   final List<String> genres;
   final String plot;
-  final List<String> actors;
-  final String trailerId;
+  List<String> actors;
+  String trailerId;
 
   Movie({
     required this.id,
@@ -17,22 +26,78 @@ class Movie {
     required this.poster,
     required this.genres,
     required this.plot,
-    required this.actors,
-    required this.trailerId,
+    this.actors = const ["Loading..."],
+    this.trailerId = '',
   });
+
+  factory Movie.fromTMDB(Map<String, dynamic> json) {
+    String posterPath = json['poster_path'] ?? '';
+
+    List<String> genresList = [];
+    final manager = MovieManager.instance;
+
+    // Genre ID'lerini, MovieManager'daki harita ile isimlere çeviriyoruz
+    if (json['genre_ids'] is List) {
+      for (var id in json['genre_ids']) {
+        final genreName = manager._genreMap[id] ?? 'Unknown';
+        genresList.add(genreName);
+      }
+      if (genresList.isEmpty) genresList.add("Unknown");
+    } else {
+      genresList.add("Unknown");
+    }
+
+    // Rating kontrolü
+    double safeRating = 0.0;
+    final ratingValue = json['vote_average'];
+    if (ratingValue is num) {
+      safeRating = ratingValue.toDouble();
+    } else if (ratingValue is String) {
+      safeRating = double.tryParse(ratingValue) ?? 0.0;
+    }
+
+    return Movie(
+      id: json['id'] ?? 0,
+      title: json['title'] ?? 'Unknown Title',
+      rating: safeRating,
+      poster: posterPath.isNotEmpty
+          ? TMDB_IMAGE_BASE_URL + posterPath
+          : 'https://via.placeholder.com/500x750',
+      genres: genresList.take(2).toList(), // İlk 2 türü al
+      plot: json['overview'] ?? 'No description available.',
+      actors: ["Loading..."],
+      trailerId: '',
+    );
+  }
 }
 
 class MovieManager extends ChangeNotifier {
   static final MovieManager instance = MovieManager._privateConstructor();
+
+  // YENİ HARİTA VE GETTER'LAR (CategoriesView ve GenreService için gerekli)
+  Map<int, String> _genreMap = {};
+  Map<int, String> get idToNameMap => _genreMap; // GenreService'e erişim için
+  List<String> get allGenreNames =>
+      _genreMap.values.toList(); // CategoriesView için
+
   MovieManager._privateConstructor();
 
-  List<Movie> _allMovies = [];
-  List<Movie> _trendingMovies = [];
+  final List<Movie> _allMovies = [];
+  final List<Movie> _trendingMovies = []; // Carousel için kullanıyoruz
   final List<Movie> _favoriteMovies = [];
 
+  int _currentPage = 1;
+  bool _isFetching = false;
+  bool _hasMorePages = true;
+
   List<Movie> get allMovies => _allMovies;
+  // Artık Trending Movies listesini sadece ilk sayfadan alıyoruz
   List<Movie> get trendingMovies => _trendingMovies;
   List<Movie> get favoriteMovies => _favoriteMovies;
+  bool get isFetching => _isFetching;
+  bool get hasMorePages => _hasMorePages;
+
+  bool isFavorite(Movie movie) => _favoriteMovies.contains(movie);
 
   void toggleFavorite(Movie movie) {
     if (_favoriteMovies.contains(movie)) {
@@ -43,16 +108,174 @@ class MovieManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool isFavorite(Movie movie) {
-    return _favoriteMovies.contains(movie);
+  // --- 1. TÜM KATEGORİLERİ ÇEKME VE POSTER İSTEĞİNİ BAŞLATMA ---
+  Future<void> fetchGenres() async {
+    if (_genreMap.isNotEmpty) return; // Zaten yüklüyse tekrar çekme
+
+    final url = Uri.parse(
+      'https://api.themoviedb.org/3/genre/movie/list?api_key=$TMDB_API_KEY',
+    );
+
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        if (data['genres'] is List) {
+          _genreMap = {
+            for (var genreJson in data['genres'])
+              if (genreJson is Map<String, dynamic> &&
+                  genreJson['id'] != null &&
+                  genreJson['name'] != null)
+                genreJson['id'] as int: genreJson['name'] as String,
+          };
+
+          print(
+            'TMDB BAŞARILI: Tür Eşleştirmesi Yüklendi. Boyut: ${_genreMap.length}',
+          );
+
+          // GenreService'e haritayı aktar
+          GenreService.instance.setGenreMapping(_genreMap);
+
+          // YENİ: Poster çekimini başlat
+          _genreMap.forEach((id, name) {
+            GenreService.instance.fetchGenrePosterUrl(name, id);
+          });
+        }
+      }
+    } catch (e) {
+      print('TMDB Genre çekme hatası: $e');
+    }
   }
 
-  // --- 1. OYUNCU FOTOĞRAFLARI (TMDB) ---
+  // --- 2. ANA LİSTEYİ VE TRENDİNG FİLMLERİ ÇEKME FONKSİYONU ---
+  Future<void> fetchNextPageMovies({bool initial = false}) async {
+    // Burada fetchGenres() çağrısı yok, çünkü bu çağrı main.dart'a taşındı.
+
+    if (!initial && (_isFetching || !_hasMorePages)) return;
+
+    _isFetching = true;
+
+    if (initial) {
+      _currentPage = 1;
+      _allMovies.clear();
+      _trendingMovies.clear(); // Trend listesini de temizle
+      _hasMorePages = true;
+    }
+
+    // API anahtarı kontrolü
+    if (TMDB_API_KEY.isEmpty) {
+      print(
+        'TMDB HATA: Lütfen API anahtarını movie_manager.dart dosyasına girin!',
+      );
+      _isFetching = false;
+      notifyListeners();
+      return;
+    }
+
+    final url = Uri.parse(
+      'https://api.themoviedb.org/3/movie/popular?api_key=$TMDB_API_KEY&page=$_currentPage',
+    );
+
+    try {
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        List<Movie> newMovies = (data['results'] as List)
+            .map((json) => Movie.fromTMDB(json))
+            .toList();
+
+        _allMovies.addAll(newMovies);
+
+        // İlk sayfa yükleniyorsa, ilk 5-10 filmi Trending listesine ekle
+        if (initial) {
+          // Örnek: İlk 10 filmi trending yap
+          _trendingMovies.addAll(newMovies.take(10));
+        }
+
+        int totalPages = data['total_pages'] ?? 0;
+        if (_currentPage >= totalPages) {
+          _hasMorePages = false;
+        } else {
+          _currentPage++;
+        }
+
+        print(
+          'TMDB: Sayfa $_currentPage yüklendi. Toplam film: ${_allMovies.length}',
+        );
+      } else {
+        print('Failed to load movies from TMDB: ${response.statusCode}');
+        _hasMorePages = false;
+      }
+    } catch (e) {
+      print('TMDB connection error: $e');
+      _hasMorePages = false;
+    } finally {
+      _isFetching = false;
+      notifyListeners();
+    }
+  }
+
+  // --- DETAY SAYFASI İÇİN: CAST BİLGİSİNİ ÇEKME ---
+  Future<void> fetchCast(Movie movie) async {
+    if (movie.actors.isNotEmpty && movie.actors.first != "Loading...") return;
+
+    final url = Uri.parse(
+      'https://api.themoviedb.org/3/movie/${movie.id}/credits?api_key=$TMDB_API_KEY',
+    );
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      List<String> castNames = [];
+      for (var actor in (data['cast'] as List).take(5)) {
+        castNames.add(actor['name']);
+      }
+
+      if (castNames.isNotEmpty)
+        movie.actors = castNames;
+      else
+        movie.actors = ["Cast Not Found"];
+
+      notifyListeners();
+    }
+  }
+
+  // --- DETAY SAYFASI İÇİN: FRAGMAN BİLGİSİNİ ÇEKME ---
+  Future<void> fetchTrailerId(Movie movie) async {
+    if (movie.trailerId.isNotEmpty) return;
+
+    final url = Uri.parse(
+      'https://api.themoviedb.org/3/movie/${movie.id}/videos?api_key=$TMDB_API_KEY',
+    );
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      var trailer = (data['results'] as List).firstWhere(
+        (video) => video['site'] == 'YouTube' && video['type'] == 'Trailer',
+        orElse: () => null,
+      );
+
+      if (trailer != null) {
+        movie.trailerId = trailer['key'];
+      } else {
+        movie.trailerId = 'dQw4w9WgXcQ';
+      }
+
+      notifyListeners();
+    }
+  }
+
+  // --- DİĞER METOTLAR ---
   final Map<String, String> _actorPhotos = {
-    // Trendler
+    // ... (Oyuncu fotoğraf listesi)
     "Timothée Chalamet":
         "https://image.tmdb.org/t/p/w500/BE2sdjpgEHr2WlOuto5xSVXH2S.jpg",
     "Zendaya": "https://image.tmdb.org/t/p/w500/cbCibOA1yQOgeqIVMlTPZjNdB4.jpg",
+    // ... (Diğer tüm oyuncu listesi aynı kalmalı)
     "Ryan Reynolds":
         "https://image.tmdb.org/t/p/w500/2752kUofqaFv8dUc2vZ4Q2c0s1Q.jpg",
     "Hugh Jackman":
@@ -68,9 +291,7 @@ class MovieManager extends ChangeNotifier {
     "Kirsten Dunst":
         "https://image.tmdb.org/t/p/w500/6Le11J1851Z64m039545452202.jpg",
     "Wagner Moura":
-        "https://image.tmdb.org/t/p/w500/a316223321515151515151.jpg",
-
-    // Klasikler
+        "https://image.tmdb.org/t/p/w500/a316223321515151515151515151.jpg",
     "Tim Robbins":
         "https://image.tmdb.org/t/p/w500/hsCu1JUzQQ4pl7uFxAVFLOs9yHh.jpg",
     "Morgan Freeman":
@@ -82,7 +303,7 @@ class MovieManager extends ChangeNotifier {
     "Christian Bale":
         "https://image.tmdb.org/t/p/w500/b7fTC9WFkgqGOv77mLQzsD24vti.jpg",
     "Heath Ledger":
-        "https://image.tmdb.org/t/p/w500/5Y9Hn3wR9X4e7y7y7y7y7y7y7y.jpg",
+        "https://image.tmdb.org/t/p/w500/5Y9Hn3wR9X4e7y7y7y7y7y7y7y7y.jpg",
     "Leonardo DiCaprio":
         "https://image.tmdb.org/t/p/w500/wo2hJpn04vbtmh0B9utCFdsQhxM.jpg",
     "Joseph Gordon-Levitt":
@@ -120,7 +341,7 @@ class MovieManager extends ChangeNotifier {
     "Joaquin Phoenix":
         "https://image.tmdb.org/t/p/w500/nXMzvVF6xR3OXOedozfOcoA20xh.jpg",
     "Arnold Schwarzenegger":
-        "https://image.tmdb.org/t/p/w500/zEMMy37f7X2C22F5f5f5f5f5f5.jpg",
+        "https://image.tmdb.org/t/p/w500/zEMMy37f7X2C22F5f5f5f5f5f5f5.jpg",
     "Linda Hamilton":
         "https://image.tmdb.org/t/p/w500/fcR33333333333333333333333.jpg",
     "Michael J. Fox":
@@ -133,259 +354,10 @@ class MovieManager extends ChangeNotifier {
         "https://image.tmdb.org/t/p/w500/j6yD23B48657656865758675.jpg",
   };
 
-  // --- 2. FİLM VERİLERİNİ YÜKLEYEN FONKSİYON ---
-  // (Artık HomeView'da değil, burada tanımlıyoruz)
-  void initializeMovies() {
-    if (_allMovies.isNotEmpty) return;
-
-    final List<Movie> trends = [
-      Movie(
-        id: 101,
-        title: "Dune: Part Two",
-        rating: 8.8,
-        poster:
-            "https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg",
-        genres: ["Sci-Fi", "Adventure"],
-        plot:
-            "Paul Atreides unites with Chani and the Fremen while on a warpath of revenge against the conspirators who destroyed his family.",
-        actors: ["Timothée Chalamet", "Zendaya"],
-        trailerId: "Way9Dexny3w",
-      ),
-      Movie(
-        id: 102,
-        title: "Deadpool & Wolverine",
-        rating: 8.2,
-        poster:
-            "https://image.tmdb.org/t/p/w500/8cdWjvZQUExUUTzyp4t6EDMubfO.jpg",
-        genres: ["Action", "Comedy"],
-        plot:
-            "Wolverine is recovering from his injuries when he crosses paths with the loudmouth, Deadpool.",
-        actors: ["Ryan Reynolds", "Hugh Jackman"],
-        trailerId: "73_1biulkYk",
-      ),
-      Movie(
-        id: 103,
-        title: "Oppenheimer",
-        rating: 8.4,
-        poster:
-            "https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg",
-        genres: ["Biography", "Drama"],
-        plot:
-            "The story of American scientist J. Robert Oppenheimer and his role in the development of the atomic bomb.",
-        actors: ["Cillian Murphy", "Emily Blunt"],
-        trailerId: "uYPbbksJxIg",
-      ),
-      Movie(
-        id: 104,
-        title: "Inside Out 2",
-        rating: 7.9,
-        poster:
-            "https://image.tmdb.org/t/p/w500/vpnVM9B6NMmQpWeZvzLvDESb2QY.jpg",
-        genres: ["Animation", "Family"],
-        plot:
-            "Joy, Sadness, Anger, Fear and Disgust have been running a successful operation by all accounts.",
-        actors: ["Amy Poehler", "Maya Hawke"],
-        trailerId: "LEjhY15eCx0",
-      ),
-      Movie(
-        id: 105,
-        title: "Civil War",
-        rating: 7.4,
-        poster:
-            "https://image.tmdb.org/t/p/w500/sh7Rg8Er3tFcN9BpKIPOMvALgZd.jpg",
-        genres: ["Action", "Thriller"],
-        plot:
-            "A journey across a dystopian future America, following a team of military-embedded journalists.",
-        actors: ["Kirsten Dunst", "Wagner Moura"],
-        trailerId: "aDyQxtg0V2w",
-      ),
-    ];
-
-    final List<Movie> classics = [
-      Movie(
-        id: 1,
-        title: "The Shawshank Redemption",
-        rating: 9.3,
-        poster:
-            "https://image.tmdb.org/t/p/w500/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg",
-        genres: ["Drama"],
-        plot: "Two imprisoned men bond over a number of years...",
-        actors: ["Tim Robbins", "Morgan Freeman"],
-        trailerId: "PLl99DlL6b4",
-      ),
-      Movie(
-        id: 2,
-        title: "The Godfather",
-        rating: 9.2,
-        poster:
-            "https://image.tmdb.org/t/p/w500/3bhkrj58Vtu7enYsRolD1fZdja1.jpg",
-        genres: ["Crime", "Drama"],
-        plot:
-            "The aging patriarch of an organized crime dynasty transfers control...",
-        actors: ["Marlon Brando", "Al Pacino"],
-        trailerId: "UaVTIH8mujA",
-      ),
-      Movie(
-        id: 3,
-        title: "The Dark Knight",
-        rating: 9.0,
-        poster:
-            "https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg",
-        genres: ["Action", "Crime"],
-        plot: "When the menace known as the Joker wreaks havoc...",
-        actors: ["Christian Bale", "Heath Ledger"],
-        trailerId: "EXeTwQWrcwY",
-      ),
-      Movie(
-        id: 4,
-        title: "Inception",
-        rating: 8.8,
-        poster:
-            "https://image.tmdb.org/t/p/w500/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg",
-        genres: ["Sci-Fi", "Action"],
-        plot: "A thief who steals corporate secrets through dream-sharing...",
-        actors: ["Leonardo DiCaprio", "Joseph Gordon-Levitt"],
-        trailerId: "YoHD9XEInc0",
-      ),
-      Movie(
-        id: 5,
-        title: "Interstellar",
-        rating: 8.7,
-        poster:
-            "https://image.tmdb.org/t/p/w500/gEU2QniL6E8AHtMY4kO3MIhel72.jpg",
-        genres: ["Adventure", "Sci-Fi"],
-        plot: "A team of explorers travel through a wormhole in space...",
-        actors: ["Matthew McConaughey", "Anne Hathaway"],
-        trailerId: "zSWdZVtXT7E",
-      ),
-      Movie(
-        id: 6,
-        title: "Pulp Fiction",
-        rating: 8.9,
-        poster:
-            "https://image.tmdb.org/t/p/w500/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg",
-        genres: ["Crime", "Drama"],
-        plot:
-            "The lives of two mob hitmen, a boxer, a gangster and his wife...",
-        actors: ["John Travolta", "Uma Thurman"],
-        trailerId: "s7EdQ4FqbhY",
-      ),
-      Movie(
-        id: 7,
-        title: "Fight Club",
-        rating: 8.8,
-        poster:
-            "https://image.tmdb.org/t/p/w500/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg",
-        genres: ["Drama"],
-        plot: "An insomniac office worker and a devil-may-care soapmaker...",
-        actors: ["Brad Pitt", "Edward Norton"],
-        trailerId: "qtRKdVHc-cE",
-      ),
-      Movie(
-        id: 8,
-        title: "Forrest Gump",
-        rating: 8.8,
-        poster:
-            "https://image.tmdb.org/t/p/w500/arw2vcBveWOVZr6pxd9XTd1TdQa.jpg",
-        genres: ["Drama", "Romance"],
-        plot:
-            "The presidencies of Kennedy and Johnson, the events of Vietnam...",
-        actors: ["Tom Hanks", "Robin Wright"],
-        trailerId: "bLvqoHBptjg",
-      ),
-      Movie(
-        id: 9,
-        title: "The Matrix",
-        rating: 8.7,
-        poster:
-            "https://image.tmdb.org/t/p/w500/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg",
-        genres: ["Action", "Sci-Fi"],
-        plot: "A computer hacker learns from mysterious rebels...",
-        actors: ["Keanu Reeves", "Laurence Fishburne"],
-        trailerId: "vKQi3bBA1y8",
-      ),
-      Movie(
-        id: 10,
-        title: "Lord of the Rings: ROTK",
-        rating: 9.0,
-        poster:
-            "https://image.tmdb.org/t/p/w500/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg",
-        genres: ["Adventure", "Fantasy"],
-        plot: "Gandalf and Aragorn lead the World of Men...",
-        actors: ["Elijah Wood", "Viggo Mortensen"],
-        trailerId: "r5X-hFf6Bwo",
-      ),
-      Movie(
-        id: 11,
-        title: "Star Wars: Empire Strikes Back",
-        rating: 8.7,
-        poster:
-            "https://image.tmdb.org/t/p/w500/20F670LS2q28gbd8nyq6G89AMEL.jpg",
-        genres: ["Action", "Adventure"],
-        plot: "After the Rebels are brutally overpowered by the Empire...",
-        actors: ["Mark Hamill", "Harrison Ford"],
-        trailerId: "JNwNXF9Y6kY",
-      ),
-      Movie(
-        id: 12,
-        title: "Gladiator",
-        rating: 8.5,
-        poster:
-            "https://image.tmdb.org/t/p/w500/ty8TGRuvJLPUmAR1H1nRIsgwvim.jpg",
-        genres: ["Action", "Drama"],
-        plot: "A former Roman General sets out to exact vengeance...",
-        actors: ["Russell Crowe", "Joaquin Phoenix"],
-        trailerId: "P5ieIbInFpg",
-      ),
-      Movie(
-        id: 13,
-        title: "The Lion King",
-        rating: 8.5,
-        poster:
-            "https://image.tmdb.org/t/p/w500/sKCr78MX80vByHill2l7plb1bjd.jpg",
-        genres: ["Animation", "Drama"],
-        plot:
-            "Lion prince Simba and his father are targeted by his bitter uncle...",
-        actors: ["Matthew Broderick", "Jeremy Irons"],
-        trailerId: "7TavVZMewpY",
-      ),
-      Movie(
-        id: 14,
-        title: "Back to the Future",
-        rating: 8.5,
-        poster:
-            "https://image.tmdb.org/t/p/w500/fNOH9f1aA7XRTzl1sA1xaU0nTAL.jpg",
-        genres: ["Adventure", "Comedy"],
-        plot: "Marty McFly, a 17-year-old high school student...",
-        actors: ["Michael J. Fox", "Christopher Lloyd"],
-        trailerId: "qvsgGtivCgs",
-      ),
-      Movie(
-        id: 15,
-        title: "Terminator 2",
-        rating: 8.6,
-        poster:
-            "https://image.tmdb.org/t/p/w500/vqo3953M9W8x0q3F3RY4R6f05k6.jpg",
-        genres: ["Action", "Sci-Fi"],
-        plot:
-            "A cyborg, identical to the one who failed to kill Sarah Connor...",
-        actors: ["Arnold Schwarzenegger", "Linda Hamilton"],
-        trailerId: "IwQiA-XjXU0",
-      ),
-    ];
-
-    _trendingMovies = trends;
-    _allMovies = [...trends, ...classics];
-    notifyListeners();
-  }
-
   Map<String, String> getActorDetails(String actorName) {
     String bio =
         "$actorName is a world-renowned actor known for their versatility and charismatic screen presence. They have starred in numerous blockbuster films and received critical acclaim for their performances.";
-
-    // İsmi eşleştirirken boşluk hatası varsa düzelt (Trim)
     String cleanName = actorName.trim();
-
     String photo =
         _actorPhotos[cleanName] ??
         "https://ui-avatars.com/api/?name=${Uri.encodeComponent(cleanName)}&background=0D8ABC&color=fff&size=512&bold=true";

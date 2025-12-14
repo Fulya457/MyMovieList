@@ -27,7 +27,9 @@ class _RecommendedViewState extends State<RecommendedView> {
   Future<void> _calculateRecommendations() async {
     final allMovies = MovieManager.instance.allMovies;
     if (allMovies.isEmpty) {
-      MovieManager.instance.initializeMovies(); // Garanti olsun
+      await MovieManager.instance.fetchNextPageMovies(
+        initial: true,
+      ); // Garanti olsun
     }
 
     // 1. KULLANICI PUANLARINA GÖRE SIRALAMA (YELLOW STAR)

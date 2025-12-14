@@ -5,8 +5,9 @@ import 'package:go_router/go_router.dart';
 import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/data/movie_manager.dart';
 import 'package:mymovielist/views/home_view/movie_detail_view.dart';
-import 'package:mymovielist/views/recommended_view/recommended_view.dart'; // YENİ SAYFAYI EKLEMEK İÇİN
+import 'package:mymovielist/views/recommended_view/recommended_view.dart';
 import 'package:mymovielist/app/theme.dart';
+import 'dart:async';
 
 class HomeView extends StatefulWidget {
   const HomeView({super.key});
@@ -18,17 +19,49 @@ class HomeView extends StatefulWidget {
 class _HomeViewState extends State<HomeView> {
   String searchQuery = "";
   bool isLoading = true;
+  final ScrollController _scrollController =
+      ScrollController(); // KAYDIRMA DENETLEYİCİSİ
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _scrollController.addListener(_scrollListener);
+  }
+
+  void _scrollListener() {
+    // Listenin sonuna yaklaştıysa (son 300 piksel)
+    // Eğer hali hazırda çekim yapılmıyorsa ve daha fazla sayfa varsa çekimi başlat
+    final manager = MovieManager.instance;
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 300 &&
+        !manager.isFetching &&
+        manager.hasMorePages) {
+      manager.fetchNextPageMovies();
+    }
   }
 
   Future<void> _loadData() async {
-    MovieManager.instance.initializeMovies();
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (mounted) setState(() => isLoading = false);
+    // İlk 20 filmi yükle
+    try {
+      // İlk 20 filmi yükle
+      await MovieManager.instance.fetchNextPageMovies(initial: true);
+    } catch (e) {
+      // Hata olsa bile devam et
+      print('Movie loading error: $e');
+    } finally {
+      // Başarısız olsa bile yükleniyor ekranını kapat
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(
+      _scrollListener,
+    ); // Listener'ı kaldırmayı unutma
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _signOut() async {
@@ -43,6 +76,10 @@ class _HomeViewState extends State<HomeView> {
       builder: (context, child) {
         final allMovies = MovieManager.instance.allMovies;
         final trendingMovies = MovieManager.instance.trendingMovies;
+        final isFetching =
+            MovieManager.instance.isFetching; // Yükleniyor durumu
+        final hasMore =
+            MovieManager.instance.hasMorePages; // Daha fazla sayfa var mı?
 
         final filteredMovies = allMovies
             .where(
@@ -58,8 +95,10 @@ class _HomeViewState extends State<HomeView> {
               children: [
                 Expanded(
                   child: ListView(
+                    controller: _scrollController,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     children: [
+                      // --- BAŞLIK, ÖNERİ VE ÇIKIŞ BUTONLARI ---
                       Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -78,7 +117,7 @@ class _HomeViewState extends State<HomeView> {
                             ),
                             Row(
                               children: [
-                                // ÖNERİLER SAYFASINA GİTME BUTONU (GEÇİCİ OLARAK BURAYA KOYDUM)
+                                // ÖNERİLER SAYFASINA GİTME BUTONU
                                 IconButton(
                                   icon: const Icon(
                                     Icons.recommend,
@@ -106,6 +145,7 @@ class _HomeViewState extends State<HomeView> {
                         ),
                       ),
 
+                      // --- ARAMA KUTUSU ---
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: TextField(
@@ -131,7 +171,10 @@ class _HomeViewState extends State<HomeView> {
                       ),
                       const SizedBox(height: 20),
 
+                      // --- ÖZEL LİSTELER ---
                       if (!isLoading && searchQuery.isEmpty) ...[
+                        // *** DİKKAT: Kategori Çipleri Listesi Bu Kısımdan Kaldırılmıştır.
+                        // *** Kategori listeleme artık 'CategoriesView' (eski /list rotası) içinde yapılmaktadır.
                         const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 16),
                           child: Row(
@@ -155,6 +198,7 @@ class _HomeViewState extends State<HomeView> {
                           ),
                         ),
                         const SizedBox(height: 15),
+                        // --- CAROUSEL SLIDER ---
                         CarouselSlider(
                           options: CarouselOptions(
                             height: 400.0,
@@ -205,6 +249,7 @@ class _HomeViewState extends State<HomeView> {
                         const SizedBox(height: 10),
                       ],
 
+                      // --- YÜKLENİYOR İNDİKATÖRÜ ---
                       if (isLoading)
                         const Center(
                           child: CircularProgressIndicator(
@@ -219,71 +264,90 @@ class _HomeViewState extends State<HomeView> {
                           ),
                         )
                       else
-                        ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: filteredMovies.length,
-                          itemBuilder: (context, index) {
-                            final movie = filteredMovies[index];
-                            final isFav = MovieManager.instance.isFavorite(
-                              movie,
-                            );
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                              child: Card(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                color: AppTheme.surfaceDark,
-                                child: ListTile(
-                                  onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          MovieDetailView(movie: movie),
-                                    ),
-                                  ),
-                                  leading: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Image.network(
-                                      movie.poster,
-                                      width: 50,
-                                      height: 75,
-                                      fit: BoxFit.cover,
-                                      alignment: Alignment.topCenter,
-                                    ),
-                                  ),
-                                  title: Text(
-                                    movie.title,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  subtitle: Text(
-                                    '${movie.genres.first} • ⭐ ${movie.rating}',
-                                    style: TextStyle(
-                                      color: AppTheme.primaryBlue.withOpacity(
-                                        0.8,
-                                      ),
-                                    ),
-                                  ),
-                                  trailing: IconButton(
-                                    icon: Icon(
-                                      isFav
-                                          ? Icons.favorite
-                                          : Icons.favorite_border,
-                                      color: isFav
-                                          ? AppTheme.primaryBlue
-                                          : Colors.grey,
-                                    ),
-                                    onPressed: () => MovieManager.instance
-                                        .toggleFavorite(movie),
+                        // --- TÜM FİLMLER LİSTESİ (Sonsuz Kaydırma ile) ---
+                        ...List.generate(filteredMovies.length, (index) {
+                          final movie = filteredMovies[index];
+                          final isFav = MovieManager.instance.isFavorite(movie);
+
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Card(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              color: AppTheme.surfaceDark,
+                              child: ListTile(
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        MovieDetailView(movie: movie),
                                   ),
                                 ),
+                                leading: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.network(
+                                    movie.poster,
+                                    width: 50,
+                                    height: 75,
+                                    fit: BoxFit.cover,
+                                    alignment: Alignment.topCenter,
+                                  ),
+                                ),
+                                title: Text(
+                                  movie.title,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  '${movie.genres.first} • ⭐ ${movie.rating}',
+                                  style: TextStyle(
+                                    color: AppTheme.primaryBlue.withOpacity(
+                                      0.8,
+                                    ),
+                                  ),
+                                ),
+                                trailing: IconButton(
+                                  icon: Icon(
+                                    isFav
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    color: isFav
+                                        ? AppTheme.primaryBlue
+                                        : Colors.grey,
+                                  ),
+                                  onPressed: () => MovieManager.instance
+                                      .toggleFavorite(movie),
+                                ),
                               ),
-                            );
-                          },
+                            ),
+                          );
+                        }),
+
+                      // --- KAYDIRMA İNDİKATÖRÜ ---
+                      if (isFetching && hasMore && searchQuery.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: AppTheme.primaryBlue,
+                            ),
+                          ),
+                        ),
+
+                      // --- LİSTE SONU MESAJI ---
+                      if (!hasMore &&
+                          !isLoading &&
+                          filteredMovies.isNotEmpty &&
+                          searchQuery.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: Center(
+                            child: Text(
+                              'You have reached the end of the movie list.',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
                         ),
                     ],
                   ),

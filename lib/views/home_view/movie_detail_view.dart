@@ -24,6 +24,14 @@ class _MovieDetailViewState extends State<MovieDetailView> {
   @override
   void initState() {
     super.initState();
+
+    // --- YENİ EKLENEN/GÜNCELLENEN KISIM ---
+    // Filmin detay bilgileri (Cast ve Fragman ID'si) API'den çekilir.
+    // MovieManager, bu bilgileri çekip Movie objesini güncelleyecek.
+    MovieManager.instance.fetchCast(widget.movie);
+    MovieManager.instance.fetchTrailerId(widget.movie);
+
+    // Başlangıçta controller'ı mevcut (veya ilk boş) ID ile başlat
     _controller = YoutubePlayerController(
       initialVideoId: widget.movie.trailerId,
       flags: const YoutubePlayerFlags(
@@ -32,6 +40,17 @@ class _MovieDetailViewState extends State<MovieDetailView> {
         forceHD: true,
       ),
     );
+    // -------------------------------------
+  }
+
+  // Fragman ID'si API'den çekildikten sonra controller'ı güncelle (Çok önemli!)
+  @override
+  void didUpdateWidget(covariant MovieDetailView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.movie.trailerId.isNotEmpty &&
+        widget.movie.trailerId != _controller.initialVideoId) {
+      _controller.load(widget.movie.trailerId);
+    }
   }
 
   @override
@@ -49,6 +68,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
     return total / docs.length;
   }
 
+  // --- YORUM EKLEME VEYA DÜZENLEME MODALI ---
   void _showReviewModal(
     BuildContext context, {
     DocumentSnapshot? existingReview,
@@ -187,6 +207,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
     );
   }
 
+  // --- YANITLARI GÖSTERME VE EKLEME MODALI ---
   void _showRepliesModal(
     BuildContext context,
     String reviewId,
@@ -326,464 +347,529 @@ class _MovieDetailViewState extends State<MovieDetailView> {
 
   @override
   Widget build(BuildContext context) {
-    return YoutubePlayerBuilder(
-      player: YoutubePlayer(
-        controller: _controller,
-        showVideoProgressIndicator: true,
-        progressIndicatorColor: AppTheme.primaryBlue,
-      ),
-      builder: (context, player) {
-        return Scaffold(
-          backgroundColor: AppTheme.backgroundBlack,
-          appBar: AppBar(
-            title: Text(widget.movie.title),
-            backgroundColor: Colors.transparent,
-            iconTheme: const IconThemeData(color: AppTheme.primaryBlue),
-          ),
-          floatingActionButton: FloatingActionButton.extended(
-            onPressed: () => _showReviewModal(context),
-            backgroundColor: AppTheme.primaryBlue,
-            icon: const Icon(Icons.rate_review, color: Colors.white),
-            label: const Text(
-              "Rate Movie",
-              style: TextStyle(color: Colors.white),
+    // --- YENİ EKLENEN/GÜNCELLENEN KISIM: MovieManager'ı Dinleme ---
+    return ListenableBuilder(
+      listenable: MovieManager.instance,
+      builder: (context, child) {
+        // Fragman ID'si yüklenmediyse yer tutucu ID kullan (Rick Astley videosu)
+        String videoId = widget.movie.trailerId.isNotEmpty
+            ? widget.movie.trailerId
+            : 'dQw4w9WgXcQ';
+
+        // Eğer controller'ın ID'si çekilen ID'den farklıysa (yeni çekim yapıldıysa), controller'ı yeniden yükle.
+        // Bu, initState sonrası API çağrısından sonra video oynatıcısının güncellenmesini sağlar.
+        if (_controller.initialVideoId != videoId) {
+          _controller = YoutubePlayerController(
+            initialVideoId: videoId,
+            flags: const YoutubePlayerFlags(
+              autoPlay: false,
+              mute: false,
+              forceHD: true,
             ),
+          );
+        }
+
+        return YoutubePlayerBuilder(
+          player: YoutubePlayer(
+            controller: _controller,
+            showVideoProgressIndicator: true,
+            progressIndicatorColor: AppTheme.primaryBlue,
           ),
-          body: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  color: Colors.black,
-                  child: widget.movie.trailerId.isNotEmpty
-                      ? player
-                      : const SizedBox(height: 200),
+          builder: (context, player) {
+            return Scaffold(
+              backgroundColor: AppTheme.backgroundBlack,
+              appBar: AppBar(
+                title: Text(widget.movie.title),
+                backgroundColor: Colors.transparent,
+                iconTheme: const IconThemeData(color: AppTheme.primaryBlue),
+              ),
+              floatingActionButton: FloatingActionButton.extended(
+                onPressed: () => _showReviewModal(context),
+                backgroundColor: AppTheme.primaryBlue,
+                icon: const Icon(Icons.rate_review, color: Colors.white),
+                label: const Text(
+                  "Rate Movie",
+                  style: TextStyle(color: Colors.white),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Hero(
-                            tag: 'poster_${widget.movie.id}',
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.network(
-                                widget.movie.poster,
-                                width: 100,
-                                height: 150,
-                                fit: BoxFit.cover,
+              ),
+              body: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // --- FRAGMAN ALANI ---
+                    Container(
+                      color: Colors.black,
+                      child: widget.movie.trailerId.isNotEmpty
+                          ? player
+                          : const SizedBox(
+                              height: 200,
+                              child: Center(
+                                child: Text(
+                                  "Loading Trailer...",
+                                  style: TextStyle(color: Colors.grey),
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  widget.movie.title,
-                                  style: const TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
+                    ),
+
+                    // -----------------------
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Hero(
+                                tag: 'poster_${widget.movie.id}',
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.network(
+                                    widget.movie.poster,
+                                    width: 100,
+                                    height: 150,
+                                    fit: BoxFit.cover,
                                   ),
                                 ),
-                                const SizedBox(height: 10),
-                                Row(
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Icon(
-                                      Icons.star,
-                                      color: AppTheme.primaryBlue,
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 5),
                                     Text(
-                                      "IMDb: ${widget.movie.rating}",
+                                      widget.movie.title,
                                       style: const TextStyle(
-                                        fontSize: 16,
-                                        color: AppTheme.primaryBlue,
+                                        fontSize: 24,
                                         fontWeight: FontWeight.bold,
+                                        color: Colors.white,
                                       ),
                                     ),
-                                  ],
-                                ),
-                                const SizedBox(height: 5),
-                                StreamBuilder<QuerySnapshot>(
-                                  stream: _reviewService.getReviews(
-                                    widget.movie.id,
-                                  ),
-                                  builder: (context, snapshot) {
-                                    if (!snapshot.hasData)
-                                      return const Text(
-                                        "Loading...",
-                                        style: TextStyle(color: Colors.grey),
-                                      );
-                                    final docs = snapshot.data!.docs;
-                                    final avg = _calculateAverage(docs);
-                                    return Row(
+                                    const SizedBox(height: 10),
+                                    // IMDb Puanı
+                                    Row(
                                       children: [
                                         const Icon(
                                           Icons.star,
-                                          color: Colors.amber,
+                                          color: AppTheme.primaryBlue,
                                           size: 20,
                                         ),
                                         const SizedBox(width: 5),
                                         Text(
-                                          docs.isEmpty
-                                              ? "No User Rating"
-                                              : "User: ${avg.toStringAsFixed(1)} (${docs.length} votes)",
+                                          "IMDb: ${widget.movie.rating}",
                                           style: const TextStyle(
                                             fontSize: 16,
-                                            color: Colors.amber,
+                                            color: AppTheme.primaryBlue,
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
                                       ],
-                                    );
-                                  },
+                                    ),
+                                    const SizedBox(height: 5),
+                                    // Kullanıcı Puanı
+                                    StreamBuilder<QuerySnapshot>(
+                                      stream: _reviewService.getReviews(
+                                        widget.movie.id,
+                                      ),
+                                      builder: (context, snapshot) {
+                                        if (!snapshot.hasData)
+                                          return const Text(
+                                            "Loading...",
+                                            style: TextStyle(
+                                              color: Colors.grey,
+                                            ),
+                                          );
+                                        final docs = snapshot.data!.docs;
+                                        final avg = _calculateAverage(docs);
+                                        return Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.star,
+                                              color: Colors.amber,
+                                              size: 20,
+                                            ),
+                                            const SizedBox(width: 5),
+                                            Text(
+                                              docs.isEmpty
+                                                  ? "No User Rating"
+                                                  : "User: ${avg.toStringAsFixed(1)} (${docs.length} votes)",
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                color: Colors.amber,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      Wrap(
-                        spacing: 8,
-                        children: widget.movie.genres
-                            .map(
-                              (genre) => ActionChip(
-                                label: Text(genre),
-                                backgroundColor: const Color(0xFF333333),
-                                labelStyle: const TextStyle(
-                                  color: AppTheme.primaryBlue,
-                                ),
-                                side: BorderSide.none,
-                                onPressed: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        GenreMoviesView(genre: genre),
-                                  ),
-                                ),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                      const SizedBox(height: 20),
-                      const Text(
-                        "Plot",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        widget.movie.plot,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          height: 1.5,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      const Text(
-                        "Cast",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        height: 60,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: widget.movie.actors.length,
-                          itemBuilder: (context, index) {
-                            final actorName = widget.movie.actors[index];
-                            return GestureDetector(
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      ActorDetailView(actorName: actorName),
-                                ),
-                              ),
-                              child: Container(
-                                margin: const EdgeInsets.only(right: 10),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 10,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF333333),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: Colors.white10),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    actorName,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w500,
+                          const SizedBox(height: 20),
+                          // Kategoriler
+                          Wrap(
+                            spacing: 8,
+                            children: widget.movie.genres
+                                .map(
+                                  (genre) => ActionChip(
+                                    label: Text(genre),
+                                    backgroundColor: const Color(0xFF333333),
+                                    labelStyle: const TextStyle(
+                                      color: AppTheme.primaryBlue,
+                                    ),
+                                    side: BorderSide.none,
+                                    onPressed: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            GenreMoviesView(genre: genre),
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
+                                )
+                                .toList(),
+                          ),
+                          const SizedBox(height: 20),
+                          const Text(
+                            "Plot",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            widget.movie.plot,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              height: 1.5,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          // --- OYUNCULAR (DİNAMİK) ---
+                          const Text(
+                            "Cast",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            height: 60,
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: widget.movie.actors.length,
+                              itemBuilder: (context, index) {
+                                final actorName = widget.movie.actors[index];
 
-                      const SizedBox(height: 30),
-                      const Divider(color: Colors.grey),
-                      const Text(
-                        "Community Reviews",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
+                                // Oyuncu verisi çekilirken "Loading..." göster
+                                if (actorName == "Loading...") {
+                                  return const Center(
+                                    child: Text(
+                                      "Loading Cast...",
+                                      style: TextStyle(color: Colors.grey),
+                                    ),
+                                  );
+                                }
 
-                      StreamBuilder<QuerySnapshot>(
-                        stream: _reviewService.getReviews(widget.movie.id),
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting)
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          if (!snapshot.hasData || snapshot.data!.docs.isEmpty)
-                            return const Padding(
-                              padding: EdgeInsets.all(20),
-                              child: Center(
-                                child: Text(
-                                  "No reviews yet. Be the first!",
-                                  style: TextStyle(color: Colors.grey),
-                                ),
-                              ),
-                            );
-
-                          return ListView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: snapshot.data!.docs.length,
-                            itemBuilder: (context, index) {
-                              final doc = snapshot.data!.docs[index];
-                              final data = doc.data() as Map<String, dynamic>;
-                              List<dynamic> likes = data.containsKey('likes')
-                                  ? data['likes']
-                                  : [];
-                              final bool isLiked = likes.contains(
-                                currentUserId,
-                              );
-                              final bool isMyReview =
-                                  data['userId'] == currentUserId;
-                              final bool isEdited =
-                                  data.containsKey('isEdited') &&
-                                  data['isEdited'] == true;
-                              // YANIT SAYISI
-                              final int replyCount =
-                                  data.containsKey('replyCount')
-                                  ? data['replyCount']
-                                  : 0;
-
-                              return Card(
-                                color: const Color(0xFF1E1E1E),
-                                margin: const EdgeInsets.only(bottom: 10),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12.0),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          CircleAvatar(
-                                            backgroundColor: isMyReview
-                                                ? AppTheme.primaryBlue
-                                                : Colors.grey,
-                                            radius: 12,
-                                            child: Text(
-                                              data['userName'][0].toUpperCase(),
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            data['userName'],
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          if (isEdited)
-                                            const Text(
-                                              " (edited)",
-                                              style: TextStyle(
-                                                color: Colors.grey,
-                                                fontSize: 10,
-                                                fontStyle: FontStyle.italic,
-                                              ),
-                                            ),
-                                          const Spacer(),
-                                          const Icon(
-                                            Icons.star,
-                                            color: Colors.amber,
-                                            size: 16,
-                                          ),
-                                          Text(
-                                            " ${data['rating']}",
-                                            style: const TextStyle(
-                                              color: Colors.amber,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        data['comment'],
+                                return GestureDetector(
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          ActorDetailView(actorName: actorName),
+                                    ),
+                                  ),
+                                  child: Container(
+                                    margin: const EdgeInsets.only(right: 10),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF333333),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(color: Colors.white10),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        actorName,
                                         style: const TextStyle(
-                                          color: Colors.white70,
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w500,
                                         ),
                                       ),
-                                      const SizedBox(height: 12),
-                                      Row(
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+
+                          // --------------------------
+                          const SizedBox(height: 30),
+                          const Divider(color: Colors.grey),
+                          const Text(
+                            "Community Reviews",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          // Yorum Listesi
+                          StreamBuilder<QuerySnapshot>(
+                            stream: _reviewService.getReviews(widget.movie.id),
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState ==
+                                  ConnectionState.waiting)
+                                return const Center(
+                                  child: CircularProgressIndicator(),
+                                );
+                              if (!snapshot.hasData ||
+                                  snapshot.data!.docs.isEmpty)
+                                return const Padding(
+                                  padding: EdgeInsets.all(20),
+                                  child: Center(
+                                    child: Text(
+                                      "No reviews yet. Be the first!",
+                                      style: TextStyle(color: Colors.grey),
+                                    ),
+                                  ),
+                                );
+
+                              return ListView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: snapshot.data!.docs.length,
+                                itemBuilder: (context, index) {
+                                  final doc = snapshot.data!.docs[index];
+                                  final data =
+                                      doc.data() as Map<String, dynamic>;
+                                  List<dynamic> likes =
+                                      data.containsKey('likes')
+                                      ? data['likes']
+                                      : [];
+                                  final bool isLiked = likes.contains(
+                                    currentUserId,
+                                  );
+                                  final bool isMyReview =
+                                      data['userId'] == currentUserId;
+                                  final bool isEdited =
+                                      data.containsKey('isEdited') &&
+                                      data['isEdited'] == true;
+                                  // YANIT SAYISI
+                                  final int replyCount =
+                                      data.containsKey('replyCount')
+                                      ? (data['replyCount'] as num).toInt()
+                                      : 0;
+
+                                  return Card(
+                                    color: const Color(0xFF1E1E1E),
+                                    margin: const EdgeInsets.only(bottom: 10),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12.0),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          GestureDetector(
-                                            onTap: () =>
-                                                _reviewService.toggleLike(
-                                                  widget.movie.id,
-                                                  doc.id,
-                                                  likes,
-                                                ),
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  isLiked
-                                                      ? Icons.favorite
-                                                      : Icons.favorite_border,
-                                                  color: isLiked
-                                                      ? Colors.red
-                                                      : Colors.grey,
-                                                  size: 20,
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  "${likes.length}",
+                                          Row(
+                                            children: [
+                                              CircleAvatar(
+                                                backgroundColor: isMyReview
+                                                    ? AppTheme.primaryBlue
+                                                    : Colors.grey,
+                                                radius: 12,
+                                                child: Text(
+                                                  data['userName'][0]
+                                                      .toUpperCase(),
                                                   style: const TextStyle(
-                                                    color: Colors.grey,
+                                                    fontSize: 12,
+                                                    color: Colors.white,
                                                   ),
                                                 ),
-                                              ],
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                data['userName'],
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              if (isEdited)
+                                                const Text(
+                                                  " (edited)",
+                                                  style: TextStyle(
+                                                    color: Colors.grey,
+                                                    fontSize: 10,
+                                                    fontStyle: FontStyle.italic,
+                                                  ),
+                                                ),
+                                              const Spacer(),
+                                              const Icon(
+                                                Icons.star,
+                                                color: Colors.amber,
+                                                size: 16,
+                                              ),
+                                              Text(
+                                                " ${data['rating']}",
+                                                style: const TextStyle(
+                                                  color: Colors.amber,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            data['comment'],
+                                            style: const TextStyle(
+                                              color: Colors.white70,
                                             ),
                                           ),
-                                          const SizedBox(width: 20),
-                                          GestureDetector(
-                                            onTap: () => _showRepliesModal(
-                                              context,
-                                              doc.id,
-                                              data['comment'],
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                const Icon(
-                                                  Icons.chat_bubble_outline,
-                                                  color: Colors.grey,
-                                                  size: 20,
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  "Reply",
-                                                  style: const TextStyle(
-                                                    color: Colors.grey,
-                                                  ),
-                                                ),
-                                                // --- YENİ: YANIT SAYACI GÖSTERGESİ ---
-                                                if (replyCount > 0)
-                                                  Container(
-                                                    margin:
-                                                        const EdgeInsets.only(
-                                                          left: 6,
-                                                        ),
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 6,
-                                                          vertical: 2,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.blueGrey,
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            10,
-                                                          ),
+                                          const SizedBox(height: 12),
+                                          Row(
+                                            children: [
+                                              // BEĞENİ BUTONU
+                                              GestureDetector(
+                                                onTap: () =>
+                                                    _reviewService.toggleLike(
+                                                      widget.movie.id,
+                                                      doc.id,
+                                                      likes,
                                                     ),
-                                                    child: Text(
-                                                      "$replyCount",
+                                                child: Row(
+                                                  children: [
+                                                    Icon(
+                                                      isLiked
+                                                          ? Icons.favorite
+                                                          : Icons
+                                                                .favorite_border,
+                                                      color: isLiked
+                                                          ? Colors.red
+                                                          : Colors.grey,
+                                                      size: 20,
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      "${likes.length}",
                                                       style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 10,
+                                                        color: Colors.grey,
                                                       ),
                                                     ),
-                                                  ),
-                                              ],
-                                            ),
-                                          ),
-                                          const Spacer(),
-                                          if (isMyReview)
-                                            GestureDetector(
-                                              onTap: () => _showReviewModal(
-                                                context,
-                                                existingReview: doc,
+                                                  ],
+                                                ),
                                               ),
-                                              child: const Row(
-                                                children: [
-                                                  Icon(
-                                                    Icons.edit,
-                                                    color: AppTheme.primaryBlue,
-                                                    size: 18,
-                                                  ),
-                                                  SizedBox(width: 4),
-                                                  Text(
-                                                    "Edit",
-                                                    style: TextStyle(
-                                                      color:
-                                                          AppTheme.primaryBlue,
+                                              const SizedBox(width: 20),
+                                              // YANITLA BUTONU (ve Sayacı)
+                                              GestureDetector(
+                                                onTap: () => _showRepliesModal(
+                                                  context,
+                                                  doc.id,
+                                                  data['comment'],
+                                                ),
+                                                child: Row(
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.chat_bubble_outline,
+                                                      color: Colors.grey,
+                                                      size: 20,
                                                     ),
-                                                  ),
-                                                ],
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      "Reply",
+                                                      style: const TextStyle(
+                                                        color: Colors.grey,
+                                                      ),
+                                                    ),
+                                                    // YANIT SAYACI GÖSTERGESİ
+                                                    if (replyCount > 0)
+                                                      Container(
+                                                        margin:
+                                                            const EdgeInsets.only(
+                                                              left: 6,
+                                                            ),
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 6,
+                                                              vertical: 2,
+                                                            ),
+                                                        decoration: BoxDecoration(
+                                                          color:
+                                                              Colors.blueGrey,
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                10,
+                                                              ),
+                                                        ),
+                                                        child: Text(
+                                                          "$replyCount",
+                                                          style:
+                                                              const TextStyle(
+                                                                color: Colors
+                                                                    .white,
+                                                                fontSize: 10,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
                                               ),
-                                            ),
+                                              const Spacer(),
+                                              // DÜZENLE BUTONU
+                                              if (isMyReview)
+                                                GestureDetector(
+                                                  onTap: () => _showReviewModal(
+                                                    context,
+                                                    existingReview: doc,
+                                                  ),
+                                                  child: const Row(
+                                                    children: [
+                                                      Icon(
+                                                        Icons.edit,
+                                                        color: AppTheme
+                                                            .primaryBlue,
+                                                        size: 18,
+                                                      ),
+                                                      SizedBox(width: 4),
+                                                      Text(
+                                                        "Edit",
+                                                        style: TextStyle(
+                                                          color: AppTheme
+                                                              .primaryBlue,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
                                         ],
                                       ),
-                                    ],
-                                  ),
-                                ),
+                                    ),
+                                  );
+                                },
                               );
                             },
-                          );
-                        },
+                          ),
+                          const SizedBox(height: 80),
+                        ],
                       ),
-                      const SizedBox(height: 80),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
