@@ -3,15 +3,28 @@ import 'package:go_router/go_router.dart';
 import 'package:mymovielist/app/theme.dart';
 import 'package:mymovielist/data/movie_manager.dart';
 
-class RecommendedView extends StatelessWidget {
+class RecommendedView extends StatefulWidget {
   const RecommendedView({super.key});
+
+  @override
+  State<RecommendedView> createState() => _RecommendedViewState();
+}
+
+class _RecommendedViewState extends State<RecommendedView> {
+  @override
+  void initState() {
+    super.initState();
+    // Sayfa açıldığında Firestore'dan Top Rated listesini çek
+    MovieManager.instance.fetchAppTopRatedMovies();
+  }
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: MovieManager.instance,
       builder: (context, child) {
-        final topRated = MovieManager.instance.topRatedMovies;
+        // ARTIK TMDB DEĞİL, UYGULAMA İÇİ PUANLARI ALIYORUZ
+        final appTopRated = MovieManager.instance.appTopRatedMovies;
         final recommendedByGenre = MovieManager.instance
             .recommendByFavoriteGenres();
 
@@ -26,15 +39,23 @@ class RecommendedView extends StatelessWidget {
               ),
             ),
             backgroundColor: AppTheme.backgroundBlack,
-            // Alt menü sekmesi olduğu için geri butonu gelmez (AppView içinde)
           ),
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              // --- 1. KISIM: 7.5 ÜZERİ FİLMLER ---
-              _buildSectionTitle(context, 'Top Rated (7.5+)', Icons.star_half),
+              // --- 1. KISIM: KULLANICI PUANLI FİLMLER ---
+              _buildSectionTitle(
+                context,
+                'Users\' Choice (App Rated > 6)',
+                Icons.stars,
+              ),
               const SizedBox(height: 10),
-              _buildMovieList(context, topRated, 'No movies rated 7.5+ found.'),
+              // Eğer liste boşsa kullanıcıya bilgi ver
+              _buildMovieList(
+                context,
+                appTopRated,
+                'No ratings yet. Rate some movies to see them here!',
+              ),
 
               const SizedBox(height: 30),
 
@@ -59,7 +80,6 @@ class RecommendedView extends StatelessWidget {
     );
   }
 
-  // Yardımcı Başlık Widget'ı
   Widget _buildSectionTitle(BuildContext context, String title, IconData icon) {
     return Row(
       children: [
@@ -77,7 +97,6 @@ class RecommendedView extends StatelessWidget {
     );
   }
 
-  // Yardımcı Film Listesi Widget'ı
   Widget _buildMovieList(
     BuildContext context,
     List<Movie> movies,
@@ -86,7 +105,19 @@ class RecommendedView extends StatelessWidget {
     if (movies.isEmpty) {
       return Padding(
         padding: const EdgeInsets.only(top: 10),
-        child: Text(emptyMessage, style: const TextStyle(color: Colors.grey)),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppTheme.surfaceDark,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.withOpacity(0.3)),
+          ),
+          child: Text(
+            emptyMessage,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.grey),
+          ),
+        ),
       );
     }
 
@@ -113,9 +144,20 @@ class RecommendedView extends StatelessWidget {
                 movie.title,
                 style: const TextStyle(color: Colors.white),
               ),
-              subtitle: Text(
-                '${movie.genres.first} • ⭐ ${movie.rating.toStringAsFixed(1)}',
-                style: TextStyle(color: AppTheme.primaryBlue.withOpacity(0.8)),
+              subtitle: Row(
+                children: [
+                  Text(
+                    '${movie.genres.isNotEmpty ? movie.genres.first : 'Movie'}',
+                    style: TextStyle(
+                      color: AppTheme.primaryBlue.withOpacity(0.8),
+                    ),
+                  ),
+                  if (movie.appRating != null && movie.appRating! > 0)
+                    Text(
+                      ' • ⭐ ${movie.appRating!.toStringAsFixed(1)} (App)',
+                      style: const TextStyle(color: Colors.amber, fontSize: 12),
+                    ),
+                ],
               ),
               trailing: IconButton(
                 icon: Icon(
