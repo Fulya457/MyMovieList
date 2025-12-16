@@ -1,5 +1,3 @@
-// lib/views/recommended_view/recommended_view.dart dosyasının FULL HALİ
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mymovielist/app/theme.dart';
@@ -28,7 +26,7 @@ class RecommendedView extends StatelessWidget {
               ),
             ),
             backgroundColor: AppTheme.backgroundBlack,
-            iconTheme: const IconThemeData(color: AppTheme.primaryBlue),
+            // Alt menü sekmesi olduğu için geri butonu gelmez (AppView içinde)
           ),
           body: ListView(
             padding: const EdgeInsets.all(16),
@@ -116,7 +114,7 @@ class RecommendedView extends StatelessWidget {
                 style: const TextStyle(color: Colors.white),
               ),
               subtitle: Text(
-                '${movie.genres.first} • ⭐ ${movie.rating}',
+                '${movie.genres.first} • ⭐ ${movie.rating.toStringAsFixed(1)}',
                 style: TextStyle(color: AppTheme.primaryBlue.withOpacity(0.8)),
               ),
               trailing: IconButton(

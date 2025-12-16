@@ -1,12 +1,13 @@
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/data/movie_manager.dart';
 import 'package:mymovielist/views/home_view/movie_detail_view.dart';
 import 'package:mymovielist/app/theme.dart';
-import 'dart:async';
+import 'dart:async'; // Timer için gerekli
 
 class HomeView extends StatefulWidget {
   const HomeView({super.key});
@@ -20,6 +21,9 @@ class _HomeViewState extends State<HomeView> {
   bool isLoading = true;
   final ScrollController _scrollController = ScrollController();
 
+  // YENİ: Debounce (Gecikme) için Timer
+  Timer? _searchDebounce;
+
   @override
   void initState() {
     super.initState();
@@ -29,7 +33,9 @@ class _HomeViewState extends State<HomeView> {
 
   void _scrollListener() {
     final manager = MovieManager.instance;
-    if (_scrollController.position.pixels >=
+    // Arama yaparken sonsuz kaydırmayı devre dışı bırakıyoruz
+    if (searchQuery.isEmpty &&
+        _scrollController.position.pixels >=
             _scrollController.position.maxScrollExtent - 300 &&
         !manager.isFetching &&
         manager.hasMorePages) {
@@ -40,6 +46,7 @@ class _HomeViewState extends State<HomeView> {
   Future<void> _loadData() async {
     try {
       await MovieManager.instance.fetchNextPageMovies(initial: true);
+      await MovieManager.instance.loadFavoritesFromFirebase();
     } catch (e) {
       print('Movie loading error: $e');
     } finally {
@@ -47,11 +54,35 @@ class _HomeViewState extends State<HomeView> {
     }
   }
 
+  // YENİ: Arama metnini yöneten fonksiyon
+  void _onSearchChanged(String query) {
+    setState(() {
+      searchQuery = query;
+    });
+
+    // Varsa önceki zamanlayıcıyı iptal et
+    if (_searchDebounce?.isActive ?? false) _searchDebounce!.cancel();
+
+    // Yeni zamanlayıcı başlat (500ms sonra API isteği atar)
+    _searchDebounce = Timer(const Duration(milliseconds: 500), () {
+      MovieManager.instance.searchMovies(query);
+    });
+  }
+
   @override
   void dispose() {
     _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
+    _searchDebounce?.cancel(); // Timer'ı temizle
     super.dispose();
+  }
+
+  String _getMemberName() {
+    final email = FirebaseAuth.instance.currentUser?.email ?? 'Kullanıcı';
+    if (email.contains('@')) {
+      return email.substring(0, email.indexOf('@'));
+    }
+    return 'Kullanıcı';
   }
 
   Future<void> _signOut() async {
@@ -59,8 +90,8 @@ class _HomeViewState extends State<HomeView> {
     if (mounted) context.go(AppRouters.login);
   }
 
-  // APP BAR İÇERİĞİ TEKRAR ESKİ HALİNE DÖNDÜRÜLDÜ
   Widget _homeAppBarContent(BuildContext context) {
+    final memberName = _getMemberName();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
@@ -75,26 +106,33 @@ class _HomeViewState extends State<HomeView> {
               ),
               const SizedBox(width: 8),
               const Text(
-                "MY MOVIE LIST", // BÜYÜK HARFE DÖNDÜ
+                "MY MOVIE LIST",
                 style: TextStyle(
                   color: AppTheme.primaryBlue,
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2, // ESKİ STİL EKLENDİ
+                  letterSpacing: 1.2,
                 ),
               ),
             ],
           ),
           Row(
             children: [
-              // ÖNERİLER SAYFASINA GİTME BUTONU (ŞİMDİLİK AYNI YERİ GÖSTERİYOR AMA İÇERİĞİ ALT MENÜYE TAŞIDIK)
-              IconButton(
-                icon: const Icon(Icons.recommend, color: Colors.amber),
-                onPressed: () {
-                  // Alt menüdeki sekmeye atlamak için context.go kullanıyoruz
-                  context.go(AppRouters.recommends);
+              GestureDetector(
+                onTap: () {
+                  context.push(AppRouters.profile);
                 },
-                tooltip: "For You",
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 12.0),
+                  child: Text(
+                    memberName,
+                    style: const TextStyle(
+                      color: Colors.amber,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ),
               IconButton(
                 onPressed: _signOut,
@@ -114,15 +152,14 @@ class _HomeViewState extends State<HomeView> {
       builder: (context, child) {
         final allMovies = MovieManager.instance.allMovies;
         final trendingMovies = MovieManager.instance.trendingMovies;
+        // YENİ: Arama sonuçlarını al
+        final searchResults = MovieManager.instance.searchResults;
         final isFetching = MovieManager.instance.isFetching;
         final hasMore = MovieManager.instance.hasMorePages;
 
-        final filteredMovies = allMovies
-            .where(
-              (movie) =>
-                  movie.title.toLowerCase().contains(searchQuery.toLowerCase()),
-            )
-            .toList();
+        // Arama yapılıyorsa gösterilecek liste: searchResults
+        // Yapılmıyorsa: allMovies
+        final moviesToShow = searchQuery.isNotEmpty ? searchResults : allMovies;
 
         return Scaffold(
           resizeToAvoidBottomInset: false,
@@ -134,15 +171,14 @@ class _HomeViewState extends State<HomeView> {
                     controller: _scrollController,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     children: [
-                      // --- BAŞLIK, ÖNERİ VE ÇIKIŞ BUTONLARI ---
                       _homeAppBarContent(context),
 
-                      // --- ARAMA KUTUSU ---
+                      // --- ARAMA KUTUSU (GÜNCELLENDİ) ---
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: TextField(
-                          onChanged: (value) =>
-                              setState(() => searchQuery = value),
+                          onChanged:
+                              _onSearchChanged, // Yeni fonksiyon bağlandı
                           style: const TextStyle(color: Colors.white),
                           cursorColor: AppTheme.primaryBlue,
                           decoration: InputDecoration(
@@ -156,15 +192,29 @@ class _HomeViewState extends State<HomeView> {
                               Icons.search,
                               color: AppTheme.primaryBlue,
                             ),
-                            hintText: 'Search movies...',
+                            // Temizleme butonu eklendi
+                            suffixIcon: searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(
+                                      Icons.clear,
+                                      color: Colors.grey,
+                                    ),
+                                    onPressed: () {
+                                      // Metni temizle ve aramayı sıfırla
+                                      _onSearchChanged("");
+                                      // Klavye odağını kaybetmek istersen: FocusScope.of(context).unfocus();
+                                    },
+                                  )
+                                : null,
+                            hintText: 'Search movies (API)...',
                             hintStyle: const TextStyle(color: Colors.grey),
                           ),
                         ),
                       ),
                       const SizedBox(height: 20),
 
-                      // --- ÖZEL LİSTELER ---
-                      if (!isLoading && searchQuery.isEmpty) ...[
+                      // --- EĞER ARAMA YAPILIYORSA TRENDLERİ GİZLE ---
+                      if (searchQuery.isEmpty && !isLoading) ...[
                         const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 16),
                           child: Row(
@@ -188,7 +238,6 @@ class _HomeViewState extends State<HomeView> {
                           ),
                         ),
                         const SizedBox(height: 15),
-                        // --- CAROUSEL SLIDER ---
                         CarouselSlider(
                           options: CarouselOptions(
                             height: 400.0,
@@ -234,26 +283,44 @@ class _HomeViewState extends State<HomeView> {
                           ),
                         ),
                         const SizedBox(height: 10),
+                      ] else if (searchQuery.isNotEmpty) ...[
+                        // Arama yapılırken başlık
+                        const Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          child: Text(
+                            "SEARCH RESULTS",
+                            style: TextStyle(
+                              color: AppTheme.primaryBlue,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
                       ],
 
-                      // --- YÜKLENİYOR İNDİKATÖRÜ ---
+                      // --- YÜKLENİYOR ---
                       if (isLoading)
                         const Center(
                           child: CircularProgressIndicator(
                             color: AppTheme.primaryBlue,
                           ),
                         )
-                      else if (filteredMovies.isEmpty)
-                        const Center(
+                      else if (moviesToShow.isEmpty)
+                        Center(
                           child: Text(
-                            'No movies found.',
-                            style: TextStyle(color: Colors.grey),
+                            searchQuery.isNotEmpty
+                                ? 'No movies found for "$searchQuery".'
+                                : 'No movies found.',
+                            style: const TextStyle(color: Colors.grey),
                           ),
                         )
                       else
-                        // --- TÜM FİLMLER LİSTESİ (Sonsuz Kaydırma ile) ---
-                        ...List.generate(filteredMovies.length, (index) {
-                          final movie = filteredMovies[index];
+                        // --- FİLM LİSTESİ (Arama veya Normal) ---
+                        ...List.generate(moviesToShow.length, (index) {
+                          final movie = moviesToShow[index];
                           final isFav = MovieManager.instance.isFavorite(movie);
 
                           return Padding(
@@ -272,6 +339,13 @@ class _HomeViewState extends State<HomeView> {
                                     height: 75,
                                     fit: BoxFit.cover,
                                     alignment: Alignment.topCenter,
+                                    // Hatalı resim kontrolü
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            const Icon(
+                                              Icons.movie,
+                                              color: Colors.grey,
+                                            ),
                                   ),
                                 ),
                                 title: Text(
@@ -282,7 +356,7 @@ class _HomeViewState extends State<HomeView> {
                                   ),
                                 ),
                                 subtitle: Text(
-                                  '${movie.genres.first} • ⭐ ${movie.rating}',
+                                  '${movie.genres.isNotEmpty ? movie.genres.first : 'Unknown'} • ⭐ ${movie.rating.toStringAsFixed(1)}',
                                   style: TextStyle(
                                     color: AppTheme.primaryBlue.withOpacity(
                                       0.8,
@@ -306,28 +380,13 @@ class _HomeViewState extends State<HomeView> {
                           );
                         }),
 
-                      // --- KAYDIRMA İNDİKATÖRÜ ---
+                      // --- SAYFALAMA SADECE NORMAL MODDA ÇALIŞIR ---
                       if (isFetching && hasMore && searchQuery.isEmpty)
                         const Padding(
                           padding: EdgeInsets.all(16.0),
                           child: Center(
                             child: CircularProgressIndicator(
                               color: AppTheme.primaryBlue,
-                            ),
-                          ),
-                        ),
-
-                      // --- LİSTE SONU MESAJI ---
-                      if (!hasMore &&
-                          !isLoading &&
-                          filteredMovies.isNotEmpty &&
-                          searchQuery.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.all(16.0),
-                          child: Center(
-                            child: Text(
-                              'You have reached the end of the movie list.',
-                              style: TextStyle(color: Colors.grey),
                             ),
                           ),
                         ),

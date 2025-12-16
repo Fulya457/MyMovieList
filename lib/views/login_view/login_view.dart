@@ -1,8 +1,20 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
+import 'dart:ui'; // Blur efekti için
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+// cloud_firestore importuna bu sayfada artık gerek yok
 import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/app/theme.dart';
+import 'package:video_player/video_player.dart';
+
+// Mailden üye ismini çıkaran yardımcı fonksiyon
+String _getMemberName(String email) {
+  if (email.contains('@')) {
+    return email.substring(0, email.indexOf('@'));
+  }
+  return 'Kullanıcı';
+}
 
 class LoginView extends StatefulWidget {
   const LoginView({super.key});
@@ -12,163 +24,298 @@ class LoginView extends StatefulWidget {
 }
 
 class _LoginViewState extends State<LoginView> {
-  // Kullanıcının yazdıklarını tutan denetleyiciler
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  bool isLoading = false;
 
-  bool isLoading = false; // Yükleniyor dönmesi için
+  // --- VİDEO VE ANİMASYON DEĞİŞKENLERİ ---
+  late VideoPlayerController _videoController;
+  int _currentSloganIndex = 0;
+  Timer? _sloganTimer;
 
-  // --- GERÇEK FIREBASE GİRİŞ FONKSİYONU ---
-  Future<void> _login() async {
-    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill in all fields")),
-      );
+  final List<String> _slogans = [
+    "Sınırsız Eğlence",
+    "I'm gonna make him an offer he can't refuse.",
+    "Favorilerini Keşfet",
+    "May the Force be with you.",
+    "Sinema Cebinizde",
+    "To infinity and beyond!",
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeVideo();
+    _startSloganRotation();
+  }
+
+  void _initializeVideo() {
+    // NOT: Kendi videonuz için: VideoPlayerController.asset('assets/intro_video.mp4')
+    _videoController =
+        VideoPlayerController.networkUrl(
+            Uri.parse(
+              'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+            ),
+          )
+          ..initialize().then((_) {
+            _videoController.setVolume(0.0);
+            _videoController.setLooping(true);
+            _videoController.play();
+            setState(() {});
+          });
+  }
+
+  void _startSloganRotation() {
+    _sloganTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
+      if (mounted) {
+        setState(() {
+          _currentSloganIndex = (_currentSloganIndex + 1) % _slogans.length;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _videoController.dispose();
+    _sloganTimer?.cancel();
+    super.dispose();
+  }
+
+  // --- ARTIK SADECE STANDART GİRİŞ YAPAN FONKSİYON ---
+  Future<void> _signIn() async {
+    final String email = _emailController.text.trim();
+    final String password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      _showErrorDialog("Lütfen tüm alanları doldurunuz.");
       return;
     }
 
     setState(() => isLoading = true);
 
     try {
-      // Firebase'e soruyoruz: Bu kullanıcı var mı?
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
+      // SADECE FIREBASE AUTH KONTROLÜ
+      final UserCredential userCredential = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: email, password: password);
 
-      // Giriş başarılıysa Home sayfasına git
-      if (mounted) {
-        context.go(AppRouters.home);
+      final User? user = userCredential.user;
+
+      if (user != null) {
+        // Giriş Başarılı!
+        // Firestore kontrolü yok, veritabanı güncellemesi yok.
+        // Doğrudan Welcome Screen'e git.
+
+        final memberName = _getMemberName(email);
+        if (mounted) context.go(AppRouters.welcome, extra: memberName);
       }
     } on FirebaseAuthException catch (e) {
-      // Hata varsa kullanıcıya göster (Örn: Şifre yanlış)
-      String message = "Login failed";
-      if (e.code == 'user-not-found') message = "No user found for that email.";
-      if (e.code == 'wrong-password') message = "Wrong password.";
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message), backgroundColor: Colors.red),
-        );
+      String message = 'Giriş hatası.';
+      if (e.code == 'user-not-found' || e.code == 'wrong-password') {
+        message = 'Kullanıcı adı veya şifre hatalı.';
+      } else if (e.code == 'invalid-email') {
+        message = 'Geçersiz e-posta formatı.';
       }
+      _showErrorDialog(message);
+    } catch (e) {
+      _showErrorDialog('Beklenmeyen hata: $e');
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
   }
 
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.black.withOpacity(0.8),
+        title: const Text('Hata', style: TextStyle(color: Colors.red)),
+        content: Text(message, style: const TextStyle(color: Colors.white)),
+        actions: <Widget>[
+          TextButton(
+            child: const Text('Tamam', style: TextStyle(color: Colors.amber)),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Klavye açılınca ekran kayabilsin diye SingleChildScrollView
     return Scaffold(
-      backgroundColor: Colors.black, // Arka plan tamamen siyah
+      resizeToAvoidBottomInset: false,
+      backgroundColor: AppTheme.backgroundBlack,
       body: Stack(
         children: [
-          // 1. ARKA PLAN RESMİ (BLUR EFEKTLİ)
-          Positioned.fill(
-            child: Opacity(
-              opacity: 0.5,
-              child: Image.network(
-                "https://image.tmdb.org/t/p/original/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg", // Dune Poster
+          // KATMAN 1: VİDEO ARKA PLAN
+          if (_videoController.value.isInitialized)
+            SizedBox.expand(
+              child: FittedBox(
                 fit: BoxFit.cover,
-                errorBuilder: (c, o, s) => Container(color: Colors.black),
+                child: SizedBox(
+                  width: _videoController.value.size.width,
+                  height: _videoController.value.size.height,
+                  child: VideoPlayer(_videoController),
+                ),
               ),
+            )
+          else
+            Container(
+              color: AppTheme.backgroundBlack,
+              child: const Center(
+                child: CircularProgressIndicator(color: AppTheme.primaryBlue),
+              ),
+            ),
+
+          // KATMAN 2: BLUR
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
+              child: Container(color: Colors.black.withOpacity(0.5)),
             ),
           ),
 
-          // 2. LOGO VE FORM ALANI
+          // KATMAN 3: İÇERİK
           Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
+              padding: const EdgeInsets.all(32.0),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Logo / Başlık
                   const Icon(
-                    Icons.movie_filter,
-                    size: 80,
+                    Icons.movie_filter_rounded,
                     color: AppTheme.primaryBlue,
+                    size: 60,
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 10),
                   const Text(
-                    "MyMovieList",
+                    'MyMovieList',
                     style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 36,
+                      fontWeight: FontWeight.w900,
                       color: Colors.white,
-                      letterSpacing: 2,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 30,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 800),
+                      transitionBuilder:
+                          (Widget child, Animation<double> animation) {
+                            return FadeTransition(
+                              opacity: animation,
+                              child: child,
+                            );
+                          },
+                      child: Text(
+                        _slogans[_currentSloganIndex],
+                        key: ValueKey<int>(_currentSloganIndex),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontStyle: FontStyle.italic,
+                          color: Colors.amber,
+                          fontWeight: FontWeight.w500,
+                          shadows: [
+                            Shadow(
+                              blurRadius: 5,
+                              color: Colors.black,
+                              offset: Offset(1, 1),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 50),
-
-                  // Email Kutusu
                   TextField(
                     controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
+                      hintText: 'Email',
+                      hintStyle: TextStyle(
+                        color: Colors.white.withOpacity(0.5),
+                      ),
+                      filled: true,
+                      fillColor: Colors.white.withOpacity(0.1),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: BorderSide.none,
+                      ),
                       prefixIcon: const Icon(
                         Icons.email,
                         color: AppTheme.primaryBlue,
                       ),
-                      hintText: "Email",
-                      hintStyle: const TextStyle(color: Colors.white54),
-                      filled: true,
-                      fillColor: Colors.white.withOpacity(0.1),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
                     ),
                   ),
                   const SizedBox(height: 20),
-
-                  // Şifre Kutusu
                   TextField(
                     controller: _passwordController,
-                    obscureText: true, // Şifreyi gizle
+                    obscureText: true,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
+                      hintText: 'Password',
+                      hintStyle: TextStyle(
+                        color: Colors.white.withOpacity(0.5),
+                      ),
+                      filled: true,
+                      fillColor: Colors.white.withOpacity(0.1),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: BorderSide.none,
+                      ),
                       prefixIcon: const Icon(
                         Icons.lock,
                         color: AppTheme.primaryBlue,
                       ),
-                      hintText: "Password",
-                      hintStyle: const TextStyle(color: Colors.white54),
-                      filled: true,
-                      fillColor: Colors.white.withOpacity(0.1),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
                     ),
                   ),
                   const SizedBox(height: 40),
-
-                  // Giriş Butonu
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: isLoading
-                          ? null
-                          : _login, // Yükleniyorsa tıklanamaz
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryBlue,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: isLoading
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text(
-                              "LOGIN",
+                  isLoading
+                      ? const CircularProgressIndicator(
+                          color: AppTheme.primaryBlue,
+                        )
+                      : Container(
+                          width: double.infinity,
+                          height: 55,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [AppTheme.primaryBlue, Color(0xFF1E88E5)],
+                            ),
+                            borderRadius: BorderRadius.circular(15),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.primaryBlue.withOpacity(0.4),
+                                blurRadius: 10,
+                                offset: const Offset(0, 5),
+                              ),
+                            ],
+                          ),
+                          child: ElevatedButton(
+                            onPressed: _signIn,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shadowColor: Colors.transparent,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                            ),
+                            child: const Text(
+                              'GİRİŞ YAP',
                               style: TextStyle(
-                                color: Colors.white,
                                 fontSize: 18,
+                                color: Colors.white,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                    ),
-                  ),
+                          ),
+                        ),
                 ],
               ),
             ),

@@ -9,11 +9,15 @@ import 'package:mymovielist/views/login_view/login_view.dart';
 import 'package:mymovielist/views/categories_view/categories_view.dart';
 import 'package:mymovielist/views/home_view/movie_detail_view.dart';
 import 'package:mymovielist/data/movie_manager.dart';
+import 'package:mymovielist/views/login_view/welcome_screen.dart'; // YENİ
+import 'package:mymovielist/views/profile_view/profile_view.dart'; // YENİ
 
 final _rooterKey = GlobalKey<NavigatorState>();
 
 class AppRouters {
   static const String login = '/login';
+  static const String welcome = '/welcome'; // YENİ ROTA
+  static const String profile = '/profile'; // YENİ ROTA
   static const String home = '/';
   static const String favorites = '/favorites';
   static const String list = '/list'; // Categories View rotası
@@ -31,9 +35,22 @@ final router = GoRouter(
       builder: (context, state) => const LoginView(),
     ),
 
-    // --- SHELL DIŞI ROTLAR (Geri Butonu Gerekenler) ---
+    // --- WELCOME SCREEN ROUTE (YENİ) ---
+    GoRoute(
+      path: AppRouters.welcome,
+      builder: (context, state) {
+        final userName = state.extra as String; // Login'den gelen kullanıcı adı
+        return WelcomeScreen(userName: userName);
+      },
+    ),
 
-    // KATEGORİ FİLM LİSTESİ (GenreMoviesView)
+    // --- PROFILE ROUTE (YENİ) ---
+    GoRoute(
+      path: AppRouters.profile,
+      builder: (context, state) => const ProfileView(),
+    ),
+
+    // --- SHELL DIŞI ROTLAR (Geri Butonu Gerekenler) ---
     GoRoute(
       path: '${AppRouters.list}/:genre',
       name: AppRouters.genreMovies,
@@ -43,7 +60,6 @@ final router = GoRouter(
       },
     ),
 
-    // FİLM DETAY SAYFASI (MovieDetailView)
     GoRoute(
       path: '/movie-detail',
       builder: (context, state) {
