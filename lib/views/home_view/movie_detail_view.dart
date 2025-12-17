@@ -48,7 +48,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
     super.dispose();
   }
 
-  // --- LİSTEYE EKLEME PENCERESİ ---
   void _showAddToListSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -346,7 +345,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
       body: AnimatedBuilder(
         animation: MovieManager.instance,
         builder: (context, child) {
-          // Favori durumunu kontrol et
           final isFav = MovieManager.instance.isFavorite(widget.movie);
 
           return CustomScrollView(
@@ -360,7 +358,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                   onPressed: () => context.pop(),
                 ),
                 actions: [
-                  // --- BURAYA FAVORİ BUTONU EKLENDİ ---
                   IconButton(
                     icon: Icon(
                       isFav ? Icons.favorite : Icons.favorite_border,
@@ -368,11 +365,9 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                       size: 28,
                     ),
                     onPressed: () {
-                      // Basınca favoriyi değiştir, AnimatedBuilder sayfayı yenileyecek
                       MovieManager.instance.toggleFavorite(widget.movie);
                     },
                   ),
-                  // ------------------------------------
                   IconButton(
                     icon: const Icon(
                       Icons.playlist_add,
@@ -398,13 +393,19 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                   background: Stack(
                     fit: StackFit.expand,
                     children: [
-                      CachedNetworkImage(
-                        imageUrl: widget.movie.poster,
-                        fit: BoxFit.cover,
-                        placeholder: (c, u) =>
-                            Container(color: AppTheme.surfaceDark),
-                        errorWidget: (c, o, s) => Container(color: Colors.grey),
+                      // --- HERO ANİMASYONU EKLENDİ ---
+                      Hero(
+                        tag: 'movie_${widget.movie.id}', // Benzersiz etiket
+                        child: CachedNetworkImage(
+                          imageUrl: widget.movie.poster,
+                          fit: BoxFit.cover,
+                          placeholder: (c, u) =>
+                              Container(color: AppTheme.surfaceDark),
+                          errorWidget: (c, o, s) =>
+                              Container(color: Colors.grey),
+                        ),
                       ),
+                      // -------------------------------
                       Container(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
@@ -585,9 +586,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                     ),
                                 ],
                               ),
-
-                              // --- ARKADAŞ PUANLARI BURADA GÖZÜKECEK ---
-                              // Tüm yorumları çekip arkadaşları filtreliyoruz
                               StreamBuilder<QuerySnapshot>(
                                 stream: MovieManager.instance.getReviewsStream(
                                   widget.movie.id,
@@ -684,7 +682,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                   padding: const EdgeInsets.only(right: 15.0),
                                   child: GestureDetector(
                                     onTap: () {
-                                      // ActorDetail sayfasına yönlendirme (Eğer varsa)
                                       context.push(
                                         '/actor-detail',
                                         extra: actor['name'],

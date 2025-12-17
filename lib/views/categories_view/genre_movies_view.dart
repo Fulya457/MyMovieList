@@ -21,10 +21,8 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
   @override
   void initState() {
     super.initState();
-    // Sayfa açıldığında bu türdeki filmleri çekmeye başla
     GenreService.instance.fetchNextPageGenreMovies(widget.genre, initial: true);
 
-    // Sonsuz kaydırma (Infinite Scroll)
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=
           _scrollController.position.maxScrollExtent - 200) {
@@ -234,23 +232,28 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
                         // Film Posteri
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
-                          child: CachedNetworkImage(
-                            imageUrl: movie.poster,
-                            width: 70,
-                            height: 105,
-                            fit: BoxFit.cover,
-                            placeholder: (c, u) => Container(
+                          // --- HERO GENRE LIST ---
+                          child: Hero(
+                            tag: 'movie_${movie.id}',
+                            child: CachedNetworkImage(
+                              imageUrl: movie.poster,
                               width: 70,
                               height: 105,
-                              color: AppTheme.backgroundBlack,
-                            ),
-                            errorWidget: (c, u, e) => Container(
-                              width: 70,
-                              height: 105,
-                              color: Colors.grey,
-                              child: const Icon(Icons.movie),
+                              fit: BoxFit.cover,
+                              placeholder: (c, u) => Container(
+                                width: 70,
+                                height: 105,
+                                color: AppTheme.backgroundBlack,
+                              ),
+                              errorWidget: (c, u, e) => Container(
+                                width: 70,
+                                height: 105,
+                                color: Colors.grey,
+                                child: const Icon(Icons.movie),
+                              ),
                             ),
                           ),
+                          // -----------------------
                         ),
                         const SizedBox(width: 15),
                         // Film Bilgileri

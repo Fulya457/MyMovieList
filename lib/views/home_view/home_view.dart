@@ -61,7 +61,6 @@ class _HomeViewState extends State<HomeView> {
     });
   }
 
-  // --- LİSTEYE EKLEME PENCERESİ (BottomSheet) ---
   void _showAddToListSheet(BuildContext context, Movie movie) {
     showModalBottomSheet(
       context: context,
@@ -92,8 +91,9 @@ class _HomeViewState extends State<HomeView> {
                 child: StreamBuilder<QuerySnapshot>(
                   stream: MovieManager.instance.getUserListsStream(),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData)
+                    if (!snapshot.hasData) {
                       return const Center(child: CircularProgressIndicator());
+                    }
                     final docs = snapshot.data!.docs;
 
                     if (docs.isEmpty) {
@@ -114,9 +114,7 @@ class _HomeViewState extends State<HomeView> {
                             TextButton(
                               onPressed: () {
                                 Navigator.pop(ctx);
-                                context.push(
-                                  AppRouters.profile,
-                                ); // Profile yönlendir
+                                context.push(AppRouters.profile);
                               },
                               child: const Text(
                                 "Liste oluşturmak için tıklayın",
@@ -274,7 +272,6 @@ class _HomeViewState extends State<HomeView> {
                   ),
                 ],
               ),
-
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
@@ -313,7 +310,6 @@ class _HomeViewState extends State<HomeView> {
                   ),
                 ),
               ),
-
               if (isSearching) ...[
                 if (manager.searchResults.isEmpty)
                   const SliverToBoxAdapter(
@@ -345,17 +341,22 @@ class _HomeViewState extends State<HomeView> {
                               context.push('/movie-detail', extra: movie),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
-                            child: CachedNetworkImage(
-                              imageUrl: movie.poster,
-                              fit: BoxFit.cover,
-                              memCacheWidth: 200,
-                              placeholder: (context, url) =>
-                                  Container(color: AppTheme.surfaceDark),
-                              errorWidget: (context, url, error) => Container(
-                                color: Colors.grey[800],
-                                child: const Icon(Icons.error),
+                            // --- HERO SEARCH ---
+                            child: Hero(
+                              tag: 'movie_${movie.id}',
+                              child: CachedNetworkImage(
+                                imageUrl: movie.poster,
+                                fit: BoxFit.cover,
+                                memCacheWidth: 200,
+                                placeholder: (context, url) =>
+                                    Container(color: AppTheme.surfaceDark),
+                                errorWidget: (context, url, error) => Container(
+                                  color: Colors.grey[800],
+                                  child: const Icon(Icons.error),
+                                ),
                               ),
                             ),
+                            // -------------------
                           ),
                         );
                       }, childCount: manager.searchResults.length),
@@ -381,7 +382,6 @@ class _HomeViewState extends State<HomeView> {
                     ),
                   ),
                 ),
-
                 if (manager.trendingMovies.isNotEmpty)
                   SliverToBoxAdapter(
                     child: CarouselSlider(
@@ -401,14 +401,19 @@ class _HomeViewState extends State<HomeView> {
                             child: Stack(
                               fit: StackFit.expand,
                               children: [
-                                CachedNetworkImage(
-                                  imageUrl: movie.poster,
-                                  fit: BoxFit.cover,
-                                  placeholder: (context, url) =>
-                                      Container(color: AppTheme.surfaceDark),
-                                  errorWidget: (context, url, error) =>
-                                      Container(color: Colors.grey),
+                                // --- HERO CAROUSEL ---
+                                Hero(
+                                  tag: 'movie_${movie.id}',
+                                  child: CachedNetworkImage(
+                                    imageUrl: movie.poster,
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) =>
+                                        Container(color: AppTheme.surfaceDark),
+                                    errorWidget: (context, url, error) =>
+                                        Container(color: Colors.grey),
+                                  ),
                                 ),
+                                // ---------------------
                                 Container(
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
@@ -444,7 +449,6 @@ class _HomeViewState extends State<HomeView> {
                       }).toList(),
                     ),
                   ),
-
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 30, 20, 10),
@@ -468,7 +472,6 @@ class _HomeViewState extends State<HomeView> {
                     ),
                   ),
                 ),
-
                 SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
@@ -491,23 +494,28 @@ class _HomeViewState extends State<HomeView> {
                               children: [
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
-                                  child: CachedNetworkImage(
-                                    imageUrl: movie.poster,
-                                    width: 70,
-                                    height: 100,
-                                    fit: BoxFit.cover,
-                                    memCacheWidth: 150,
-                                    placeholder: (context, url) => Container(
+                                  // --- HERO LIST ---
+                                  child: Hero(
+                                    tag: 'movie_${movie.id}',
+                                    child: CachedNetworkImage(
+                                      imageUrl: movie.poster,
                                       width: 70,
                                       height: 100,
-                                      color: AppTheme.surfaceDark,
-                                    ),
-                                    errorWidget: (c, u, e) => Container(
-                                      width: 70,
-                                      height: 100,
-                                      color: Colors.grey,
+                                      fit: BoxFit.cover,
+                                      memCacheWidth: 150,
+                                      placeholder: (context, url) => Container(
+                                        width: 70,
+                                        height: 100,
+                                        color: AppTheme.surfaceDark,
+                                      ),
+                                      errorWidget: (c, u, e) => Container(
+                                        width: 70,
+                                        height: 100,
+                                        color: Colors.grey,
+                                      ),
                                     ),
                                   ),
+                                  // -----------------
                                 ),
                                 const SizedBox(width: 15),
                                 Expanded(
@@ -554,7 +562,6 @@ class _HomeViewState extends State<HomeView> {
                                     ],
                                   ),
                                 ),
-                                // --- YENİ EKLENEN İKONLAR (FAVORİ + LİSTE) ---
                                 Column(
                                   children: [
                                     IconButton(
@@ -579,7 +586,6 @@ class _HomeViewState extends State<HomeView> {
                                     ),
                                   ],
                                 ),
-                                // --------------------------------------------
                               ],
                             ),
                           ),
@@ -591,7 +597,6 @@ class _HomeViewState extends State<HomeView> {
                     addRepaintBoundaries: true,
                   ),
                 ),
-
                 if (manager.isFetching)
                   const SliverToBoxAdapter(
                     child: Padding(
@@ -599,7 +604,6 @@ class _HomeViewState extends State<HomeView> {
                       child: Center(child: CircularProgressIndicator()),
                     ),
                   ),
-
                 const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
               ],
             ],
