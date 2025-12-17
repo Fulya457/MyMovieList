@@ -7,7 +7,7 @@ import 'package:mymovielist/data/movie_manager.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:cached_network_image/cached_network_image.dart'; // EKLENDİ
+import 'package:cached_network_image/cached_network_image.dart';
 
 class MovieDetailView extends StatefulWidget {
   final Movie movie;
@@ -24,6 +24,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
   @override
   void initState() {
     super.initState();
+    // Verileri çekmeye başla
     MovieManager.instance.fetchCast(widget.movie);
     MovieManager.instance.fetchTrailerId(widget.movie).then((_) {
       if (mounted) {
@@ -219,409 +220,436 @@ class _MovieDetailViewState extends State<MovieDetailView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 300.0,
-            pinned: true,
-            backgroundColor: AppTheme.backgroundBlack,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => context.pop(),
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.share, color: Colors.white),
-                onPressed: () => _showShareBottomSheet(context),
-              ),
-              IconButton(
-                icon: const Icon(
-                  Icons.rate_review,
-                  color: Colors.amber,
-                  size: 28,
+      // --- KRİTİK DEĞİŞİKLİK BURADA: AnimatedBuilder ---
+      body: AnimatedBuilder(
+        animation: MovieManager.instance, // MovieManager'ı dinle
+        builder: (context, child) {
+          // MovieManager her güncellendiğinde burası tekrar çizilir
+          // Böylece Yönetmen veya Cast geldiğinde anında ekrana düşer.
+          return CustomScrollView(
+            slivers: [
+              SliverAppBar(
+                expandedHeight: 300.0,
+                pinned: true,
+                backgroundColor: AppTheme.backgroundBlack,
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  onPressed: () => context.pop(),
                 ),
-                onPressed: _showRatingDialog,
-              ),
-            ],
-            flexibleSpace: FlexibleSpaceBar(
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  CachedNetworkImage(
-                    imageUrl: widget.movie.poster,
-                    fit: BoxFit.cover,
-                    placeholder: (c, u) =>
-                        Container(color: AppTheme.surfaceDark),
-                    errorWidget: (c, o, s) => Container(color: Colors.grey),
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.share, color: Colors.white),
+                    onPressed: () => _showShareBottomSheet(context),
                   ),
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          AppTheme.backgroundBlack.withOpacity(0.9),
-                        ],
-                      ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.rate_review,
+                      color: Colors.amber,
+                      size: 28,
                     ),
+                    onPressed: _showRatingDialog,
                   ),
                 ],
+                flexibleSpace: FlexibleSpaceBar(
+                  background: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      CachedNetworkImage(
+                        imageUrl: widget.movie.poster,
+                        fit: BoxFit.cover,
+                        placeholder: (c, u) =>
+                            Container(color: AppTheme.surfaceDark),
+                        errorWidget: (c, o, s) => Container(color: Colors.grey),
+                      ),
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              AppTheme.backgroundBlack.withOpacity(0.9),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ),
 
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.movie.title,
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // --- TÜR (GENRE) KISMI: TIKLANABİLİR ---
-                  Wrap(
-                    spacing: 8,
-                    children: widget.movie.genres.map((genre) {
-                      return InkWell(
-                        onTap: () {
-                          // Kategori sayfasına yönlendir
-                          context.pushNamed(
-                            AppRouters.genreMovies,
-                            pathParameters: {'genre': genre},
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppTheme.primaryBlue.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: AppTheme.primaryBlue.withOpacity(0.5),
-                            ),
-                          ),
-                          child: Text(
-                            genre,
-                            style: const TextStyle(
-                              color: AppTheme.primaryBlue,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-
-                  // ---------------------------------------
-                  const SizedBox(height: 20),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        "Release Date:",
-                        style: TextStyle(color: Colors.grey, fontSize: 16),
-                      ),
                       Text(
-                        widget.movie.releaseDate,
+                        widget.movie.title,
                         style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        "TMDB Rating:",
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 16,
+                          fontSize: 28,
                           fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
                       ),
-                      Row(
-                        children: [
-                          const Icon(Icons.star, color: Colors.amber, size: 22),
-                          Text(
-                            " ${widget.movie.rating.toStringAsFixed(1)} / 10",
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                      const SizedBox(height: 8),
+
+                      Wrap(
+                        spacing: 8,
+                        children: widget.movie.genres.map((genre) {
+                          return InkWell(
+                            onTap: () => context.pushNamed(
+                              AppRouters.genreMovies,
+                              pathParameters: {'genre': genre},
                             ),
-                          ),
-                        ],
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primaryBlue.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: AppTheme.primaryBlue.withOpacity(0.5),
+                                ),
+                              ),
+                              child: Text(
+                                genre,
+                                style: const TextStyle(
+                                  color: AppTheme.primaryBlue,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
                       ),
-                    ],
-                  ),
-                  const Divider(color: Colors.white24, height: 20),
 
-                  StreamBuilder<DocumentSnapshot>(
-                    stream: MovieManager.instance.getMovieLiveRating(
-                      widget.movie.id,
-                    ),
-                    builder: (context, snapshot) {
-                      double liveRating = 0.0;
-                      int liveCount = 0;
-                      bool hasData = false;
+                      const SizedBox(height: 20),
 
-                      if (snapshot.hasData &&
-                          snapshot.data != null &&
-                          snapshot.data!.exists) {
-                        final data =
-                            snapshot.data!.data() as Map<String, dynamic>;
-                        liveRating = (data['app_rating'] ?? 0.0).toDouble();
-                        liveCount = (data['vote_count'] ?? 0).toInt();
-                        hasData = true;
-                      }
-
-                      return Row(
+                      Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text(
-                            "User Rate :",
+                            "Release Date:",
+                            style: TextStyle(color: Colors.grey, fontSize: 16),
+                          ),
+                          Text(
+                            widget.movie.releaseDate,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Divider(color: Colors.white24, height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            "TMDB Rating:",
                             style: TextStyle(
                               color: Colors.grey,
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          if (hasData && liveCount > 0)
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.star,
-                                  color: Colors.lightBlueAccent,
-                                  size: 22,
-                                ),
-                                Text(
-                                  " ${liveRating.toStringAsFixed(1)} / 10",
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                Text(
-                                  " ($liveCount)",
-                                  style: const TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            )
-                          else
-                            const Text(
-                              "No ratings yet",
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontStyle: FontStyle.italic,
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.star,
+                                color: Colors.amber,
+                                size: 22,
                               ),
-                            ),
+                              Text(
+                                " ${widget.movie.rating.toStringAsFixed(1)} / 10",
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
-                      );
-                    },
-                  ),
+                      ),
+                      const Divider(color: Colors.white24, height: 20),
 
-                  const SizedBox(height: 25),
+                      StreamBuilder<DocumentSnapshot>(
+                        stream: MovieManager.instance.getMovieLiveRating(
+                          widget.movie.id,
+                        ),
+                        builder: (context, snapshot) {
+                          double liveRating = 0.0;
+                          int liveCount = 0;
+                          bool hasData = false;
 
-                  Text(
-                    "Director: ${widget.movie.director}",
-                    style: const TextStyle(color: Colors.grey, fontSize: 16),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    "Plot",
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  Text(
-                    widget.movie.plot,
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                  const SizedBox(height: 20),
+                          if (snapshot.hasData &&
+                              snapshot.data != null &&
+                              snapshot.data!.exists) {
+                            final data =
+                                snapshot.data!.data() as Map<String, dynamic>;
+                            liveRating = (data['app_rating'] ?? 0.0).toDouble();
+                            liveCount = (data['vote_count'] ?? 0).toInt();
+                            hasData = true;
+                          }
 
-                  // --- CAST KISMI: FOTOĞRAFLI ---
-                  const Text(
-                    "Cast",
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 140,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: widget.movie.castDetails.isNotEmpty
-                          ? widget.movie.castDetails.length
-                          : widget.movie.actors.length,
-                      itemBuilder: (context, index) {
-                        // Eğer detaylı liste (fotoğraflı) doluysa onu kullan
-                        if (widget.movie.castDetails.isNotEmpty) {
-                          final actor = widget.movie.castDetails[index];
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 15.0),
-                            child: Column(
-                              children: [
-                                Container(
-                                  width: 80,
-                                  height: 80,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.5),
-                                        blurRadius: 5,
-                                        offset: const Offset(0, 3),
+                          return Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                "User Rate :",
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              if (hasData && liveCount > 0)
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.star,
+                                      color: Colors.lightBlueAccent,
+                                      size: 22,
+                                    ),
+                                    Text(
+                                      " ${liveRating.toStringAsFixed(1)} / 10",
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      " ($liveCount)",
+                                      style: const TextStyle(
+                                        color: Colors.grey,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              else
+                                const Text(
+                                  "No ratings yet",
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+
+                      const SizedBox(height: 25),
+
+                      Text(
+                        "Director: ${widget.movie.director}",
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        "Plot",
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        widget.movie.plot,
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                      const SizedBox(height: 20),
+
+                      const Text(
+                        "Cast",
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      // --- OYUNCU LİSTESİ ---
+                      if (widget.movie.castDetails.isEmpty &&
+                          widget.movie.director == "Loading...")
+                        const Center(
+                          child: CircularProgressIndicator(
+                            color: AppTheme.primaryBlue,
+                          ),
+                        )
+                      else
+                        SizedBox(
+                          height: 140,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: widget.movie.castDetails.isNotEmpty
+                                ? widget.movie.castDetails.length
+                                : widget.movie.actors.length,
+                            itemBuilder: (context, index) {
+                              if (widget.movie.castDetails.isNotEmpty) {
+                                final actor = widget.movie.castDetails[index];
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 15.0),
+                                  child: Column(
+                                    children: [
+                                      Container(
+                                        width: 80,
+                                        height: 80,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(
+                                                0.5,
+                                              ),
+                                              blurRadius: 5,
+                                              offset: const Offset(0, 3),
+                                            ),
+                                          ],
+                                        ),
+                                        child: ClipOval(
+                                          child: actor['photo']!.isNotEmpty
+                                              ? CachedNetworkImage(
+                                                  imageUrl: actor['photo']!,
+                                                  fit: BoxFit.cover,
+                                                  placeholder: (c, u) =>
+                                                      Container(
+                                                        color: Colors.grey,
+                                                      ),
+                                                  errorWidget: (c, u, e) =>
+                                                      Container(
+                                                        color: Colors.grey,
+                                                        child: const Icon(
+                                                          Icons.person,
+                                                        ),
+                                                      ),
+                                                )
+                                              : Container(
+                                                  color: Colors.grey,
+                                                  child: const Icon(
+                                                    Icons.person,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      SizedBox(
+                                        width: 80,
+                                        child: Text(
+                                          actor['name']!,
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 11,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                       ),
                                     ],
                                   ),
-                                  child: ClipOval(
-                                    child: actor['photo']!.isNotEmpty
-                                        ? CachedNetworkImage(
-                                            imageUrl: actor['photo']!,
-                                            fit: BoxFit.cover,
-                                            placeholder: (c, u) =>
-                                                Container(color: Colors.grey),
-                                            errorWidget: (c, u, e) => Container(
-                                              color: Colors.grey,
-                                              child: const Icon(Icons.person),
-                                            ),
-                                          )
-                                        : Container(
-                                            color: Colors.grey,
-                                            child: const Icon(
-                                              Icons.person,
-                                              color: Colors.white,
-                                            ),
-                                          ),
+                                );
+                              } else {
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 12.0),
+                                  child: Column(
+                                    children: [
+                                      const CircleAvatar(
+                                        radius: 30,
+                                        backgroundColor: Colors.grey,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        widget.movie.actors[index],
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                                const SizedBox(height: 8),
-                                SizedBox(
-                                  width: 80,
-                                  child: Text(
-                                    actor['name']!,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 11,
-                                    ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        } else {
-                          // Eski usul (Sadece isim varsa)
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 12.0),
-                            child: Column(
-                              children: [
-                                const CircleAvatar(
-                                  radius: 30,
-                                  backgroundColor: Colors.grey,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  widget.movie.actors[index],
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 10,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-                      },
-                    ),
-                  ),
+                                );
+                              }
+                            },
+                          ),
+                        ),
 
-                  // -------------------------------
-                  const SizedBox(height: 20),
-                  if (widget.movie.trailerId.isNotEmpty &&
-                      widget.movie.trailerId != 'dQw4w9WgXcQ')
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: YoutubePlayer(
-                        controller: _controller,
-                        showVideoProgressIndicator: true,
+                      // ---------------------
+                      const SizedBox(height: 20),
+                      if (widget.movie.trailerId.isNotEmpty &&
+                          widget.movie.trailerId != 'dQw4w9WgXcQ')
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: RepaintBoundary(
+                            child: YoutubePlayer(
+                              controller: _controller,
+                              showVideoProgressIndicator: true,
+                            ),
+                          ),
+                        ),
+
+                      const SizedBox(height: 20),
+                      const Divider(color: Colors.grey),
+                      const Text(
+                        "User Reviews",
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
-                    ),
-                  const SizedBox(height: 20),
-                  const Divider(color: Colors.grey),
-                  const Text(
-                    "User Reviews",
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+                      const SizedBox(height: 10),
+                    ],
                   ),
-                  const SizedBox(height: 10),
-                ],
+                ),
               ),
-            ),
-          ),
 
-          StreamBuilder<QuerySnapshot>(
-            stream: MovieManager.instance.getReviewsStream(widget.movie.id),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const SliverToBoxAdapter(
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              }
-              final docs = snapshot.data?.docs ?? [];
+              StreamBuilder<QuerySnapshot>(
+                stream: MovieManager.instance.getReviewsStream(widget.movie.id),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const SliverToBoxAdapter(
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  final docs = snapshot.data?.docs ?? [];
 
-              if (docs.isEmpty) {
-                return const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Text(
-                      "Henüz yorum yok. İlk sen ol!",
-                      style: TextStyle(color: Colors.grey),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                );
-              }
+                  if (docs.isEmpty) {
+                    return const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Text(
+                          "Henüz yorum yok. İlk sen ol!",
+                          style: TextStyle(color: Colors.grey),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    );
+                  }
 
-              return SliverList(
-                delegate: SliverChildBuilderDelegate((context, index) {
-                  final doc = docs[index];
-                  return ReviewCard(doc: doc);
-                }, childCount: docs.length),
-              );
-            },
-          ),
-          const SliverPadding(padding: EdgeInsets.only(bottom: 50)),
-        ],
+                  return SliverList(
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final doc = docs[index];
+                      return ReviewCard(doc: doc);
+                    }, childCount: docs.length),
+                  );
+                },
+              ),
+              const SliverPadding(padding: EdgeInsets.only(bottom: 50)),
+            ],
+          );
+        },
       ),
     );
   }

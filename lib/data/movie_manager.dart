@@ -7,8 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 const String TMDB_API_KEY = "cea49e6756dd9655a98066426a1b934d";
 const String TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
-const String TMDB_PROFILE_BASE_URL =
-    "https://image.tmdb.org/t/p/w200"; // Oyuncu fotoları için
+const String TMDB_PROFILE_BASE_URL = "https://image.tmdb.org/t/p/w200";
 
 // --- Movie Sınıfı ---
 class Movie {
@@ -18,13 +17,8 @@ class Movie {
   final String poster;
   final List<String> genres;
   final String plot;
-
-  // ESKİSİ: Sadece isim listesi
   List<String> actors;
-
-  // YENİ: İsim ve Resim tutan detaylı liste
   List<Map<String, String>> castDetails;
-
   String director;
   String trailerId;
   double? appRating;
@@ -40,7 +34,7 @@ class Movie {
     required this.genres,
     required this.plot,
     this.actors = const ["Loading..."],
-    this.castDetails = const [], // Başlangıçta boş
+    this.castDetails = const [],
     this.director = "Unknown",
     this.trailerId = '',
     this.appRating,
@@ -749,59 +743,77 @@ class MovieManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- BURASI GÜNCELLENDİ: FOTOĞRAFLARI DA ÇEKİYOR ---
+  // --- BURASI DÜZELTİLDİ: TRY-CATCH ve GÜÇLÜ KONTROL ---
   Future<void> fetchCast(Movie movie) async {
-    if (movie.director != "Unknown") return;
-    final response = await http.get(
-      Uri.parse(
-        'https://api.themoviedb.org/3/movie/${movie.id}/credits?api_key=$TMDB_API_KEY',
-      ),
-    );
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      List<String> castNames = [];
-      List<Map<String, String>> details = [];
+    // Veri zaten varsa tekrar çekme (Tasarruf)
+    if (movie.castDetails.isNotEmpty && movie.director != "Unknown") return;
 
-      for (var actor in (data['cast'] as List).take(10)) {
-        String name = actor['name'];
-        castNames.add(name);
-
-        // Fotoğraf yolunu al ve tam URL oluştur
-        String? profilePath = actor['profile_path'];
-        String photoUrl = profilePath != null
-            ? "$TMDB_PROFILE_BASE_URL$profilePath"
-            : ""; // Foto yoksa boş string
-
-        details.add({'name': name, 'photo': photoUrl});
-      }
-
-      movie.actors = castNames;
-      movie.castDetails = details; // Detaylı listeyi kaydet
-
-      var dir = (data['crew'] as List).firstWhere(
-        (c) => c['job'] == 'Director',
-        orElse: () => null,
+    try {
+      final response = await http.get(
+        Uri.parse(
+          'https://api.themoviedb.org/3/movie/${movie.id}/credits?api_key=$TMDB_API_KEY',
+        ),
       );
-      movie.director = dir != null ? dir['name'] : "Unknown";
-      notifyListeners();
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        List<String> castNames = [];
+        List<Map<String, String>> details = [];
+
+        // Güvenli Oyuncu Çekme
+        if (data['cast'] != null) {
+          for (var actor in (data['cast'] as List).take(10)) {
+            String name = actor['name'] ?? 'Unknown Actor';
+            castNames.add(name);
+
+            String? profilePath = actor['profile_path'];
+            String photoUrl = (profilePath != null && profilePath.isNotEmpty)
+                ? "$TMDB_PROFILE_BASE_URL$profilePath"
+                : "";
+
+            details.add({'name': name, 'photo': photoUrl});
+          }
+        }
+
+        movie.actors = castNames;
+        movie.castDetails = details;
+
+        // Güvenli Yönetmen Çekme
+        if (data['crew'] != null) {
+          var dir = (data['crew'] as List).firstWhere(
+            (c) => c['job'] == 'Director',
+            orElse: () => null,
+          );
+          movie.director = dir != null ? dir['name'] : "Unknown Director";
+        }
+
+        notifyListeners(); // UI'ı zorla güncelle
+      }
+    } catch (e) {
+      print("Cast Fetch Error: $e");
+      // Hata olsa bile sessiz kal, uygulama çökmesin
     }
   }
 
   Future<void> fetchTrailerId(Movie movie) async {
     if (movie.trailerId.isNotEmpty) return;
-    final response = await http.get(
-      Uri.parse(
-        'https://api.themoviedb.org/3/movie/${movie.id}/videos?api_key=$TMDB_API_KEY',
-      ),
-    );
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      var trailer = (data['results'] as List).firstWhere(
-        (v) => v['site'] == 'YouTube' && v['type'] == 'Trailer',
-        orElse: () => null,
+    try {
+      final response = await http.get(
+        Uri.parse(
+          'https://api.themoviedb.org/3/movie/${movie.id}/videos?api_key=$TMDB_API_KEY',
+        ),
       );
-      movie.trailerId = trailer != null ? trailer['key'] : 'dQw4w9WgXcQ';
-      notifyListeners();
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        var trailer = (data['results'] as List).firstWhere(
+          (v) => v['site'] == 'YouTube' && v['type'] == 'Trailer',
+          orElse: () => null,
+        );
+        movie.trailerId = trailer != null ? trailer['key'] : 'dQw4w9WgXcQ';
+        notifyListeners();
+      }
+    } catch (e) {
+      print(e);
     }
   }
 }
