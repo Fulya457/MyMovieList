@@ -48,7 +48,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
     super.dispose();
   }
 
-  // --- LİSTEYE EKLEME PENCERESİ (BottomSheet) ---
+  // --- LİSTEYE EKLEME PENCERESİ ---
   void _showAddToListSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -77,8 +77,9 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                 child: StreamBuilder<QuerySnapshot>(
                   stream: MovieManager.instance.getUserListsStream(),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData)
+                    if (!snapshot.hasData) {
                       return const Center(child: CircularProgressIndicator());
+                    }
                     final docs = snapshot.data!.docs;
 
                     if (docs.isEmpty) {
@@ -196,16 +197,18 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                 child: StreamBuilder<QuerySnapshot>(
                   stream: MovieManager.instance.getFriendsStream(),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData)
+                    if (!snapshot.hasData) {
                       return const Center(child: CircularProgressIndicator());
+                    }
                     final docs = snapshot.data!.docs;
-                    if (docs.isEmpty)
+                    if (docs.isEmpty) {
                       return const Center(
                         child: Text(
                           "Arkadaş listesi boş.",
                           style: TextStyle(color: Colors.grey),
                         ),
                       );
+                    }
 
                     return ListView.builder(
                       itemCount: docs.length,
@@ -317,10 +320,11 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                       rating,
                       reviewController.text.trim(),
                     );
-                    if (mounted)
+                    if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text("Yorum eklendi!")),
                       );
+                    }
                   },
                   child: const Text(
                     'Gönder',
@@ -342,6 +346,9 @@ class _MovieDetailViewState extends State<MovieDetailView> {
       body: AnimatedBuilder(
         animation: MovieManager.instance,
         builder: (context, child) {
+          // Favori durumunu kontrol et
+          final isFav = MovieManager.instance.isFavorite(widget.movie);
+
           return CustomScrollView(
             slivers: [
               SliverAppBar(
@@ -353,7 +360,19 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                   onPressed: () => context.pop(),
                 ),
                 actions: [
-                  // --- LİSTEYE EKLE BUTONU BURAYA DA EKLENDİ ---
+                  // --- BURAYA FAVORİ BUTONU EKLENDİ ---
+                  IconButton(
+                    icon: Icon(
+                      isFav ? Icons.favorite : Icons.favorite_border,
+                      color: isFav ? Colors.red : Colors.grey,
+                      size: 28,
+                    ),
+                    onPressed: () {
+                      // Basınca favoriyi değiştir, AnimatedBuilder sayfayı yenileyecek
+                      MovieManager.instance.toggleFavorite(widget.movie);
+                    },
+                  ),
+                  // ------------------------------------
                   IconButton(
                     icon: const Icon(
                       Icons.playlist_add,
@@ -402,7 +421,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                   ),
                 ),
               ),
-
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -418,7 +436,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                         ),
                       ),
                       const SizedBox(height: 8),
-
                       Wrap(
                         spacing: 8,
                         children: widget.movie.genres.map((genre) {
@@ -450,7 +467,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                           );
                         }).toList(),
                       ),
-
                       const SizedBox(height: 20),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -500,7 +516,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                         ],
                       ),
                       const Divider(color: Colors.white24, height: 20),
-
                       StreamBuilder<DocumentSnapshot>(
                         stream: MovieManager.instance.getMovieLiveRating(
                           widget.movie.id,
@@ -578,7 +593,9 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                   widget.movie.id,
                                 ),
                                 builder: (context, revSnap) {
-                                  if (!revSnap.hasData) return const SizedBox();
+                                  if (!revSnap.hasData) {
+                                    return const SizedBox();
+                                  }
 
                                   List<String> friendRatings = [];
                                   for (var doc in revSnap.data!.docs) {
@@ -593,8 +610,9 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                     }
                                   }
 
-                                  if (friendRatings.isEmpty)
+                                  if (friendRatings.isEmpty) {
                                     return const SizedBox();
+                                  }
 
                                   return Padding(
                                     padding: const EdgeInsets.only(top: 8.0),
@@ -613,9 +631,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                           );
                         },
                       ),
-
                       const SizedBox(height: 25),
-
                       Text(
                         "Director: ${widget.movie.director}",
                         style: const TextStyle(
@@ -637,7 +653,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                         style: const TextStyle(color: Colors.white70),
                       ),
                       const SizedBox(height: 20),
-
                       const Text(
                         "Cast",
                         style: TextStyle(
@@ -667,64 +682,73 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                 final actor = widget.movie.castDetails[index];
                                 return Padding(
                                   padding: const EdgeInsets.only(right: 15.0),
-                                  child: Column(
-                                    children: [
-                                      Container(
-                                        width: 80,
-                                        height: 80,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withOpacity(
-                                                0.5,
-                                              ),
-                                              blurRadius: 5,
-                                              offset: const Offset(0, 3),
-                                            ),
-                                          ],
-                                        ),
-                                        child: ClipOval(
-                                          child: actor['photo']!.isNotEmpty
-                                              ? CachedNetworkImage(
-                                                  imageUrl: actor['photo']!,
-                                                  fit: BoxFit.cover,
-                                                  placeholder: (c, u) =>
-                                                      Container(
-                                                        color: Colors.grey,
-                                                      ),
-                                                  errorWidget: (c, u, e) =>
-                                                      Container(
-                                                        color: Colors.grey,
-                                                        child: const Icon(
-                                                          Icons.person,
-                                                        ),
-                                                      ),
-                                                )
-                                              : Container(
-                                                  color: Colors.grey,
-                                                  child: const Icon(
-                                                    Icons.person,
-                                                    color: Colors.white,
-                                                  ),
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      // ActorDetail sayfasına yönlendirme (Eğer varsa)
+                                      context.push(
+                                        '/actor-detail',
+                                        extra: actor['name'],
+                                      );
+                                    },
+                                    child: Column(
+                                      children: [
+                                        Container(
+                                          width: 80,
+                                          height: 80,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withOpacity(
+                                                  0.5,
                                                 ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      SizedBox(
-                                        width: 80,
-                                        child: Text(
-                                          actor['name']!,
-                                          textAlign: TextAlign.center,
-                                          style: const TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 11,
+                                                blurRadius: 5,
+                                                offset: const Offset(0, 3),
+                                              ),
+                                            ],
                                           ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
+                                          child: ClipOval(
+                                            child: actor['photo']!.isNotEmpty
+                                                ? CachedNetworkImage(
+                                                    imageUrl: actor['photo']!,
+                                                    fit: BoxFit.cover,
+                                                    placeholder: (c, u) =>
+                                                        Container(
+                                                          color: Colors.grey,
+                                                        ),
+                                                    errorWidget: (c, u, e) =>
+                                                        Container(
+                                                          color: Colors.grey,
+                                                          child: const Icon(
+                                                            Icons.person,
+                                                          ),
+                                                        ),
+                                                  )
+                                                : Container(
+                                                    color: Colors.grey,
+                                                    child: const Icon(
+                                                      Icons.person,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                        const SizedBox(height: 8),
+                                        SizedBox(
+                                          width: 80,
+                                          child: Text(
+                                            actor['name']!,
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 11,
+                                            ),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 );
                               } else {
@@ -751,7 +775,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                             },
                           ),
                         ),
-
                       const SizedBox(height: 20),
                       if (widget.movie.trailerId.isNotEmpty &&
                           widget.movie.trailerId != 'dQw4w9WgXcQ')
@@ -764,7 +787,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                             ),
                           ),
                         ),
-
                       const SizedBox(height: 20),
                       const Divider(color: Colors.grey),
                       const Text(
@@ -780,16 +802,16 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                   ),
                 ),
               ),
-
               StreamBuilder<QuerySnapshot>(
                 stream: MovieManager.instance.getReviewsStream(widget.movie.id),
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting)
+                  if (snapshot.connectionState == ConnectionState.waiting) {
                     return const SliverToBoxAdapter(
                       child: Center(child: CircularProgressIndicator()),
                     );
+                  }
                   final docs = snapshot.data?.docs ?? [];
-                  if (docs.isEmpty)
+                  if (docs.isEmpty) {
                     return const SliverToBoxAdapter(
                       child: Padding(
                         padding: EdgeInsets.all(20),
@@ -800,6 +822,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                         ),
                       ),
                     );
+                  }
                   return SliverList(
                     delegate: SliverChildBuilderDelegate((context, index) {
                       final doc = docs[index];
@@ -956,8 +979,9 @@ class _ReviewCardState extends State<ReviewCard> {
                     icon: const Icon(Icons.more_vert, color: Colors.grey),
                     onSelected: (value) {
                       if (value == 'edit') _editReview();
-                      if (value == 'delete')
+                      if (value == 'delete') {
                         MovieManager.instance.deleteReview(widget.doc.id);
+                      }
                     },
                     itemBuilder: (context) => [
                       const PopupMenuItem(
@@ -1027,7 +1051,7 @@ class _ReviewCardState extends State<ReviewCard> {
                 stream: MovieManager.instance.getRepliesStream(widget.doc.id),
                 builder: (context, snapshot) {
                   final replies = snapshot.data?.docs ?? [];
-                  if (replies.isEmpty)
+                  if (replies.isEmpty) {
                     return const Padding(
                       padding: EdgeInsets.only(left: 20),
                       child: Text(
@@ -1035,6 +1059,7 @@ class _ReviewCardState extends State<ReviewCard> {
                         style: TextStyle(color: Colors.grey, fontSize: 12),
                       ),
                     );
+                  }
                   return Padding(
                     padding: const EdgeInsets.only(left: 20, top: 5),
                     child: Column(
