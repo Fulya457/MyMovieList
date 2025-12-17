@@ -2,90 +2,89 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:mymovielist/app/theme.dart';
 import 'package:mymovielist/data/movie_manager.dart';
 
 class ChatView extends StatefulWidget {
-  final String targetUid;
-  final String targetEmail;
-  final Movie? sharedMovie; // Opsiyonel: Eğer film paylaşılıyorsa dolu gelir
-
-  const ChatView({
-    super.key,
-    required this.targetUid,
-    required this.targetEmail,
-    this.sharedMovie,
-  });
+  final Map<String, dynamic> extras; // targetUid, targetEmail, movie(opsiyonel)
+  const ChatView({super.key, required this.extras});
 
   @override
   State<ChatView> createState() => _ChatViewState();
 }
 
 class _ChatViewState extends State<ChatView> {
-  final TextEditingController _messageController = TextEditingController();
+  final TextEditingController _msgController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    // Eğer film paylaşılıyorsa, otomatik bir mesaj taslağı oluşturabiliriz
-    if (widget.sharedMovie != null) {
-      _messageController.text = "Bu filmi izlemelisin! 🎬";
+    // Eğer film paylaşımıyla geldiyse otomatik mesaj at
+    if (widget.extras['movie'] != null) {
+      final Movie movie = widget.extras['movie'];
+      MovieManager.instance.sendMessage(
+        receiverUid: widget.extras['targetUid'],
+        text: "Sana bu filmi öneriyorum: ${movie.title}",
+        sharedMovie: movie,
+      );
     }
   }
 
   void _sendMessage() {
-    final text = _messageController.text.trim();
-    if (text.isEmpty && widget.sharedMovie == null) return;
-
+    if (_msgController.text.trim().isEmpty) return;
     MovieManager.instance.sendMessage(
-      receiverUid: widget.targetUid,
-      text: text,
-      sharedMovie: widget.sharedMovie, // Filmi parametre olarak geçiyoruz
+      receiverUid: widget.extras['targetUid'],
+      text: _msgController.text.trim(),
     );
-
-    _messageController.clear();
-    // Film gönderildikten sonra sayfayı kapatabilir veya film modundan çıkabiliriz.
-    // Şimdilik sadece text temizliyoruz. Eğer paylaşım yaptıysak geri dönmek mantıklı olabilir:
-    if (widget.sharedMovie != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Film önerildi!")));
-      context.pop(); // Sohbetten çık
-    }
+    _msgController.clear();
+    // Mesaj atınca en aşağıya kaydır
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final targetEmail = widget.extras['targetEmail'] as String;
+    final targetUid = widget.extras['targetUid'] as String;
     final currentUid = FirebaseAuth.instance.currentUser?.uid;
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
       appBar: AppBar(
-        title: Text(widget.targetEmail, style: const TextStyle(fontSize: 16)),
         backgroundColor: AppTheme.backgroundBlack,
+        title: Text(targetEmail, style: const TextStyle(color: Colors.white)),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Column(
         children: [
-          // MESAJ LİSTESİ
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: MovieManager.instance.getMessagesStream(widget.targetUid),
+              stream: MovieManager.instance.getMessagesStream(targetUid),
               builder: (context, snapshot) {
                 if (!snapshot.hasData)
                   return const Center(child: CircularProgressIndicator());
                 final docs = snapshot.data!.docs;
 
                 return ListView.builder(
-                  reverse: true, // En yeni mesaj en altta (klavye üstü)
+                  controller: _scrollController,
+                  reverse: true, // En yeni mesaj en altta
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
                     final data = docs[index].data() as Map<String, dynamic>;
                     final isMe = data['sender_id'] == currentUid;
-
-                    // Film Verisi var mı?
-                    final String? movieTitle = data['movie_title'];
-                    final String? poster = data['poster_path'];
-                    final int? movieId = data['movie_id'];
+                    final time = (data['timestamp'] as Timestamp?)?.toDate();
+                    final timeStr = time != null
+                        ? DateFormat('HH:mm').format(time)
+                        : '';
 
                     return Align(
                       alignment: isMe
@@ -93,79 +92,85 @@ class _ChatViewState extends State<ChatView> {
                           : Alignment.centerLeft,
                       child: Container(
                         margin: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
+                          horizontal: 12,
+                          vertical: 6,
                         ),
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: isMe
-                              ? AppTheme.primaryBlue
-                              : AppTheme.surfaceDark,
-                          borderRadius: BorderRadius.circular(10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
                         ),
                         constraints: BoxConstraints(
                           maxWidth: MediaQuery.of(context).size.width * 0.75,
                         ),
+                        decoration: BoxDecoration(
+                          color: isMe
+                              ? AppTheme.primaryBlue
+                              : AppTheme.surfaceDark,
+                          borderRadius: BorderRadius.only(
+                            topLeft: const Radius.circular(16),
+                            topRight: const Radius.circular(16),
+                            bottomLeft: isMe
+                                ? const Radius.circular(16)
+                                : Radius.zero,
+                            bottomRight: isMe
+                                ? Radius.zero
+                                : const Radius.circular(16),
+                          ),
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // EĞER MESAJDA FİLM VARSA KART GÖSTER
-                            if (movieTitle != null)
-                              GestureDetector(
-                                onTap: () async {
-                                  // Tıklayınca filme git
-                                  if (movieId != null) {
-                                    final movie = await MovieManager.instance
-                                        .getMovieById(movieId);
-                                    if (movie != null && context.mounted) {
-                                      context.push(
-                                        '/movie-detail',
-                                        extra: movie,
-                                      );
-                                    }
-                                  }
-                                },
-                                child: Container(
-                                  margin: const EdgeInsets.only(bottom: 5),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black26,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      if (poster != null)
-                                        ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          child: Image.network(
-                                            poster,
-                                            width: 40,
-                                            height: 60,
-                                            fit: BoxFit.cover,
-                                          ),
-                                        ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          movieTitle,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                          ),
+                            // FİLM PAYLAŞIMI VARSA GÖSTER
+                            if (data.containsKey('movie_title'))
+                              Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.black26,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.movie,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                        data['movie_title'],
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
                                         ),
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ),
                               ),
 
-                            if (data['text'] != null &&
-                                data['text'].toString().isNotEmpty)
-                              Text(
-                                data['text'],
-                                style: const TextStyle(color: Colors.white),
+                            // MESAJ METNİ (BÜYÜTÜLDÜ: FontSize 16)
+                            Text(
+                              data['text'],
+                              style: TextStyle(
+                                color: isMe ? Colors.black : Colors.white,
+                                fontSize: 17, // <-- BURASI BÜYÜTÜLDÜ
                               ),
+                            ),
+
+                            const SizedBox(height: 4),
+                            Align(
+                              alignment: Alignment.bottomRight,
+                              child: Text(
+                                timeStr,
+                                style: TextStyle(
+                                  color: isMe ? Colors.black54 : Colors.grey,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -176,56 +181,37 @@ class _ChatViewState extends State<ChatView> {
             ),
           ),
 
-          // --- TASLAK ALANI (Eğer film paylaşılıyorsa burada gözükür) ---
-          if (widget.sharedMovie != null)
-            Container(
-              padding: const EdgeInsets.all(10),
-              color: Colors.grey[900],
-              child: Row(
-                children: [
-                  const Icon(Icons.share, color: Colors.amber),
-                  const SizedBox(width: 10),
-                  Text(
-                    "Paylaşılıyor: ${widget.sharedMovie!.title}",
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.grey),
-                    onPressed: () => context.pop(), // Vazgeç
-                  ),
-                ],
-              ),
-            ),
-
-          // GİRİŞ ALANI
-          Padding(
-            padding: const EdgeInsets.all(8.0),
+          // MESAJ YAZMA KUTUSU
+          Container(
+            padding: const EdgeInsets.all(12),
+            color: AppTheme.surfaceDark,
             child: Row(
               children: [
                 Expanded(
                   child: TextField(
-                    controller: _messageController,
-                    style: const TextStyle(color: Colors.white),
+                    controller: _msgController,
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
                     decoration: InputDecoration(
                       hintText: "Mesaj yaz...",
-                      filled: true,
-                      fillColor: AppTheme.surfaceDark,
+                      hintStyle: TextStyle(color: Colors.grey[400]),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(25),
                         borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: Colors.black26,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 CircleAvatar(
                   backgroundColor: AppTheme.primaryBlue,
                   child: IconButton(
-                    icon: const Icon(Icons.send, color: Colors.white),
+                    icon: const Icon(Icons.send, color: Colors.black),
                     onPressed: _sendMessage,
                   ),
                 ),

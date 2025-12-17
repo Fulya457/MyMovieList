@@ -67,17 +67,17 @@ final router = GoRouter(
       path: AppRouters.friends,
       builder: (context, state) => const FriendsView(),
     ),
+
+    // --- GÜNCELLENEN KISIM (HATA BURADAYDI) ---
     GoRoute(
       path: AppRouters.chat,
       builder: (context, state) {
+        // ChatView artık tek bir 'extras' parametresi bekliyor
         final map = state.extra as Map<String, dynamic>;
-        return ChatView(
-          targetUid: map['targetUid'],
-          targetEmail: map['targetEmail'],
-          sharedMovie: map['movie'],
-        );
+        return ChatView(extras: map);
       },
     ),
+    // ------------------------------------------
 
     // --- DETAY VE LİSTELER ---
     GoRoute(

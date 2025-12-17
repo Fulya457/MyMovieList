@@ -7,6 +7,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 const String TMDB_API_KEY = "cea49e6756dd9655a98066426a1b934d";
 const String TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
+const String TMDB_PROFILE_BASE_URL =
+    "https://image.tmdb.org/t/p/w200"; // Oyuncu fotoları için
 
 // --- Movie Sınıfı ---
 class Movie {
@@ -16,11 +18,19 @@ class Movie {
   final String poster;
   final List<String> genres;
   final String plot;
+
+  // ESKİSİ: Sadece isim listesi
   List<String> actors;
+
+  // YENİ: İsim ve Resim tutan detaylı liste
+  List<Map<String, String>> castDetails;
+
   String director;
   String trailerId;
   double? appRating;
   int appVoteCount;
+  final double popularity;
+  final String releaseDate;
 
   Movie({
     required this.id,
@@ -30,10 +40,13 @@ class Movie {
     required this.genres,
     required this.plot,
     this.actors = const ["Loading..."],
+    this.castDetails = const [], // Başlangıçta boş
     this.director = "Unknown",
     this.trailerId = '',
     this.appRating,
     this.appVoteCount = 0,
+    this.popularity = 0.0,
+    this.releaseDate = "Unknown Date",
   });
 
   factory Movie.fromTMDB(Map<String, dynamic> json) {
@@ -56,6 +69,8 @@ class Movie {
       poster: posterPath.isNotEmpty ? TMDB_IMAGE_BASE_URL + posterPath : '',
       genres: genresList.take(2).toList(),
       plot: json['overview'] ?? 'No description available.',
+      popularity: (json['popularity'] ?? 0.0).toDouble(),
+      releaseDate: json['release_date'] ?? 'Unknown Date',
     );
   }
 
@@ -70,6 +85,8 @@ class Movie {
       director: map['director'] ?? 'Unknown',
       appRating: (map['app_rating'] ?? 0.0).toDouble(),
       appVoteCount: (map['vote_count'] ?? 0).toInt(),
+      popularity: 0.0,
+      releaseDate: map['release_date'] ?? 'Unknown Date',
     );
   }
 
@@ -82,6 +99,7 @@ class Movie {
       'overview': plot,
       'genre_names': genres,
       'director': director,
+      'release_date': releaseDate,
     };
   }
 }
@@ -92,6 +110,19 @@ class MovieManager extends ChangeNotifier {
 
   Map<int, String> _genreMap = {};
   List<String> get allGenreNames => _genreMap.values.toList();
+
+  final List<String> profileIcons = [
+    "https://api.dicebear.com/7.x/bottts/png?seed=Robot1",
+    "https://api.dicebear.com/7.x/adventurer/png?seed=Felix",
+    "https://api.dicebear.com/7.x/adventurer/png?seed=Chloe",
+    "https://api.dicebear.com/7.x/fun-emoji/png?seed=Cool",
+    "https://api.dicebear.com/7.x/identicon/png?seed=Abstract",
+    "https://api.dicebear.com/7.x/thumbs/png?seed=Bandit",
+    "https://api.dicebear.com/7.x/lorelei/png?seed=Artist",
+    "https://api.dicebear.com/7.x/notionists/png?seed=Playful",
+    "https://api.dicebear.com/7.x/big-ears/png?seed=Mouse",
+    "https://api.dicebear.com/7.x/micah/png?seed=Cool",
+  ];
 
   MovieManager._privateConstructor();
 
@@ -115,7 +146,7 @@ class MovieManager extends ChangeNotifier {
   bool isFavorite(Movie movie) =>
       _favoriteMovies.any((fav) => fav.id == movie.id);
 
-  // --- KULLANICI İŞLEMLERİ ---
+  // --- KULLANICI & PROFİL ---
   Future<void> ensureUserExistsInFirestore() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -129,8 +160,33 @@ class MovieManager extends ChangeNotifier {
         'email': user.email?.toLowerCase(),
         'created_at': FieldValue.serverTimestamp(),
         'favorites': [],
+        'profile_icon_id': 0,
       });
     }
+  }
+
+  Future<void> updateProfileIcon(int iconIndex) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+      'profile_icon_id': iconIndex,
+    });
+    notifyListeners();
+  }
+
+  Stream<int> getCurrentUserIconIndex() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const Stream.empty();
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .snapshots()
+        .map((doc) {
+          if (doc.exists && doc.data()!.containsKey('profile_icon_id')) {
+            return doc.data()!['profile_icon_id'] as int;
+          }
+          return 0;
+        });
   }
 
   Future<List<Map<String, dynamic>>> searchUsersByEmail(
@@ -141,18 +197,14 @@ class MovieManager extends ChangeNotifier {
         .collection('users')
         .where('email', isEqualTo: query)
         .get();
-
     List<Map<String, dynamic>> users = [];
     final currentUser = FirebaseAuth.instance.currentUser;
-
     for (var doc in snapshot.docs) {
       if (doc.id == currentUser?.uid) continue;
       users.add({'uid': doc.id, 'email': doc.data()['email']});
     }
     return users;
   }
-
-  // --- SOSYAL İŞLEMLER ---
 
   Future<void> sendFriendRequest(String targetUid) async {
     final currentUser = FirebaseAuth.instance.currentUser;
@@ -203,12 +255,9 @@ class MovieManager extends ChangeNotifier {
         .delete();
   }
 
-  // --- ARKADAŞ SİLME (VE MESAJLARI SİLME) ---
   Future<void> removeFriend(String friendUid) async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
-
-    // 1. Arkadaş listelerinden sil
     await FirebaseFirestore.instance
         .collection('users')
         .doc(currentUser.uid)
@@ -222,16 +271,12 @@ class MovieManager extends ChangeNotifier {
         .doc(currentUser.uid)
         .delete();
 
-    // 2. Mesaj Geçmişini Sil (Opsiyonel ama istendi)
     final chatId = getChatId(currentUser.uid, friendUid);
     final chatRef = FirebaseFirestore.instance.collection('chats').doc(chatId);
-
-    // Alt koleksiyondaki mesajları sil
     final messages = await chatRef.collection('messages').get();
     for (var doc in messages.docs) {
       await doc.reference.delete();
     }
-    // Chat dökümanını sil
     await chatRef.delete();
   }
 
@@ -296,8 +341,6 @@ class MovieManager extends ChangeNotifier {
         .snapshots();
   }
 
-  // --- YARDIMCI METODLAR ---
-
   Map<String, String> getActorDetails(String actorName) {
     String bio =
         "$actorName is a world-renowned actor known for their versatility and depth in various roles.";
@@ -336,7 +379,6 @@ class MovieManager extends ChangeNotifier {
     return potentialMovies.take(5).toList();
   }
 
-  // --- FAVORİ & PUAN ---
   Future<void> toggleFavorite(Movie movie) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -376,17 +418,24 @@ class MovieManager extends ChangeNotifier {
     }
   }
 
-  Stream<DocumentSnapshot> getMovieLiveRating(int movieId) {
-    return FirebaseFirestore.instance
-        .collection('app_movies')
-        .doc(movieId.toString())
-        .snapshots();
-  }
+  Stream<DocumentSnapshot> getMovieLiveRating(int movieId) => FirebaseFirestore
+      .instance
+      .collection('app_movies')
+      .doc(movieId.toString())
+      .snapshots();
 
   Future<void> addReview(Movie movie, double newRating, String comment) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     final userName = user.email?.split('@')[0] ?? 'User';
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+    int profileIconId = 0;
+    if (userDoc.exists && userDoc.data()!.containsKey('profile_icon_id')) {
+      profileIconId = userDoc.data()!['profile_icon_id'];
+    }
 
     final previousReviews = await FirebaseFirestore.instance
         .collection('reviews')
@@ -400,22 +449,24 @@ class MovieManager extends ChangeNotifier {
       oldRating = (previousReviews.docs.first.data()['rating'] ?? 0).toDouble();
       WriteBatch batch = FirebaseFirestore.instance.batch();
       for (var d in previousReviews.docs)
-        batch.update(d.reference, {'rating': newRating});
+        batch.update(d.reference, {
+          'rating': newRating,
+          'profile_icon_id': profileIconId,
+        });
       await batch.commit();
     }
-
     await FirebaseFirestore.instance.collection('reviews').add({
       'movie_id': movie.id,
       'movie_title': movie.title,
       'poster_path': movie.poster,
       'user_id': user.uid,
       'user_name': userName,
+      'profile_icon_id': profileIconId,
       'rating': newRating,
       'comment': comment,
       'likes': [],
       'timestamp': FieldValue.serverTimestamp(),
     });
-
     final movieRef = FirebaseFirestore.instance
         .collection('app_movies')
         .doc(movie.id.toString());
@@ -446,7 +497,6 @@ class MovieManager extends ChangeNotifier {
         });
       }
     });
-
     await _createNotification(
       recipientId: user.uid,
       message: "${movie.title} filmine yorum yaptın.",
@@ -464,7 +514,6 @@ class MovieManager extends ChangeNotifier {
     if (!doc.exists) return;
     int mid = doc.data()!['movie_id'];
     double rating = (doc.data()!['rating'] ?? 0).toDouble();
-
     final movieRef = FirebaseFirestore.instance
         .collection('app_movies')
         .doc(mid.toString());
@@ -490,12 +539,11 @@ class MovieManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> editReview(String id, String comment, double r) async {
-    await FirebaseFirestore.instance.collection('reviews').doc(id).update({
-      'comment': comment,
-      'is_edited': true,
-    });
-  }
+  Future<void> editReview(String id, String comment, double r) async =>
+      await FirebaseFirestore.instance.collection('reviews').doc(id).update({
+        'comment': comment,
+        'is_edited': true,
+      });
 
   Future<void> toggleLikeReview(String id) async {
     final user = FirebaseAuth.instance.currentUser;
@@ -611,7 +659,6 @@ class MovieManager extends ChangeNotifier {
     }
   }
 
-  // --- API ---
   Future<void> searchMovies(String query) async {
     if (query.isEmpty) {
       _searchResults.clear();
@@ -627,9 +674,28 @@ class MovieManager extends ChangeNotifier {
       final data = json.decode(response.body);
       _searchResults.clear();
       for (var item in data['results']) {
-        if (item['media_type'] == 'movie')
+        final mediaType = item['media_type'];
+        if (mediaType == 'movie') {
           _searchResults.add(Movie.fromTMDB(item));
+        } else if (mediaType == 'person') {
+          if (item['known_for'] != null) {
+            for (var knownMovie in item['known_for']) {
+              if (knownMovie['media_type'] == 'movie')
+                _searchResults.add(Movie.fromTMDB(knownMovie));
+            }
+          }
+        }
       }
+      final ids = <int>{};
+      final uniqueMovies = <Movie>[];
+      for (var movie in _searchResults) {
+        if (ids.add(movie.id)) {
+          uniqueMovies.add(movie);
+        }
+      }
+      uniqueMovies.sort((a, b) => b.popularity.compareTo(a.popularity));
+      _searchResults.clear();
+      _searchResults.addAll(uniqueMovies);
       notifyListeners();
     }
   }
@@ -683,6 +749,7 @@ class MovieManager extends ChangeNotifier {
     notifyListeners();
   }
 
+  // --- BURASI GÜNCELLENDİ: FOTOĞRAFLARI DA ÇEKİYOR ---
   Future<void> fetchCast(Movie movie) async {
     if (movie.director != "Unknown") return;
     final response = await http.get(
@@ -693,9 +760,24 @@ class MovieManager extends ChangeNotifier {
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       List<String> castNames = [];
-      for (var actor in (data['cast'] as List).take(5))
-        castNames.add(actor['name']);
+      List<Map<String, String>> details = [];
+
+      for (var actor in (data['cast'] as List).take(10)) {
+        String name = actor['name'];
+        castNames.add(name);
+
+        // Fotoğraf yolunu al ve tam URL oluştur
+        String? profilePath = actor['profile_path'];
+        String photoUrl = profilePath != null
+            ? "$TMDB_PROFILE_BASE_URL$profilePath"
+            : ""; // Foto yoksa boş string
+
+        details.add({'name': name, 'photo': photoUrl});
+      }
+
       movie.actors = castNames;
+      movie.castDetails = details; // Detaylı listeyi kaydet
+
       var dir = (data['crew'] as List).firstWhere(
         (c) => c['job'] == 'Director',
         orElse: () => null,

@@ -7,6 +7,7 @@ import 'package:mymovielist/data/movie_manager.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart'; // EKLENDİ
 
 class MovieDetailView extends StatefulWidget {
   final Movie movie;
@@ -47,7 +48,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
     super.dispose();
   }
 
-  // --- FILM PAYLAŞMA MENÜSÜ ---
   void _showShareBottomSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -221,7 +221,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
       backgroundColor: AppTheme.backgroundBlack,
       body: CustomScrollView(
         slivers: [
-          // 1. APP BAR
           SliverAppBar(
             expandedHeight: 300.0,
             pinned: true,
@@ -248,10 +247,12 @@ class _MovieDetailViewState extends State<MovieDetailView> {
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Image.network(
-                    widget.movie.poster,
+                  CachedNetworkImage(
+                    imageUrl: widget.movie.poster,
                     fit: BoxFit.cover,
-                    errorBuilder: (c, o, s) => Container(color: Colors.grey),
+                    placeholder: (c, u) =>
+                        Container(color: AppTheme.surfaceDark),
+                    errorWidget: (c, o, s) => Container(color: Colors.grey),
                   ),
                   Container(
                     decoration: BoxDecoration(
@@ -270,7 +271,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
             ),
           ),
 
-          // 2. FİLM DETAYLARI
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
@@ -287,29 +287,67 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                   ),
                   const SizedBox(height: 8),
 
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryBlue.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      widget.movie.genres.isNotEmpty
-                          ? widget.movie.genres.first
-                          : 'Genre',
-                      style: const TextStyle(color: AppTheme.primaryBlue),
-                    ),
+                  // --- TÜR (GENRE) KISMI: TIKLANABİLİR ---
+                  Wrap(
+                    spacing: 8,
+                    children: widget.movie.genres.map((genre) {
+                      return InkWell(
+                        onTap: () {
+                          // Kategori sayfasına yönlendir
+                          context.pushNamed(
+                            AppRouters.genreMovies,
+                            pathParameters: {'genre': genre},
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryBlue.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: AppTheme.primaryBlue.withOpacity(0.5),
+                            ),
+                          ),
+                          child: Text(
+                            genre,
+                            style: const TextStyle(
+                              color: AppTheme.primaryBlue,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
                   ),
+
+                  // ---------------------------------------
                   const SizedBox(height: 20),
 
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        "TMDB Rating :",
+                        "Release Date:",
+                        style: TextStyle(color: Colors.grey, fontSize: 16),
+                      ),
+                      Text(
+                        widget.movie.releaseDate,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        "TMDB Rating:",
                         style: TextStyle(
                           color: Colors.grey,
                           fontSize: 16,
@@ -333,7 +371,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                   ),
                   const Divider(color: Colors.white24, height: 20),
 
-                  // CANLI PUANLAMA
                   StreamBuilder<DocumentSnapshot>(
                     stream: MovieManager.instance.getMovieLiveRating(
                       widget.movie.id,
@@ -422,6 +459,8 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                     style: const TextStyle(color: Colors.white70),
                   ),
                   const SizedBox(height: 20),
+
+                  // --- CAST KISMI: FOTOĞRAFLI ---
                   const Text(
                     "Cast",
                     style: TextStyle(
@@ -430,34 +469,100 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                       color: Colors.white,
                     ),
                   ),
+                  const SizedBox(height: 10),
                   SizedBox(
-                    height: 120,
+                    height: 140,
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
-                      itemCount: widget.movie.actors.length,
+                      itemCount: widget.movie.castDetails.isNotEmpty
+                          ? widget.movie.castDetails.length
+                          : widget.movie.actors.length,
                       itemBuilder: (context, index) {
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 12.0),
-                          child: Column(
-                            children: [
-                              const CircleAvatar(
-                                radius: 30,
-                                backgroundColor: Colors.grey,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                widget.movie.actors[index],
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 10,
+                        // Eğer detaylı liste (fotoğraflı) doluysa onu kullan
+                        if (widget.movie.castDetails.isNotEmpty) {
+                          final actor = widget.movie.castDetails[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 15.0),
+                            child: Column(
+                              children: [
+                                Container(
+                                  width: 80,
+                                  height: 80,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.5),
+                                        blurRadius: 5,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ClipOval(
+                                    child: actor['photo']!.isNotEmpty
+                                        ? CachedNetworkImage(
+                                            imageUrl: actor['photo']!,
+                                            fit: BoxFit.cover,
+                                            placeholder: (c, u) =>
+                                                Container(color: Colors.grey),
+                                            errorWidget: (c, u, e) => Container(
+                                              color: Colors.grey,
+                                              child: const Icon(Icons.person),
+                                            ),
+                                          )
+                                        : Container(
+                                            color: Colors.grey,
+                                            child: const Icon(
+                                              Icons.person,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        );
+                                const SizedBox(height: 8),
+                                SizedBox(
+                                  width: 80,
+                                  child: Text(
+                                    actor['name']!,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 11,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        } else {
+                          // Eski usul (Sadece isim varsa)
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 12.0),
+                            child: Column(
+                              children: [
+                                const CircleAvatar(
+                                  radius: 30,
+                                  backgroundColor: Colors.grey,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  widget.movie.actors[index],
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
                       },
                     ),
                   ),
+
+                  // -------------------------------
                   const SizedBox(height: 20),
                   if (widget.movie.trailerId.isNotEmpty &&
                       widget.movie.trailerId != 'dQw4w9WgXcQ')
@@ -616,6 +721,13 @@ class _ReviewCardState extends State<ReviewCard> {
         ? DateFormat('dd MMM yyyy').format(ts.toDate())
         : '';
 
+    final int iconId = data['profile_icon_id'] ?? 0;
+    final safeIndex =
+        (iconId >= 0 && iconId < MovieManager.instance.profileIcons.length)
+        ? iconId
+        : 0;
+    final String iconUrl = MovieManager.instance.profileIcons[safeIndex];
+
     return Card(
       color: AppTheme.surfaceDark,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -629,6 +741,12 @@ class _ReviewCardState extends State<ReviewCard> {
               children: [
                 Row(
                   children: [
+                    CircleAvatar(
+                      radius: 16,
+                      backgroundColor: Colors.transparent,
+                      backgroundImage: NetworkImage(iconUrl),
+                    ),
+                    const SizedBox(width: 8),
                     Text(
                       data['user_name'] ?? 'User',
                       style: const TextStyle(
@@ -665,6 +783,7 @@ class _ReviewCardState extends State<ReviewCard> {
                   ),
               ],
             ),
+
             Text(
               dateStr,
               style: TextStyle(color: Colors.grey[600], fontSize: 10),
@@ -680,6 +799,7 @@ class _ReviewCardState extends State<ReviewCard> {
                   fontStyle: FontStyle.italic,
                 ),
               ),
+
             const SizedBox(height: 10),
 
             Row(

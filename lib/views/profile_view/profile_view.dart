@@ -16,6 +16,65 @@ class ProfileView extends StatelessWidget {
     return 'USER';
   }
 
+  // AVATAR SEÇME PENCERESİ
+  void _showAvatarSelection(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surfaceDark,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          height: 400,
+          child: Column(
+            children: [
+              const Text(
+                "Profil Avatarını Seç",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Expanded(
+                child: GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 4,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                  ),
+                  itemCount: MovieManager.instance.profileIcons.length,
+                  itemBuilder: (context, index) {
+                    return GestureDetector(
+                      onTap: () {
+                        MovieManager.instance.updateProfileIcon(index);
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("Profil fotoğrafı güncellendi!"),
+                          ),
+                        );
+                      },
+                      child: CircleAvatar(
+                        backgroundColor: Colors.white10,
+                        backgroundImage: NetworkImage(
+                          MovieManager.instance.profileIcons[index],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   void _showChangePasswordDialog(BuildContext context) {
     final TextEditingController passwordController = TextEditingController();
     showDialog(
@@ -26,25 +85,15 @@ class ProfileView extends StatelessWidget {
           "Şifre Değiştir",
           style: TextStyle(color: Colors.white),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              "Güvenliğiniz için yeni şifre girin.",
-              style: TextStyle(color: Colors.grey),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: passwordController,
-              obscureText: true,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                hintText: "Yeni Şifre",
-                filled: true,
-                fillColor: Colors.black26,
-              ),
-            ),
-          ],
+        content: TextField(
+          controller: passwordController,
+          obscureText: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: "Yeni Şifre",
+            filled: true,
+            fillColor: Colors.black26,
+          ),
         ),
         actions: [
           TextButton(
@@ -56,15 +105,6 @@ class ProfileView extends StatelessWidget {
               backgroundColor: AppTheme.primaryBlue,
             ),
             onPressed: () async {
-              if (passwordController.text.trim().length < 6) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Şifre en az 6 karakter olmalı."),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-                return;
-              }
               try {
                 await MovieManager.instance.changePassword(
                   passwordController.text.trim(),
@@ -78,15 +118,7 @@ class ProfileView extends StatelessWidget {
                   );
                 }
               } catch (e) {
-                if (context.mounted) {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text("Hata: $e"),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
+                if (context.mounted) Navigator.pop(ctx);
               }
             },
             child: const Text("Kaydet", style: TextStyle(color: Colors.white)),
@@ -119,18 +151,48 @@ class ProfileView extends StatelessWidget {
             Center(
               child: Column(
                 children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundColor: AppTheme.primaryBlue,
-                    child: Text(
-                      userName.isNotEmpty ? userName[0] : "U",
-                      style: const TextStyle(
-                        fontSize: 40,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                  // --- GÜNCELLENEN AVATAR KISMI ---
+                  StreamBuilder<int>(
+                    stream: MovieManager.instance.getCurrentUserIconIndex(),
+                    builder: (context, snapshot) {
+                      final iconIndex = snapshot.data ?? 0;
+                      final iconUrl =
+                          MovieManager.instance.profileIcons[iconIndex];
+
+                      return GestureDetector(
+                        onTap: () => _showAvatarSelection(context),
+                        child: Stack(
+                          children: [
+                            CircleAvatar(
+                              radius: 50,
+                              backgroundColor: AppTheme.primaryBlue.withOpacity(
+                                0.2,
+                              ),
+                              backgroundImage: NetworkImage(iconUrl),
+                            ),
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: AppTheme.primaryBlue,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.edit,
+                                  color: Colors.black,
+                                  size: 16,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
+
+                  // ---------------------------------
                   const SizedBox(height: 15),
                   Text(
                     userName,
@@ -168,22 +230,6 @@ class ProfileView extends StatelessWidget {
               icon: Icons.lock_reset,
               text: "Şifre Değiştir",
               onTap: () => _showChangePasswordDialog(context),
-            ),
-            _buildMenuItem(
-              icon: Icons.info_outline,
-              text: "Uygulama Hakkında",
-              onTap: () {
-                showAboutDialog(
-                  context: context,
-                  applicationName: "MyMovieList",
-                  applicationVersion: "1.0.0",
-                  applicationIcon: const Icon(
-                    Icons.movie,
-                    size: 40,
-                    color: AppTheme.primaryBlue,
-                  ),
-                );
-              },
             ),
 
             const SizedBox(height: 30),

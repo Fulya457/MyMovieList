@@ -3,7 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // EKLENDİ
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/app/theme.dart';
 import 'package:video_player/video_player.dart';
@@ -48,18 +48,14 @@ class _LoginViewState extends State<LoginView> {
   }
 
   void _initializeVideo() {
-    _videoController =
-        VideoPlayerController.networkUrl(
-            Uri.parse(
-              'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-            ),
-          )
-          ..initialize().then((_) {
-            _videoController.setVolume(0.0);
-            _videoController.setLooping(true);
-            _videoController.play();
-            setState(() {});
-          });
+    // --- BURASI GÜNCELLENDİ: ASSET KULLANIMI ---
+    _videoController = VideoPlayerController.asset('assets/intro.mp4')
+      ..initialize().then((_) {
+        _videoController.setVolume(0.0);
+        _videoController.setLooping(true);
+        _videoController.play();
+        setState(() {});
+      });
   }
 
   void _startSloganRotation() {
@@ -99,8 +95,7 @@ class _LoginViewState extends State<LoginView> {
       final User? user = userCredential.user;
 
       if (user != null) {
-        // --- KRİTİK EKLEME: GİRİŞ YAPAN KULLANICIYI VERİTABANINA KAYDET ---
-        // Bu sayede arkadaş aramasında çıkabilir hale gelir.
+        // Giriş yapan kullanıcıyı veritabanına kaydet (Arkadaş araması için)
         final userDoc = FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid);
@@ -113,7 +108,6 @@ class _LoginViewState extends State<LoginView> {
             'favorites': [],
           });
         }
-        // -----------------------------------------------------------------
 
         final memberName = _getMemberName(email);
         if (mounted) context.go(AppRouters.welcome, extra: memberName);
@@ -159,7 +153,7 @@ class _LoginViewState extends State<LoginView> {
       backgroundColor: AppTheme.backgroundBlack,
       body: Stack(
         children: [
-          // KATMAN 1: VİDEO
+          // KATMAN 1: VİDEO (ASSET)
           if (_videoController.value.isInitialized)
             SizedBox.expand(
               child: FittedBox(
