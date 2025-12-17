@@ -98,7 +98,6 @@ class Movie {
   }
 }
 
-// --- MovieManager Sınıfı ---
 class MovieManager extends ChangeNotifier {
   static final MovieManager instance = MovieManager._privateConstructor();
 
@@ -125,6 +124,7 @@ class MovieManager extends ChangeNotifier {
   final List<Movie> _trendingMovies = [];
   final List<Movie> _favoriteMovies = [];
   final List<Movie> _appTopRatedMovies = [];
+  Set<String> _friendIds = {}; // Arkadaş ID'lerini tutmak için
 
   int _currentPage = 1;
   bool _isFetching = false;
@@ -139,6 +139,82 @@ class MovieManager extends ChangeNotifier {
 
   bool isFavorite(Movie movie) =>
       _favoriteMovies.any((fav) => fav.id == movie.id);
+
+  // --- LİSTE OLUŞTURMA & YÖNETME (YENİ) ---
+
+  // 1. Yeni Liste Oluştur
+  Future<void> createCustomList(String listName) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('lists')
+        .add({
+          'name': listName,
+          'created_at': FieldValue.serverTimestamp(),
+          'movies': [], // Film listesi (Map olarak tutacağız)
+        });
+  }
+
+  // 2. Listeye Film Ekle
+  Future<void> addMovieToCustomList(String listId, Movie movie) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final listRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('lists')
+        .doc(listId);
+
+    // Filmi listeye ekle (Array Union ile tekrarı önle)
+    await listRef.update({
+      'movies': FieldValue.arrayUnion([movie.toMap()]),
+    });
+  }
+
+  // 3. Listeden Film Sil
+  Future<void> removeMovieFromCustomList(
+    String listId,
+    Map<String, dynamic> movieMap,
+  ) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('lists')
+        .doc(listId)
+        .update({
+          'movies': FieldValue.arrayRemove([movieMap]),
+        });
+  }
+
+  // 4. Listeyi Komple Sil
+  Future<void> deleteCustomList(String listId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('lists')
+        .doc(listId)
+        .delete();
+  }
+
+  // 5. Kullanıcının Listelerini Getir (Stream)
+  Stream<QuerySnapshot> getUserListsStream() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const Stream.empty();
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('lists')
+        .orderBy('created_at', descending: true)
+        .snapshots();
+  }
 
   // --- KULLANICI & PROFİL ---
   Future<void> ensureUserExistsInFirestore() async {
@@ -284,6 +360,15 @@ class MovieManager extends ChangeNotifier {
         .snapshots();
   }
 
+  // Arkadaş ID'lerini cache'lemek için (Rate gösterimi için)
+  void listenToFriendsList() {
+    getFriendsStream().listen((snapshot) {
+      _friendIds = snapshot.docs.map((d) => d.id).toSet();
+    });
+  }
+
+  bool isFriend(String uid) => _friendIds.contains(uid);
+
   Stream<QuerySnapshot> getFriendRequestsStream() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return const Stream.empty();
@@ -297,10 +382,12 @@ class MovieManager extends ChangeNotifier {
   String getChatId(String userA, String userB) =>
       userA.compareTo(userB) < 0 ? "${userA}_$userB" : "${userB}_$userA";
 
+  // --- MESAJ GÖNDERME (GÜNCELLENDİ: LİSTE PAYLAŞIMI) ---
   Future<void> sendMessage({
     required String receiverUid,
     required String text,
     Movie? sharedMovie,
+    Map<String, dynamic>? sharedList,
   }) async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
@@ -311,11 +398,20 @@ class MovieManager extends ChangeNotifier {
       'timestamp': FieldValue.serverTimestamp(),
       'is_read': false,
     };
+
     if (sharedMovie != null) {
       messageData['movie_id'] = sharedMovie.id;
       messageData['movie_title'] = sharedMovie.title;
       messageData['poster_path'] = sharedMovie.poster;
     }
+
+    // Eğer liste paylaşılıyorsa
+    if (sharedList != null) {
+      messageData['list_id'] = sharedList['id'];
+      messageData['list_name'] = sharedList['name'];
+      messageData['list_count'] = sharedList['count'];
+    }
+
     await FirebaseFirestore.instance
         .collection('chats')
         .doc(chatId)
@@ -379,18 +475,23 @@ class MovieManager extends ChangeNotifier {
     final userDoc = FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid);
+
+    // MANTIĞI SADELEŞTİRDİK:
     if (isFavorite(movie)) {
+      // Eğer zaten favoriyse: Listeden çıkar ve Firebase'den sil
       _favoriteMovies.removeWhere((m) => m.id == movie.id);
+      notifyListeners(); // UI hemen gri olsun
       await userDoc.update({
         'favorites': FieldValue.arrayRemove([movie.toMap()]),
       });
     } else {
+      // Eğer favori değilse: Listeye ekle ve Firebase'e yaz
       _favoriteMovies.add(movie);
+      notifyListeners(); // UI hemen kırmızı olsun
       await userDoc.update({
         'favorites': FieldValue.arrayUnion([movie.toMap()]),
       });
     }
-    notifyListeners();
   }
 
   Future<void> loadFavoritesFromFirebase() async {
@@ -743,42 +844,31 @@ class MovieManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- BURASI DÜZELTİLDİ: TRY-CATCH ve GÜÇLÜ KONTROL ---
   Future<void> fetchCast(Movie movie) async {
-    // Veri zaten varsa tekrar çekme (Tasarruf)
     if (movie.castDetails.isNotEmpty && movie.director != "Unknown") return;
-
     try {
       final response = await http.get(
         Uri.parse(
           'https://api.themoviedb.org/3/movie/${movie.id}/credits?api_key=$TMDB_API_KEY',
         ),
       );
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         List<String> castNames = [];
         List<Map<String, String>> details = [];
-
-        // Güvenli Oyuncu Çekme
         if (data['cast'] != null) {
           for (var actor in (data['cast'] as List).take(10)) {
             String name = actor['name'] ?? 'Unknown Actor';
             castNames.add(name);
-
             String? profilePath = actor['profile_path'];
             String photoUrl = (profilePath != null && profilePath.isNotEmpty)
                 ? "$TMDB_PROFILE_BASE_URL$profilePath"
                 : "";
-
             details.add({'name': name, 'photo': photoUrl});
           }
         }
-
         movie.actors = castNames;
         movie.castDetails = details;
-
-        // Güvenli Yönetmen Çekme
         if (data['crew'] != null) {
           var dir = (data['crew'] as List).firstWhere(
             (c) => c['job'] == 'Director',
@@ -786,12 +876,10 @@ class MovieManager extends ChangeNotifier {
           );
           movie.director = dir != null ? dir['name'] : "Unknown Director";
         }
-
-        notifyListeners(); // UI'ı zorla güncelle
+        notifyListeners();
       }
     } catch (e) {
       print("Cast Fetch Error: $e");
-      // Hata olsa bile sessiz kal, uygulama çökmesin
     }
   }
 

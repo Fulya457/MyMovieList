@@ -7,7 +7,7 @@ import 'package:mymovielist/app/theme.dart';
 import 'package:mymovielist/data/movie_manager.dart';
 
 class ChatView extends StatefulWidget {
-  final Map<String, dynamic> extras; // targetUid, targetEmail, movie(opsiyonel)
+  final Map<String, dynamic> extras;
   const ChatView({super.key, required this.extras});
 
   @override
@@ -21,7 +21,6 @@ class _ChatViewState extends State<ChatView> {
   @override
   void initState() {
     super.initState();
-    // Eğer film paylaşımıyla geldiyse otomatik mesaj at
     if (widget.extras['movie'] != null) {
       final Movie movie = widget.extras['movie'];
       MovieManager.instance.sendMessage(
@@ -39,7 +38,6 @@ class _ChatViewState extends State<ChatView> {
       text: _msgController.text.trim(),
     );
     _msgController.clear();
-    // Mesaj atınca en aşağıya kaydır
     Future.delayed(const Duration(milliseconds: 300), () {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -76,7 +74,7 @@ class _ChatViewState extends State<ChatView> {
 
                 return ListView.builder(
                   controller: _scrollController,
-                  reverse: true, // En yeni mesaj en altta
+                  reverse: true,
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
                     final data = docs[index].data() as Map<String, dynamic>;
@@ -120,7 +118,7 @@ class _ChatViewState extends State<ChatView> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // FİLM PAYLAŞIMI VARSA GÖSTER
+                            // FİLM PAYLAŞIMI
                             if (data.containsKey('movie_title'))
                               Container(
                                 margin: const EdgeInsets.only(bottom: 8),
@@ -151,15 +149,55 @@ class _ChatViewState extends State<ChatView> {
                                 ),
                               ),
 
-                            // MESAJ METNİ (BÜYÜTÜLDÜ: FontSize 16)
+                            // LİSTE PAYLAŞIMI (YENİ)
+                            if (data.containsKey('list_name'))
+                              Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.purple.withOpacity(0.5),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.list_alt,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          "Liste: ${data['list_name']}",
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        Text(
+                                          "${data['list_count']} Film",
+                                          style: const TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 10,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+
                             Text(
                               data['text'],
                               style: TextStyle(
                                 color: isMe ? Colors.black : Colors.white,
-                                fontSize: 17, // <-- BURASI BÜYÜTÜLDÜ
+                                fontSize: 17,
                               ),
                             ),
-
                             const SizedBox(height: 4),
                             Align(
                               alignment: Alignment.bottomRight,
@@ -181,7 +219,6 @@ class _ChatViewState extends State<ChatView> {
             ),
           ),
 
-          // MESAJ YAZMA KUTUSU
           Container(
             padding: const EdgeInsets.all(12),
             color: AppTheme.surfaceDark,

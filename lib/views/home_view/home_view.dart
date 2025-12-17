@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:carousel_slider/carousel_slider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -27,6 +28,7 @@ class _HomeViewState extends State<HomeView> {
     MovieManager.instance.ensureUserExistsInFirestore();
     MovieManager.instance.fetchNextPageMovies(initial: true);
     MovieManager.instance.loadFavoritesFromFirebase();
+    MovieManager.instance.listenToFriendsList(); // Arkadaş listesini dinle
 
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=
@@ -59,6 +61,131 @@ class _HomeViewState extends State<HomeView> {
     });
   }
 
+  // --- LİSTEYE EKLEME PENCERESİ (BottomSheet) ---
+  void _showAddToListSheet(BuildContext context, Movie movie) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.backgroundBlack,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          height: 400,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Add to List: ${movie.title}",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 10),
+              const Divider(color: Colors.grey),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: MovieManager.instance.getUserListsStream(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData)
+                      return const Center(child: CircularProgressIndicator());
+                    final docs = snapshot.data!.docs;
+
+                    if (docs.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.playlist_add,
+                              size: 50,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              "Henüz listeniz yok.",
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                context.push(
+                                  AppRouters.profile,
+                                ); // Profile yönlendir
+                              },
+                              child: const Text(
+                                "Liste oluşturmak için tıklayın",
+                                style: TextStyle(color: AppTheme.primaryBlue),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      itemCount: docs.length,
+                      itemBuilder: (context, index) {
+                        final listData =
+                            docs[index].data() as Map<String, dynamic>;
+                        final listId = docs[index].id;
+                        final movies = listData['movies'] as List? ?? [];
+                        final bool alreadyAdded = movies.any(
+                          (m) => m['id'] == movie.id,
+                        );
+
+                        return ListTile(
+                          leading: const Icon(Icons.list, color: Colors.white),
+                          title: Text(
+                            listData['name'],
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                          subtitle: Text(
+                            "${movies.length} films",
+                            style: const TextStyle(color: Colors.grey),
+                          ),
+                          trailing: alreadyAdded
+                              ? const Icon(Icons.check, color: Colors.green)
+                              : const Icon(
+                                  Icons.add,
+                                  color: AppTheme.primaryBlue,
+                                ),
+                          onTap: () async {
+                            if (!alreadyAdded) {
+                              await MovieManager.instance.addMovieToCustomList(
+                                listId,
+                                movie,
+                              );
+                              if (mounted) {
+                                Navigator.pop(ctx);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      "${movie.title} listeye eklendi!",
+                                    ),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -72,7 +199,6 @@ class _HomeViewState extends State<HomeView> {
           return CustomScrollView(
             controller: _scrollController,
             slivers: [
-              // 1. APP BAR (GÜNCELLENDİ: AVATAR EKLENDİ)
               SliverAppBar(
                 backgroundColor: AppTheme.backgroundBlack.withOpacity(0.7),
                 floating: true,
@@ -119,7 +245,6 @@ class _HomeViewState extends State<HomeView> {
                         ),
                         child: Row(
                           children: [
-                            // --- AVATAR BURAYA EKLENDİ ---
                             StreamBuilder<int>(
                               stream: MovieManager.instance
                                   .getCurrentUserIconIndex(),
@@ -128,13 +253,12 @@ class _HomeViewState extends State<HomeView> {
                                 final iconUrl =
                                     MovieManager.instance.profileIcons[index];
                                 return CircleAvatar(
-                                  radius: 12, // Küçük boyut
+                                  radius: 12,
                                   backgroundColor: Colors.transparent,
                                   backgroundImage: NetworkImage(iconUrl),
                                 );
                               },
                             ),
-                            // -----------------------------
                             const SizedBox(width: 8),
                             Text(
                               _getMemberName(),
@@ -331,7 +455,7 @@ class _HomeViewState extends State<HomeView> {
                           height: 24,
                           color: AppTheme.primaryBlue,
                         ),
-                        const SizedBox(width: 10),
+                        SizedBox(width: 10),
                         const Text(
                           "Popular Movies",
                           style: TextStyle(
@@ -430,18 +554,32 @@ class _HomeViewState extends State<HomeView> {
                                     ],
                                   ),
                                 ),
-                                IconButton(
-                                  icon: Icon(
-                                    manager.isFavorite(movie)
-                                        ? Icons.favorite
-                                        : Icons.favorite_border,
-                                    color: manager.isFavorite(movie)
-                                        ? Colors.red
-                                        : Colors.grey,
-                                  ),
-                                  onPressed: () =>
-                                      manager.toggleFavorite(movie),
+                                // --- YENİ EKLENEN İKONLAR (FAVORİ + LİSTE) ---
+                                Column(
+                                  children: [
+                                    IconButton(
+                                      icon: Icon(
+                                        manager.isFavorite(movie)
+                                            ? Icons.favorite
+                                            : Icons.favorite_border,
+                                        color: manager.isFavorite(movie)
+                                            ? Colors.red
+                                            : Colors.grey,
+                                      ),
+                                      onPressed: () =>
+                                          manager.toggleFavorite(movie),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.playlist_add,
+                                        color: Colors.white,
+                                      ),
+                                      onPressed: () =>
+                                          _showAddToListSheet(context, movie),
+                                    ),
+                                  ],
                                 ),
+                                // --------------------------------------------
                               ],
                             ),
                           ),

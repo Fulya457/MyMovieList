@@ -24,7 +24,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
   @override
   void initState() {
     super.initState();
-    // Verileri çekmeye başla
     MovieManager.instance.fetchCast(widget.movie);
     MovieManager.instance.fetchTrailerId(widget.movie).then((_) {
       if (mounted) {
@@ -47,6 +46,127 @@ class _MovieDetailViewState extends State<MovieDetailView> {
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  // --- LİSTEYE EKLEME PENCERESİ (BottomSheet) ---
+  void _showAddToListSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.backgroundBlack,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          height: 400,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Add to List",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Divider(color: Colors.grey),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: MovieManager.instance.getUserListsStream(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData)
+                      return const Center(child: CircularProgressIndicator());
+                    final docs = snapshot.data!.docs;
+
+                    if (docs.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.playlist_add,
+                              size: 50,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              "Henüz listeniz yok.",
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                context.push(AppRouters.profile);
+                              },
+                              child: const Text(
+                                "Liste oluşturmak için tıklayın",
+                                style: TextStyle(color: AppTheme.primaryBlue),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      itemCount: docs.length,
+                      itemBuilder: (context, index) {
+                        final listData =
+                            docs[index].data() as Map<String, dynamic>;
+                        final listId = docs[index].id;
+                        final movies = listData['movies'] as List? ?? [];
+                        final bool alreadyAdded = movies.any(
+                          (m) => m['id'] == widget.movie.id,
+                        );
+
+                        return ListTile(
+                          leading: const Icon(Icons.list, color: Colors.white),
+                          title: Text(
+                            listData['name'],
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                          subtitle: Text(
+                            "${movies.length} films",
+                            style: const TextStyle(color: Colors.grey),
+                          ),
+                          trailing: alreadyAdded
+                              ? const Icon(Icons.check, color: Colors.green)
+                              : const Icon(
+                                  Icons.add,
+                                  color: AppTheme.primaryBlue,
+                                ),
+                          onTap: () async {
+                            if (!alreadyAdded) {
+                              await MovieManager.instance.addMovieToCustomList(
+                                listId,
+                                widget.movie,
+                              );
+                              if (mounted) {
+                                Navigator.pop(ctx);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      "${widget.movie.title} listeye eklendi!",
+                                    ),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   void _showShareBottomSheet(BuildContext context) {
@@ -130,7 +250,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
   void _showRatingDialog() {
     final TextEditingController reviewController = TextEditingController();
     double rating = 5.0;
-
     showDialog(
       context: context,
       builder: (context) {
@@ -220,12 +339,9 @@ class _MovieDetailViewState extends State<MovieDetailView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
-      // --- KRİTİK DEĞİŞİKLİK BURADA: AnimatedBuilder ---
       body: AnimatedBuilder(
-        animation: MovieManager.instance, // MovieManager'ı dinle
+        animation: MovieManager.instance,
         builder: (context, child) {
-          // MovieManager her güncellendiğinde burası tekrar çizilir
-          // Böylece Yönetmen veya Cast geldiğinde anında ekrana düşer.
           return CustomScrollView(
             slivers: [
               SliverAppBar(
@@ -237,6 +353,15 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                   onPressed: () => context.pop(),
                 ),
                 actions: [
+                  // --- LİSTEYE EKLE BUTONU BURAYA DA EKLENDİ ---
+                  IconButton(
+                    icon: const Icon(
+                      Icons.playlist_add,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                    onPressed: () => _showAddToListSheet(context),
+                  ),
                   IconButton(
                     icon: const Icon(Icons.share, color: Colors.white),
                     onPressed: () => _showShareBottomSheet(context),
@@ -327,7 +452,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                       ),
 
                       const SizedBox(height: 20),
-
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -396,50 +520,95 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                             hasData = true;
                           }
 
-                          return Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                "User Rate :",
-                                style: TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              if (hasData && liveCount > 0)
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.star,
-                                      color: Colors.lightBlueAccent,
-                                      size: 22,
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    "User Rate :",
+                                    style: TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
                                     ),
-                                    Text(
-                                      " ${liveRating.toStringAsFixed(1)} / 10",
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    Text(
-                                      " ($liveCount)",
-                                      style: const TextStyle(
-                                        color: Colors.grey,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              else
-                                const Text(
-                                  "No ratings yet",
-                                  style: TextStyle(
-                                    color: Colors.grey,
-                                    fontStyle: FontStyle.italic,
                                   ),
+                                  if (hasData && liveCount > 0)
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.star,
+                                          color: Colors.lightBlueAccent,
+                                          size: 22,
+                                        ),
+                                        Text(
+                                          " ${liveRating.toStringAsFixed(1)} / 10",
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        Text(
+                                          " ($liveCount)",
+                                          style: const TextStyle(
+                                            color: Colors.grey,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  else
+                                    const Text(
+                                      "No ratings yet",
+                                      style: TextStyle(
+                                        color: Colors.grey,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                ],
+                              ),
+
+                              // --- ARKADAŞ PUANLARI BURADA GÖZÜKECEK ---
+                              // Tüm yorumları çekip arkadaşları filtreliyoruz
+                              StreamBuilder<QuerySnapshot>(
+                                stream: MovieManager.instance.getReviewsStream(
+                                  widget.movie.id,
                                 ),
+                                builder: (context, revSnap) {
+                                  if (!revSnap.hasData) return const SizedBox();
+
+                                  List<String> friendRatings = [];
+                                  for (var doc in revSnap.data!.docs) {
+                                    final data =
+                                        doc.data() as Map<String, dynamic>;
+                                    if (MovieManager.instance.isFriend(
+                                      data['user_id'],
+                                    )) {
+                                      friendRatings.add(
+                                        "${data['user_name']} ${(data['rating'] as num).toStringAsFixed(1)} verdi",
+                                      );
+                                    }
+                                  }
+
+                                  if (friendRatings.isEmpty)
+                                    return const SizedBox();
+
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 8.0),
+                                    child: Text(
+                                      "(${friendRatings.join(', ')})",
+                                      style: const TextStyle(
+                                        color: Colors.lightGreenAccent,
+                                        fontSize: 12,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                             ],
                           );
                         },
@@ -478,8 +647,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                         ),
                       ),
                       const SizedBox(height: 10),
-
-                      // --- OYUNCU LİSTESİ ---
                       if (widget.movie.castDetails.isEmpty &&
                           widget.movie.director == "Loading...")
                         const Center(
@@ -585,7 +752,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                           ),
                         ),
 
-                      // ---------------------
                       const SizedBox(height: 20),
                       if (widget.movie.trailerId.isNotEmpty &&
                           widget.movie.trailerId != 'dQw4w9WgXcQ')
@@ -618,14 +784,12 @@ class _MovieDetailViewState extends State<MovieDetailView> {
               StreamBuilder<QuerySnapshot>(
                 stream: MovieManager.instance.getReviewsStream(widget.movie.id),
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
+                  if (snapshot.connectionState == ConnectionState.waiting)
                     return const SliverToBoxAdapter(
                       child: Center(child: CircularProgressIndicator()),
                     );
-                  }
                   final docs = snapshot.data?.docs ?? [];
-
-                  if (docs.isEmpty) {
+                  if (docs.isEmpty)
                     return const SliverToBoxAdapter(
                       child: Padding(
                         padding: EdgeInsets.all(20),
@@ -636,8 +800,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                         ),
                       ),
                     );
-                  }
-
                   return SliverList(
                     delegate: SliverChildBuilderDelegate((context, index) {
                       final doc = docs[index];
@@ -748,7 +910,6 @@ class _ReviewCardState extends State<ReviewCard> {
     final dateStr = ts != null
         ? DateFormat('dd MMM yyyy').format(ts.toDate())
         : '';
-
     final int iconId = data['profile_icon_id'] ?? 0;
     final safeIndex =
         (iconId >= 0 && iconId < MovieManager.instance.profileIcons.length)
@@ -811,7 +972,6 @@ class _ReviewCardState extends State<ReviewCard> {
                   ),
               ],
             ),
-
             Text(
               dateStr,
               style: TextStyle(color: Colors.grey[600], fontSize: 10),
@@ -827,9 +987,7 @@ class _ReviewCardState extends State<ReviewCard> {
                   fontStyle: FontStyle.italic,
                 ),
               ),
-
             const SizedBox(height: 10),
-
             Row(
               children: [
                 IconButton(
@@ -864,7 +1022,6 @@ class _ReviewCardState extends State<ReviewCard> {
                 ),
               ],
             ),
-
             if (showReplies)
               StreamBuilder<QuerySnapshot>(
                 stream: MovieManager.instance.getRepliesStream(widget.doc.id),
@@ -878,7 +1035,6 @@ class _ReviewCardState extends State<ReviewCard> {
                         style: TextStyle(color: Colors.grey, fontSize: 12),
                       ),
                     );
-
                   return Padding(
                     padding: const EdgeInsets.only(left: 20, top: 5),
                     child: Column(
