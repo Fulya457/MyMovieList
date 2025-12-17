@@ -9,18 +9,27 @@ import 'package:mymovielist/views/login_view/login_view.dart';
 import 'package:mymovielist/views/categories_view/categories_view.dart';
 import 'package:mymovielist/views/home_view/movie_detail_view.dart';
 import 'package:mymovielist/data/movie_manager.dart';
-import 'package:mymovielist/views/login_view/welcome_screen.dart'; // YENİ
-import 'package:mymovielist/views/profile_view/profile_view.dart'; // YENİ
+import 'package:mymovielist/views/login_view/welcome_screen.dart';
+import 'package:mymovielist/views/profile_view/profile_view.dart';
+import 'package:mymovielist/views/profile_view/notifications_view.dart';
+import 'package:mymovielist/views/profile_view/user_reviews_view.dart';
+import 'package:mymovielist/views/profile_view/friends_view.dart';
+import 'package:mymovielist/views/profile_view/chat_view.dart';
 
 final _rooterKey = GlobalKey<NavigatorState>();
 
 class AppRouters {
   static const String login = '/login';
-  static const String welcome = '/welcome'; // YENİ ROTA
-  static const String profile = '/profile'; // YENİ ROTA
+  static const String welcome = '/welcome';
+  static const String profile = '/profile';
+  static const String notifications = '/notifications';
+  static const String userReviews = '/user-reviews';
+  static const String friends = '/friends';
+  static const String chat = '/chat';
+
   static const String home = '/';
   static const String favorites = '/favorites';
-  static const String list = '/list'; // Categories View rotası
+  static const String list = '/list';
   static const String recommends = '/recommends';
   static const String genreMovies = 'genre-movies';
 }
@@ -29,28 +38,48 @@ final router = GoRouter(
   navigatorKey: _rooterKey,
   initialLocation: AppRouters.login,
   routes: [
-    // --- LOGIN ROUTE ---
     GoRoute(
       path: AppRouters.login,
       builder: (context, state) => const LoginView(),
     ),
-
-    // --- WELCOME SCREEN ROUTE (YENİ) ---
     GoRoute(
       path: AppRouters.welcome,
       builder: (context, state) {
-        final userName = state.extra as String; // Login'den gelen kullanıcı adı
+        final userName = state.extra as String;
         return WelcomeScreen(userName: userName);
       },
     ),
 
-    // --- PROFILE ROUTE (YENİ) ---
+    // --- PROFİL VE SOSYAL ---
     GoRoute(
       path: AppRouters.profile,
       builder: (context, state) => const ProfileView(),
     ),
+    GoRoute(
+      path: AppRouters.notifications,
+      builder: (context, state) => const NotificationsView(),
+    ),
+    GoRoute(
+      path: AppRouters.userReviews,
+      builder: (context, state) => const UserReviewsView(),
+    ),
+    GoRoute(
+      path: AppRouters.friends,
+      builder: (context, state) => const FriendsView(),
+    ),
+    GoRoute(
+      path: AppRouters.chat,
+      builder: (context, state) {
+        final map = state.extra as Map<String, dynamic>;
+        return ChatView(
+          targetUid: map['targetUid'],
+          targetEmail: map['targetEmail'],
+          sharedMovie: map['movie'],
+        );
+      },
+    ),
 
-    // --- SHELL DIŞI ROTLAR (Geri Butonu Gerekenler) ---
+    // --- DETAY VE LİSTELER ---
     GoRoute(
       path: '${AppRouters.list}/:genre',
       name: AppRouters.genreMovies,
@@ -59,7 +88,6 @@ final router = GoRouter(
         return GenreMoviesView(genre: genreName);
       },
     ),
-
     GoRoute(
       path: '/movie-detail',
       builder: (context, state) {
@@ -68,12 +96,11 @@ final router = GoRouter(
       },
     ),
 
-    // --- ANA UYGULAMA (BOTTOM NAVIGATION BAR) ---
+    // --- ANA UYGULAMA (TAB BAR) ---
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) =>
           AppView(navigationShell: navigationShell),
       branches: [
-        // BRANCH 1: HOME (Index 0)
         StatefulShellBranch(
           routes: [
             GoRoute(
@@ -82,18 +109,14 @@ final router = GoRouter(
             ),
           ],
         ),
-
-        // BRANCH 2: KATEGORİ SEÇİM EKRANI (/list) (Index 1)
         StatefulShellBranch(
           routes: [
             GoRoute(
-              path: AppRouters.list, // Parametresiz /list rotası
+              path: AppRouters.list,
               builder: (context, state) => const CategoriesView(),
             ),
           ],
         ),
-
-        // BRANCH 3: FAVORİLER (Index 2)
         StatefulShellBranch(
           routes: [
             GoRoute(
@@ -102,8 +125,6 @@ final router = GoRouter(
             ),
           ],
         ),
-
-        // BRANCH 4: ÖNERİLER (RecommendedView Shell içine geri alındı) (Index 3)
         StatefulShellBranch(
           routes: [
             GoRoute(

@@ -8,7 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 const String TMDB_API_KEY = "cea49e6756dd9655a98066426a1b934d";
 const String TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
 
-// --- Movie Sınıfı (AYNI KALIYOR) ---
+// --- Movie Sınıfı ---
 class Movie {
   final int id;
   final String title;
@@ -48,27 +48,14 @@ class Movie {
     } else {
       genresList.add("Unknown");
     }
-    double safeRating = 0.0;
-    final ratingValue = json['vote_average'];
-    if (ratingValue is num) {
-      safeRating = ratingValue.toDouble();
-    } else if (ratingValue is String) {
-      safeRating = double.tryParse(ratingValue) ?? 0.0;
-    }
 
     return Movie(
       id: json['id'] ?? 0,
       title: json['title'] ?? json['name'] ?? 'Unknown Title',
-      rating: safeRating,
-      poster: posterPath.isNotEmpty && !posterPath.startsWith('http')
-          ? TMDB_IMAGE_BASE_URL + posterPath
-          : posterPath,
+      rating: (json['vote_average'] ?? 0.0).toDouble(),
+      poster: posterPath.isNotEmpty ? TMDB_IMAGE_BASE_URL + posterPath : '',
       genres: genresList.take(2).toList(),
       plot: json['overview'] ?? 'No description available.',
-      actors: ["Loading..."],
-      director: "Loading...",
-      trailerId: '',
-      appVoteCount: 0,
     );
   }
 
@@ -102,9 +89,10 @@ class Movie {
 // --- MovieManager Sınıfı ---
 class MovieManager extends ChangeNotifier {
   static final MovieManager instance = MovieManager._privateConstructor();
+
   Map<int, String> _genreMap = {};
-  Map<int, String> get idToNameMap => _genreMap;
   List<String> get allGenreNames => _genreMap.values.toList();
+
   MovieManager._privateConstructor();
 
   final List<Movie> _allMovies = [];
@@ -123,243 +111,200 @@ class MovieManager extends ChangeNotifier {
   List<Movie> get favoriteMovies => _favoriteMovies;
   List<Movie> get appTopRatedMovies => _appTopRatedMovies;
   bool get isFetching => _isFetching;
-  bool get hasMorePages => _hasMorePages;
+
   bool isFavorite(Movie movie) =>
       _favoriteMovies.any((fav) => fav.id == movie.id);
 
-  // --- FAVORİ İŞLEMLERİ ---
-  Future<void> toggleFavorite(Movie movie) async {
+  // --- KULLANICI İŞLEMLERİ ---
+  Future<void> ensureUserExistsInFirestore() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     final userDoc = FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid);
-    if (isFavorite(movie)) {
-      _favoriteMovies.removeWhere((m) => m.id == movie.id);
-      await userDoc.update({
-        'favorites': FieldValue.arrayRemove([movie.toMap()]),
-      });
-    } else {
-      _favoriteMovies.add(movie);
-      await userDoc.update({
-        'favorites': FieldValue.arrayUnion([movie.toMap()]),
+    final snapshot = await userDoc.get();
+    if (!snapshot.exists) {
+      await userDoc.set({
+        'uid': user.uid,
+        'email': user.email?.toLowerCase(),
+        'created_at': FieldValue.serverTimestamp(),
+        'favorites': [],
       });
     }
-    notifyListeners();
   }
 
-  Future<void> loadFavoritesFromFirebase() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      if (doc.exists && doc.data()!.containsKey('favorites')) {
-        final List<dynamic> favData = doc.data()!['favorites'];
-        _favoriteMovies.clear();
-        for (var data in favData) {
-          _favoriteMovies.add(Movie.fromMap(data));
-        }
-        notifyListeners();
-      }
-    } catch (e) {
-      print("Favoriler yüklenirken hata: $e");
-    }
-  }
-
-  // --- REVIEW CRUD İŞLEMLERİ (YENİ) ---
-
-  // 1. Yorum Ekleme
-  Future<void> addReview(Movie movie, double rating, String comment) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    final String userName = user.email?.split('@')[0] ?? 'User';
-
-    await FirebaseFirestore.instance.collection('reviews').add({
-      'movie_id': movie.id,
-      'user_id': user.uid,
-      'user_name': userName,
-      'rating': rating,
-      'comment': comment,
-      'likes': [], // Beğenenlerin UID listesi
-      'timestamp': FieldValue.serverTimestamp(),
-    });
-
-    final movieDocRef = FirebaseFirestore.instance
-        .collection('app_movies')
-        .doc(movie.id.toString());
-    await FirebaseFirestore.instance.runTransaction((transaction) async {
-      final snapshot = await transaction.get(movieDocRef);
-      if (!snapshot.exists) {
-        transaction.set(movieDocRef, {
-          'id': movie.id,
-          'title': movie.title,
-          'poster_path': movie.poster,
-          'genre_names': movie.genres,
-          'overview': movie.plot,
-          'director': movie.director,
-          'vote_sum': rating,
-          'vote_count': 1,
-          'app_rating': rating,
-          'last_updated': FieldValue.serverTimestamp(),
-        });
-      } else {
-        double currentSum = (snapshot.data()!['vote_sum'] ?? 0).toDouble();
-        int currentCount = (snapshot.data()!['vote_count'] ?? 0).toInt();
-        double newSum = currentSum + rating;
-        int newCount = currentCount + 1;
-        transaction.update(movieDocRef, {
-          'vote_sum': newSum,
-          'vote_count': newCount,
-          'app_rating': newSum / newCount,
-          'last_updated': FieldValue.serverTimestamp(),
-        });
-      }
-    });
-    await fetchAppTopRatedMovies();
-  }
-
-  // 2. Yorum Silme
-  Future<void> deleteReview(String reviewId) async {
-    await FirebaseFirestore.instance
-        .collection('reviews')
-        .doc(reviewId)
-        .delete();
-  }
-
-  // 3. Yorum Düzenleme
-  Future<void> editReview(
-    String reviewId,
-    String newComment,
-    double newRating,
+  Future<List<Map<String, dynamic>>> searchUsersByEmail(
+    String emailQuery,
   ) async {
-    await FirebaseFirestore.instance.collection('reviews').doc(reviewId).update(
-      {
-        'comment': newComment,
-        'rating': newRating, // İstenirse puanı da güncelletiriz
-        'is_edited': true,
-      },
-    );
-    // Not: Ortalamayı tekrar hesaplamak karmaşık olduğu için şimdilik ortalamaya dokunmuyoruz.
-  }
+    final query = emailQuery.toLowerCase().trim();
+    final snapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .where('email', isEqualTo: query)
+        .get();
 
-  // 4. Yorum Beğenme (Like)
-  Future<void> toggleLikeReview(String reviewId) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    List<Map<String, dynamic>> users = [];
+    final currentUser = FirebaseAuth.instance.currentUser;
 
-    final docRef = FirebaseFirestore.instance
-        .collection('reviews')
-        .doc(reviewId);
-    final doc = await docRef.get();
-
-    if (doc.exists) {
-      List likes = doc.data()?['likes'] ?? [];
-      if (likes.contains(user.uid)) {
-        // Zaten beğenmiş -> Çıkar
-        await docRef.update({
-          'likes': FieldValue.arrayRemove([user.uid]),
-        });
-      } else {
-        // Beğenmemiş -> Ekle
-        await docRef.update({
-          'likes': FieldValue.arrayUnion([user.uid]),
-        });
-      }
+    for (var doc in snapshot.docs) {
+      if (doc.id == currentUser?.uid) continue;
+      users.add({'uid': doc.id, 'email': doc.data()['email']});
     }
+    return users;
   }
 
-  // 5. Yoruma Yanıt Verme (Reply) - Alt koleksiyon olarak
-  Future<void> replyToReview(String reviewId, String replyText) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    final String userName = user.email?.split('@')[0] ?? 'User';
+  // --- SOSYAL İŞLEMLER ---
 
+  Future<void> sendFriendRequest(String targetUid) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
     await FirebaseFirestore.instance
-        .collection('reviews')
-        .doc(reviewId)
-        .collection('replies')
-        .add({
-          'user_id': user.uid,
-          'user_name': userName,
-          'text': replyText,
+        .collection('users')
+        .doc(targetUid)
+        .collection('friend_requests')
+        .doc(currentUser.uid)
+        .set({
+          'from_uid': currentUser.uid,
+          'email': currentUser.email,
           'timestamp': FieldValue.serverTimestamp(),
         });
   }
 
-  // --- STREAMLER ---
-  Stream<QuerySnapshot> getReviewsStream(int movieId) {
-    // OrderBy bazen index hatası verebilir, şimdilik kaldırıp client tarafında sıralayabilirsin
-    // veya konsoldaki linke tıklayıp index oluşturabilirsin.
+  Future<void> acceptFriendRequest(
+    String requesterUid,
+    String requesterEmail,
+  ) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(requesterUid)
+        .collection('friends')
+        .doc(currentUser.uid)
+        .set({
+          'uid': currentUser.uid,
+          'email': currentUser.email,
+          'since': FieldValue.serverTimestamp(),
+        });
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUser.uid)
+        .collection('friends')
+        .doc(requesterUid)
+        .set({
+          'uid': requesterUid,
+          'email': requesterEmail,
+          'since': FieldValue.serverTimestamp(),
+        });
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUser.uid)
+        .collection('friend_requests')
+        .doc(requesterUid)
+        .delete();
+  }
+
+  // --- ARKADAŞ SİLME (VE MESAJLARI SİLME) ---
+  Future<void> removeFriend(String friendUid) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+
+    // 1. Arkadaş listelerinden sil
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUser.uid)
+        .collection('friends')
+        .doc(friendUid)
+        .delete();
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(friendUid)
+        .collection('friends')
+        .doc(currentUser.uid)
+        .delete();
+
+    // 2. Mesaj Geçmişini Sil (Opsiyonel ama istendi)
+    final chatId = getChatId(currentUser.uid, friendUid);
+    final chatRef = FirebaseFirestore.instance.collection('chats').doc(chatId);
+
+    // Alt koleksiyondaki mesajları sil
+    final messages = await chatRef.collection('messages').get();
+    for (var doc in messages.docs) {
+      await doc.reference.delete();
+    }
+    // Chat dökümanını sil
+    await chatRef.delete();
+  }
+
+  Stream<QuerySnapshot> getFriendsStream() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const Stream.empty();
     return FirebaseFirestore.instance
-        .collection('reviews')
-        .where('movie_id', isEqualTo: movieId)
+        .collection('users')
+        .doc(uid)
+        .collection('friends')
         .snapshots();
   }
 
-  Stream<QuerySnapshot> getRepliesStream(String reviewId) {
+  Stream<QuerySnapshot> getFriendRequestsStream() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const Stream.empty();
     return FirebaseFirestore.instance
-        .collection('reviews')
-        .doc(reviewId)
-        .collection('replies')
-        .orderBy('timestamp', descending: false)
+        .collection('users')
+        .doc(uid)
+        .collection('friend_requests')
         .snapshots();
   }
 
-  // --- DİĞER FONKSİYONLAR (FETCH, SEARCH vb. AYNI) ---
-  Future<void> fetchAppTopRatedMovies() async {
-    try {
-      final querySnapshot = await FirebaseFirestore.instance
-          .collection('app_movies')
-          .where('app_rating', isGreaterThan: 6.0)
-          .orderBy('app_rating', descending: true)
-          .limit(20)
-          .get();
+  String getChatId(String userA, String userB) =>
+      userA.compareTo(userB) < 0 ? "${userA}_$userB" : "${userB}_$userA";
 
-      _appTopRatedMovies.clear();
-      for (var doc in querySnapshot.docs) {
-        _appTopRatedMovies.add(Movie.fromMap(doc.data()));
-      }
-      notifyListeners();
-    } catch (e) {
-      print("App Top Rated Error: $e");
+  Future<void> sendMessage({
+    required String receiverUid,
+    required String text,
+    Movie? sharedMovie,
+  }) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+    final chatId = getChatId(currentUser.uid, receiverUid);
+    Map<String, dynamic> messageData = {
+      'sender_id': currentUser.uid,
+      'text': text,
+      'timestamp': FieldValue.serverTimestamp(),
+      'is_read': false,
+    };
+    if (sharedMovie != null) {
+      messageData['movie_id'] = sharedMovie.id;
+      messageData['movie_title'] = sharedMovie.title;
+      messageData['poster_path'] = sharedMovie.poster;
     }
+    await FirebaseFirestore.instance
+        .collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .add(messageData);
   }
 
-  Future<void> searchMovies(String query) async {
-    if (query.isEmpty) {
-      _searchResults.clear();
-      notifyListeners();
-      return;
-    }
-    final url = Uri.parse(
-      'https://api.themoviedb.org/3/search/multi?api_key=$TMDB_API_KEY&query=${Uri.encodeComponent(query)}',
-    );
-    try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        _searchResults.clear();
-        for (var item in data['results']) {
-          String mediaType = item['media_type'] ?? '';
-          if (mediaType == 'movie') {
-            _searchResults.add(Movie.fromTMDB(item));
-          } else if (mediaType == 'person') {
-            if (item['known_for'] != null) {
-              for (var knownMovie in item['known_for']) {
-                if (knownMovie['media_type'] == 'movie')
-                  _searchResults.add(Movie.fromTMDB(knownMovie));
-              }
-            }
-          }
-        }
-        notifyListeners();
-      }
-    } catch (e) {
-      print("Arama Hatası: $e");
-    }
+  Stream<QuerySnapshot> getMessagesStream(String receiverUid) {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return const Stream.empty();
+    final chatId = getChatId(currentUser.uid, receiverUid);
+    return FirebaseFirestore.instance
+        .collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .orderBy('timestamp', descending: true)
+        .snapshots();
+  }
+
+  // --- YARDIMCI METODLAR ---
+
+  Map<String, String> getActorDetails(String actorName) {
+    String bio =
+        "$actorName is a world-renowned actor known for their versatility and depth in various roles.";
+    String cleanName = actorName.trim();
+    String photo =
+        "https://ui-avatars.com/api/?name=${Uri.encodeComponent(cleanName)}&background=0D8ABC&color=fff&size=512&bold=true";
+    return {"bio": bio, "photo": photo};
   }
 
   List<Movie> recommendByFavoriteGenres() {
@@ -391,25 +336,318 @@ class MovieManager extends ChangeNotifier {
     return potentialMovies.take(5).toList();
   }
 
-  Future<void> fetchGenres() async {
-    if (_genreMap.isNotEmpty) return;
-    final url = Uri.parse(
-      'https://api.themoviedb.org/3/genre/movie/list?api_key=$TMDB_API_KEY',
-    );
+  // --- FAVORİ & PUAN ---
+  Future<void> toggleFavorite(Movie movie) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final userDoc = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid);
+    if (isFavorite(movie)) {
+      _favoriteMovies.removeWhere((m) => m.id == movie.id);
+      await userDoc.update({
+        'favorites': FieldValue.arrayRemove([movie.toMap()]),
+      });
+    } else {
+      _favoriteMovies.add(movie);
+      await userDoc.update({
+        'favorites': FieldValue.arrayUnion([movie.toMap()]),
+      });
+    }
+    notifyListeners();
+  }
+
+  Future<void> loadFavoritesFromFirebase() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
     try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['genres'] is List) {
-          _genreMap = {for (var g in data['genres']) g['id']: g['name']};
-          GenreService.instance.setGenreMapping(_genreMap);
-          _genreMap.forEach(
-            (id, name) => GenreService.instance.fetchGenrePosterUrl(name, id),
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      if (doc.exists && doc.data()!.containsKey('favorites')) {
+        final List<dynamic> favData = doc.data()!['favorites'];
+        _favoriteMovies.clear();
+        for (var data in favData) _favoriteMovies.add(Movie.fromMap(data));
+        notifyListeners();
+      }
+    } catch (e) {
+      print(e);
+    }
+  }
+
+  Stream<DocumentSnapshot> getMovieLiveRating(int movieId) {
+    return FirebaseFirestore.instance
+        .collection('app_movies')
+        .doc(movieId.toString())
+        .snapshots();
+  }
+
+  Future<void> addReview(Movie movie, double newRating, String comment) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final userName = user.email?.split('@')[0] ?? 'User';
+
+    final previousReviews = await FirebaseFirestore.instance
+        .collection('reviews')
+        .where('movie_id', isEqualTo: movie.id)
+        .where('user_id', isEqualTo: user.uid)
+        .get();
+    double oldRating = 0.0;
+    bool hasRated = false;
+    if (previousReviews.docs.isNotEmpty) {
+      hasRated = true;
+      oldRating = (previousReviews.docs.first.data()['rating'] ?? 0).toDouble();
+      WriteBatch batch = FirebaseFirestore.instance.batch();
+      for (var d in previousReviews.docs)
+        batch.update(d.reference, {'rating': newRating});
+      await batch.commit();
+    }
+
+    await FirebaseFirestore.instance.collection('reviews').add({
+      'movie_id': movie.id,
+      'movie_title': movie.title,
+      'poster_path': movie.poster,
+      'user_id': user.uid,
+      'user_name': userName,
+      'rating': newRating,
+      'comment': comment,
+      'likes': [],
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    final movieRef = FirebaseFirestore.instance
+        .collection('app_movies')
+        .doc(movie.id.toString());
+    await FirebaseFirestore.instance.runTransaction((tx) async {
+      final snap = await tx.get(movieRef);
+      if (!snap.exists) {
+        tx.set(movieRef, {
+          'id': movie.id,
+          'title': movie.title,
+          'poster_path': movie.poster,
+          'vote_sum': newRating,
+          'vote_count': 1,
+          'app_rating': newRating,
+        });
+      } else {
+        double sum = (snap.data()!['vote_sum'] ?? 0).toDouble();
+        int count = (snap.data()!['vote_count'] ?? 0).toInt();
+        if (hasRated) {
+          sum = sum - oldRating + newRating;
+        } else {
+          sum += newRating;
+          count += 1;
+        }
+        tx.update(movieRef, {
+          'vote_sum': sum,
+          'vote_count': count,
+          'app_rating': count > 0 ? sum / count : 0.0,
+        });
+      }
+    });
+
+    await _createNotification(
+      recipientId: user.uid,
+      message: "${movie.title} filmine yorum yaptın.",
+      movieId: movie.id,
+      type: 'comment',
+    );
+    await fetchAppTopRatedMovies();
+  }
+
+  Future<void> deleteReview(String reviewId) async {
+    final doc = await FirebaseFirestore.instance
+        .collection('reviews')
+        .doc(reviewId)
+        .get();
+    if (!doc.exists) return;
+    int mid = doc.data()!['movie_id'];
+    double rating = (doc.data()!['rating'] ?? 0).toDouble();
+
+    final movieRef = FirebaseFirestore.instance
+        .collection('app_movies')
+        .doc(mid.toString());
+    await FirebaseFirestore.instance.runTransaction((tx) async {
+      final snap = await tx.get(movieRef);
+      if (snap.exists) {
+        double sum = (snap.data()!['vote_sum'] ?? 0).toDouble() - rating;
+        int count = (snap.data()!['vote_count'] ?? 0).toInt() - 1;
+        if (count < 0) count = 0;
+        if (sum < 0) sum = 0;
+        tx.update(movieRef, {
+          'vote_sum': sum,
+          'vote_count': count,
+          'app_rating': count > 0 ? sum / count : 0.0,
+        });
+      }
+    });
+    await FirebaseFirestore.instance
+        .collection('reviews')
+        .doc(reviewId)
+        .delete();
+    await fetchAppTopRatedMovies();
+    notifyListeners();
+  }
+
+  Future<void> editReview(String id, String comment, double r) async {
+    await FirebaseFirestore.instance.collection('reviews').doc(id).update({
+      'comment': comment,
+      'is_edited': true,
+    });
+  }
+
+  Future<void> toggleLikeReview(String id) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final docRef = FirebaseFirestore.instance.collection('reviews').doc(id);
+    final doc = await docRef.get();
+    if (doc.exists) {
+      List likes = doc.data()?['likes'] ?? [];
+      if (likes.contains(user.uid)) {
+        await docRef.update({
+          'likes': FieldValue.arrayRemove([user.uid]),
+        });
+      } else {
+        await docRef.update({
+          'likes': FieldValue.arrayUnion([user.uid]),
+        });
+        if (doc.data()?['user_id'] != user.uid) {
+          _createNotification(
+            recipientId: doc.data()?['user_id'],
+            message: "Birisi yorumunu beğendi.",
+            movieId: doc.data()?['movie_id'],
+            type: 'like',
           );
         }
       }
+    }
+  }
+
+  Future<void> replyToReview(String id, String text) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final parent = await FirebaseFirestore.instance
+        .collection('reviews')
+        .doc(id)
+        .get();
+    await FirebaseFirestore.instance
+        .collection('reviews')
+        .doc(id)
+        .collection('replies')
+        .add({
+          'user_id': user.uid,
+          'user_name': user.email!.split('@')[0],
+          'text': text,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+    if (parent.exists && parent.data()?['user_id'] != user.uid) {
+      _createNotification(
+        recipientId: parent.data()?['user_id'],
+        message: "Yorumuna cevap geldi.",
+        movieId: parent.data()?['movie_id'],
+        type: 'reply',
+      );
+    }
+  }
+
+  Future<void> _createNotification({
+    required String recipientId,
+    required String message,
+    required int movieId,
+    required String type,
+  }) async {
+    await FirebaseFirestore.instance.collection('notifications').add({
+      'recipient_id': recipientId,
+      'message': message,
+      'movie_id': movieId,
+      'type': type,
+      'is_read': false,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Stream<QuerySnapshot> getReviewsStream(int movieId) => FirebaseFirestore
+      .instance
+      .collection('reviews')
+      .where('movie_id', isEqualTo: movieId)
+      .snapshots();
+  Stream<QuerySnapshot> getRepliesStream(String reviewId) => FirebaseFirestore
+      .instance
+      .collection('reviews')
+      .doc(reviewId)
+      .collection('replies')
+      .orderBy('timestamp')
+      .snapshots();
+
+  Future<Movie?> getMovieById(int id) async {
+    try {
+      final res = await http.get(
+        Uri.parse(
+          'https://api.themoviedb.org/3/movie/$id?api_key=$TMDB_API_KEY',
+        ),
+      );
+      if (res.statusCode == 200) return Movie.fromTMDB(json.decode(res.body));
+    } catch (e) {}
+    return null;
+  }
+
+  Future<void> changePassword(String p) async =>
+      await FirebaseAuth.instance.currentUser?.updatePassword(p);
+
+  Future<void> fetchAppTopRatedMovies() async {
+    try {
+      final qs = await FirebaseFirestore.instance
+          .collection('app_movies')
+          .where('app_rating', isGreaterThan: 6.0)
+          .orderBy('app_rating', descending: true)
+          .limit(20)
+          .get();
+      _appTopRatedMovies.clear();
+      for (var d in qs.docs) _appTopRatedMovies.add(Movie.fromMap(d.data()));
+      notifyListeners();
     } catch (e) {
-      print('Genre Error: $e');
+      print(e);
+    }
+  }
+
+  // --- API ---
+  Future<void> searchMovies(String query) async {
+    if (query.isEmpty) {
+      _searchResults.clear();
+      notifyListeners();
+      return;
+    }
+    final response = await http.get(
+      Uri.parse(
+        'https://api.themoviedb.org/3/search/multi?api_key=$TMDB_API_KEY&query=${Uri.encodeComponent(query)}',
+      ),
+    );
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      _searchResults.clear();
+      for (var item in data['results']) {
+        if (item['media_type'] == 'movie')
+          _searchResults.add(Movie.fromTMDB(item));
+      }
+      notifyListeners();
+    }
+  }
+
+  Future<void> fetchGenres() async {
+    if (_genreMap.isNotEmpty) return;
+    final response = await http.get(
+      Uri.parse(
+        'https://api.themoviedb.org/3/genre/movie/list?api_key=$TMDB_API_KEY',
+      ),
+    );
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      _genreMap = {for (var g in data['genres']) g['id']: g['name']};
+      GenreService.instance.setGenreMapping(_genreMap);
+      _genreMap.forEach(
+        (id, name) => GenreService.instance.fetchGenrePosterUrl(name, id),
+      );
     }
   }
 
@@ -422,62 +660,58 @@ class MovieManager extends ChangeNotifier {
       _trendingMovies.clear();
       _hasMorePages = true;
     }
-    final url = Uri.parse(
-      'https://api.themoviedb.org/3/movie/popular?api_key=$TMDB_API_KEY&page=$_currentPage',
+    final response = await http.get(
+      Uri.parse(
+        'https://api.themoviedb.org/3/movie/popular?api_key=$TMDB_API_KEY&page=$_currentPage',
+      ),
     );
-    try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        List<Movie> newMovies = (data['results'] as List)
-            .map((json) => Movie.fromTMDB(json))
-            .toList();
-        _allMovies.addAll(newMovies);
-        if (initial) _trendingMovies.addAll(newMovies.take(10));
-        if ((data['total_pages'] ?? 0) <= _currentPage)
-          _hasMorePages = false;
-        else
-          _currentPage++;
-      } else {
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      List<Movie> newMovies = (data['results'] as List)
+          .map((json) => Movie.fromTMDB(json))
+          .toList();
+      _allMovies.addAll(newMovies);
+      if (initial) _trendingMovies.addAll(newMovies.take(10));
+      if ((data['total_pages'] ?? 0) <= _currentPage)
         _hasMorePages = false;
-      }
-    } catch (e) {
+      else
+        _currentPage++;
+    } else {
       _hasMorePages = false;
-    } finally {
-      _isFetching = false;
-      notifyListeners();
     }
+    _isFetching = false;
+    notifyListeners();
   }
 
   Future<void> fetchCast(Movie movie) async {
-    if (movie.director != "Loading..." && movie.director != "Unknown") return;
-    final url = Uri.parse(
-      'https://api.themoviedb.org/3/movie/${movie.id}/credits?api_key=$TMDB_API_KEY',
+    if (movie.director != "Unknown") return;
+    final response = await http.get(
+      Uri.parse(
+        'https://api.themoviedb.org/3/movie/${movie.id}/credits?api_key=$TMDB_API_KEY',
+      ),
     );
-    final response = await http.get(url);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       List<String> castNames = [];
       for (var actor in (data['cast'] as List).take(5))
         castNames.add(actor['name']);
-      movie.actors = castNames.isNotEmpty ? castNames : ["Cast Not Found"];
-      var directorData = (data['crew'] as List).firstWhere(
-        (crew) => crew['job'] == 'Director',
+      movie.actors = castNames;
+      var dir = (data['crew'] as List).firstWhere(
+        (c) => c['job'] == 'Director',
         orElse: () => null,
       );
-      movie.director = directorData != null
-          ? directorData['name']
-          : "Unknown Director";
+      movie.director = dir != null ? dir['name'] : "Unknown";
       notifyListeners();
     }
   }
 
   Future<void> fetchTrailerId(Movie movie) async {
     if (movie.trailerId.isNotEmpty) return;
-    final url = Uri.parse(
-      'https://api.themoviedb.org/3/movie/${movie.id}/videos?api_key=$TMDB_API_KEY',
+    final response = await http.get(
+      Uri.parse(
+        'https://api.themoviedb.org/3/movie/${movie.id}/videos?api_key=$TMDB_API_KEY',
+      ),
     );
-    final response = await http.get(url);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       var trailer = (data['results'] as List).firstWhere(
@@ -487,13 +721,5 @@ class MovieManager extends ChangeNotifier {
       movie.trailerId = trailer != null ? trailer['key'] : 'dQw4w9WgXcQ';
       notifyListeners();
     }
-  }
-
-  Map<String, String> getActorDetails(String actorName) {
-    String bio = "$actorName is a world-renowned actor.";
-    String cleanName = actorName.trim();
-    String photo =
-        "https://ui-avatars.com/api/?name=${Uri.encodeComponent(cleanName)}&background=0D8ABC&color=fff&size=512&bold=true";
-    return {"bio": bio, "photo": photo};
   }
 }

@@ -1,13 +1,11 @@
+import 'dart:ui'; // Blur efekti için
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mymovielist/app/router.dart';
-import 'package:mymovielist/data/movie_manager.dart';
-import 'package:mymovielist/views/home_view/movie_detail_view.dart';
 import 'package:mymovielist/app/theme.dart';
-import 'dart:async'; // Timer için gerekli
+import 'package:mymovielist/data/movie_manager.dart';
 
 class HomeView extends StatefulWidget {
   const HomeView({super.key});
@@ -17,387 +15,464 @@ class HomeView extends StatefulWidget {
 }
 
 class _HomeViewState extends State<HomeView> {
-  String searchQuery = "";
-  bool isLoading = true;
+  // CustomScrollView kullandığımız için manuel controller'a gerek yok, Flutter kendi optimizasyonunu yapar.
   final ScrollController _scrollController = ScrollController();
-
-  // YENİ: Debounce (Gecikme) için Timer
-  Timer? _searchDebounce;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
-    _scrollController.addListener(_scrollListener);
-  }
+    MovieManager.instance.ensureUserExistsInFirestore();
+    MovieManager.instance.fetchNextPageMovies(initial: true);
+    MovieManager.instance.loadFavoritesFromFirebase();
 
-  void _scrollListener() {
-    final manager = MovieManager.instance;
-    // Arama yaparken sonsuz kaydırmayı devre dışı bırakıyoruz
-    if (searchQuery.isEmpty &&
-        _scrollController.position.pixels >=
-            _scrollController.position.maxScrollExtent - 300 &&
-        !manager.isFetching &&
-        manager.hasMorePages) {
-      manager.fetchNextPageMovies();
-    }
-  }
-
-  Future<void> _loadData() async {
-    try {
-      await MovieManager.instance.fetchNextPageMovies(initial: true);
-      await MovieManager.instance.loadFavoritesFromFirebase();
-    } catch (e) {
-      print('Movie loading error: $e');
-    } finally {
-      if (mounted) setState(() => isLoading = false);
-    }
-  }
-
-  // YENİ: Arama metnini yöneten fonksiyon
-  void _onSearchChanged(String query) {
-    setState(() {
-      searchQuery = query;
-    });
-
-    // Varsa önceki zamanlayıcıyı iptal et
-    if (_searchDebounce?.isActive ?? false) _searchDebounce!.cancel();
-
-    // Yeni zamanlayıcı başlat (500ms sonra API isteği atar)
-    _searchDebounce = Timer(const Duration(milliseconds: 500), () {
-      MovieManager.instance.searchMovies(query);
+    // Sonsuz kaydırma için
+    _scrollController.addListener(() {
+      if (_scrollController.position.pixels >=
+          _scrollController.position.maxScrollExtent - 500) {
+        MovieManager.instance.fetchNextPageMovies();
+      }
     });
   }
 
   @override
   void dispose() {
-    _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
-    _searchDebounce?.cancel(); // Timer'ı temizle
     super.dispose();
   }
 
+  // Sadece ismi al (Mailin @ öncesi)
   String _getMemberName() {
-    final email = FirebaseAuth.instance.currentUser?.email ?? 'Kullanıcı';
+    final email = FirebaseAuth.instance.currentUser?.email ?? '';
     if (email.contains('@')) {
-      return email.substring(0, email.indexOf('@'));
+      return email.substring(0, email.indexOf('@')).toUpperCase();
     }
-    return 'Kullanıcı';
-  }
-
-  Future<void> _signOut() async {
-    await FirebaseAuth.instance.signOut();
-    if (mounted) context.go(AppRouters.login);
-  }
-
-  Widget _homeAppBarContent(BuildContext context) {
-    final memberName = _getMemberName();
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.movie_filter_rounded,
-                color: AppTheme.primaryBlue,
-                size: 28,
-              ),
-              const SizedBox(width: 8),
-              const Text(
-                "MY MOVIE LIST",
-                style: TextStyle(
-                  color: AppTheme.primaryBlue,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
-                ),
-              ),
-            ],
-          ),
-          Row(
-            children: [
-              GestureDetector(
-                onTap: () {
-                  context.push(AppRouters.profile);
-                },
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 12.0),
-                  child: Text(
-                    memberName,
-                    style: const TextStyle(
-                      color: Colors.amber,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              IconButton(
-                onPressed: _signOut,
-                icon: const Icon(Icons.logout, color: Colors.red),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
+    return 'USER';
   }
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: MovieManager.instance,
-      builder: (context, child) {
-        final allMovies = MovieManager.instance.allMovies;
-        final trendingMovies = MovieManager.instance.trendingMovies;
-        // YENİ: Arama sonuçlarını al
-        final searchResults = MovieManager.instance.searchResults;
-        final isFetching = MovieManager.instance.isFetching;
-        final hasMore = MovieManager.instance.hasMorePages;
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundBlack,
+      // SafeArea kullanmıyoruz, içeriğin App Bar arkasına akmasını istiyoruz
+      body: AnimatedBuilder(
+        animation: MovieManager.instance,
+        builder: (context, child) {
+          final manager = MovieManager.instance;
 
-        // Arama yapılıyorsa gösterilecek liste: searchResults
-        // Yapılmıyorsa: allMovies
-        final moviesToShow = searchQuery.isNotEmpty ? searchResults : allMovies;
-
-        return Scaffold(
-          resizeToAvoidBottomInset: false,
-          body: SafeArea(
-            child: Column(
-              children: [
-                Expanded(
-                  child: ListView(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    children: [
-                      _homeAppBarContent(context),
-
-                      // --- ARAMA KUTUSU (GÜNCELLENDİ) ---
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: TextField(
-                          onChanged:
-                              _onSearchChanged, // Yeni fonksiyon bağlandı
-                          style: const TextStyle(color: Colors.white),
-                          cursorColor: AppTheme.primaryBlue,
-                          decoration: InputDecoration(
-                            filled: true,
-                            fillColor: const Color(0xFF2C2C2C),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide.none,
+          return CustomScrollView(
+            controller: _scrollController,
+            slivers: [
+              // --- 1. GLASSMORPHISM APP BAR ---
+              SliverAppBar(
+                backgroundColor: AppTheme.backgroundBlack.withOpacity(
+                  0.7,
+                ), // Yarı saydam
+                floating: true,
+                pinned: true,
+                elevation: 0,
+                centerTitle: false,
+                flexibleSpace: ClipRRect(
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(
+                      sigmaX: 10,
+                      sigmaY: 10,
+                    ), // Buzlu cam efekti
+                    child: Container(color: Colors.transparent),
+                  ),
+                ),
+                title: const Row(
+                  children: [
+                    Icon(
+                      Icons.movie_filter_rounded,
+                      color: AppTheme.primaryBlue,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      "MyMovieList",
+                      style: TextStyle(
+                        color: AppTheme.primaryBlue,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                  ],
+                ),
+                actions: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12.0),
+                    child: InkWell(
+                      onTap: () => context.push(AppRouters.profile),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppTheme.surfaceDark,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.white10),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.person,
+                              size: 16,
+                              color: Colors.white,
                             ),
-                            prefixIcon: const Icon(
-                              Icons.search,
-                              color: AppTheme.primaryBlue,
+                            const SizedBox(width: 6),
+                            Text(
+                              _getMemberName(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                            // Temizleme butonu eklendi
-                            suffixIcon: searchQuery.isNotEmpty
-                                ? IconButton(
-                                    icon: const Icon(
-                                      Icons.clear,
-                                      color: Colors.grey,
-                                    ),
-                                    onPressed: () {
-                                      // Metni temizle ve aramayı sıfırla
-                                      _onSearchChanged("");
-                                      // Klavye odağını kaybetmek istersen: FocusScope.of(context).unfocus();
-                                    },
-                                  )
-                                : null,
-                            hintText: 'Search movies (API)...',
-                            hintStyle: const TextStyle(color: Colors.grey),
-                          ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 20),
+                    ),
+                  ),
+                ],
+              ),
 
-                      // --- EĞER ARAMA YAPILIYORSA TRENDLERİ GİZLE ---
-                      if (searchQuery.isEmpty && !isLoading) ...[
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16),
+              // --- 2. TRENDING HEADER ---
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: const BoxDecoration(
+                          color: Colors.amber,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.amber,
+                              blurRadius: 10,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.whatshot,
+                          size: 20,
+                          color: Colors.black,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Text(
+                        "Trending Movies",
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // --- 3. TRENDING CAROUSEL ---
+              if (manager.trendingMovies.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: CarouselSlider(
+                    options: CarouselOptions(
+                      height: 420.0,
+                      autoPlay: true,
+                      autoPlayInterval: const Duration(seconds: 6),
+                      autoPlayAnimationDuration: const Duration(
+                        milliseconds: 800,
+                      ),
+                      enlargeCenterPage: true,
+                      viewportFraction: 0.60,
+                      aspectRatio: 16 / 9,
+                    ),
+                    items: manager.trendingMovies.map((movie) {
+                      return GestureDetector(
+                        onTap: () =>
+                            context.push('/movie-detail', extra: movie),
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(
+                            vertical: 10,
+                          ), // Gölge için pay
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20.0),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.primaryBlue.withOpacity(0.3),
+                                blurRadius: 15,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20.0),
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                Image.network(
+                                  movie.poster,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (c, o, s) =>
+                                      Container(color: AppTheme.surfaceDark),
+                                ),
+                                // Gradient Overlay
+                                Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        Colors.transparent,
+                                        Colors.black.withOpacity(0.0),
+                                        Colors.black.withOpacity(0.9),
+                                      ],
+                                      stops: const [0.0, 0.6, 1.0],
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  bottom: 20,
+                                  left: 15,
+                                  right: 15,
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        movie.title,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                          shadows: [
+                                            Shadow(
+                                              blurRadius: 10,
+                                              color: Colors.black,
+                                            ),
+                                          ],
+                                        ),
+                                        textAlign: TextAlign.center,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 5),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(
+                                            Icons.star,
+                                            color: Colors.amber,
+                                            size: 16,
+                                          ),
+                                          Text(
+                                            " ${movie.rating.toStringAsFixed(1)}",
+                                            style: const TextStyle(
+                                              color: Colors.white70,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+
+              // --- 4. POPULAR HEADER ---
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 30, 20, 10),
+                  child: Row(
+                    children: [
+                      Container(
+                        height: 25,
+                        width: 4,
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryBlue,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Text(
+                        "Popular Movies",
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // --- 5. POPULAR LIST (PERFORMANS İÇİN SLIVER LIST) ---
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final movie = manager.allMovies[index];
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.surfaceDark,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 6,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () =>
+                              context.push('/movie-detail', extra: movie),
                           child: Row(
                             children: [
-                              Text(
-                                "TRENDING NOW",
-                                style: TextStyle(
-                                  color: AppTheme.primaryBlue,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.2,
+                              // Poster
+                              ClipRRect(
+                                borderRadius: const BorderRadius.only(
+                                  topLeft: Radius.circular(16),
+                                  bottomLeft: Radius.circular(16),
+                                ),
+                                child: Image.network(
+                                  movie.poster,
+                                  height: 120,
+                                  width: 85,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (c, o, s) => Container(
+                                    width: 85,
+                                    height: 120,
+                                    color: Colors.grey[800],
+                                  ),
                                 ),
                               ),
-                              SizedBox(width: 8),
-                              Icon(
-                                Icons.whatshot,
-                                color: Colors.orange,
-                                size: 20,
+                              const SizedBox(width: 16),
+                              // Bilgi
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      movie.title,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.amber.withOpacity(
+                                              0.2,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.star,
+                                                color: Colors.amber,
+                                                size: 14,
+                                              ),
+                                              Text(
+                                                " ${movie.rating.toStringAsFixed(1)}",
+                                                style: const TextStyle(
+                                                  color: Colors.amber,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Text(
+                                          movie.genres.isNotEmpty
+                                              ? movie.genres[0]
+                                              : "Movie",
+                                          style: const TextStyle(
+                                            color: Colors.grey,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              // Fav Butonu
+                              Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: IconButton(
+                                  icon: Icon(
+                                    manager.isFavorite(movie)
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    color: manager.isFavorite(movie)
+                                        ? AppTheme.accentPink
+                                        : Colors.grey,
+                                  ),
+                                  onPressed: () =>
+                                      manager.toggleFavorite(movie),
+                                ),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 15),
-                        CarouselSlider(
-                          options: CarouselOptions(
-                            height: 400.0,
-                            aspectRatio: 0.7,
-                            viewportFraction: 0.6,
-                            autoPlay: true,
-                            enlargeCenterPage: true,
-                          ),
-                          items: trendingMovies
-                              .map(
-                                (movie) => GestureDetector(
-                                  onTap: () => context.push(
-                                    '/movie-detail',
-                                    extra: movie,
-                                  ),
-                                  child: Hero(
-                                    tag: 'trend_${movie.id}',
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(15),
-                                      child: Image.network(
-                                        movie.poster,
-                                        fit: BoxFit.cover,
-                                        alignment: Alignment.topCenter,
-                                        errorBuilder: (c, o, s) =>
-                                            Container(color: Colors.grey[800]),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              )
-                              .toList(),
-                        ),
-                        const SizedBox(height: 30),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16),
-                          child: Text(
-                            "ALL MOVIES",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                      ] else if (searchQuery.isNotEmpty) ...[
-                        // Arama yapılırken başlık
-                        const Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 10,
-                          ),
-                          child: Text(
-                            "SEARCH RESULTS",
-                            style: TextStyle(
-                              color: AppTheme.primaryBlue,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
+                    );
+                  }, childCount: manager.allMovies.length),
+                ),
+              ),
 
-                      // --- YÜKLENİYOR ---
-                      if (isLoading)
-                        const Center(
-                          child: CircularProgressIndicator(
-                            color: AppTheme.primaryBlue,
-                          ),
-                        )
-                      else if (moviesToShow.isEmpty)
-                        Center(
-                          child: Text(
-                            searchQuery.isNotEmpty
-                                ? 'No movies found for "$searchQuery".'
-                                : 'No movies found.',
-                            style: const TextStyle(color: Colors.grey),
-                          ),
-                        )
-                      else
-                        // --- FİLM LİSTESİ (Arama veya Normal) ---
-                        ...List.generate(moviesToShow.length, (index) {
-                          final movie = moviesToShow[index];
-                          final isFav = MovieManager.instance.isFavorite(movie);
-
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Card(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              color: AppTheme.surfaceDark,
-                              child: ListTile(
-                                onTap: () =>
-                                    context.push('/movie-detail', extra: movie),
-                                leading: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.network(
-                                    movie.poster,
-                                    width: 50,
-                                    height: 75,
-                                    fit: BoxFit.cover,
-                                    alignment: Alignment.topCenter,
-                                    // Hatalı resim kontrolü
-                                    errorBuilder:
-                                        (context, error, stackTrace) =>
-                                            const Icon(
-                                              Icons.movie,
-                                              color: Colors.grey,
-                                            ),
-                                  ),
-                                ),
-                                title: Text(
-                                  movie.title,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  '${movie.genres.isNotEmpty ? movie.genres.first : 'Unknown'} • ⭐ ${movie.rating.toStringAsFixed(1)}',
-                                  style: TextStyle(
-                                    color: AppTheme.primaryBlue.withOpacity(
-                                      0.8,
-                                    ),
-                                  ),
-                                ),
-                                trailing: IconButton(
-                                  icon: Icon(
-                                    isFav
-                                        ? Icons.favorite
-                                        : Icons.favorite_border,
-                                    color: isFav
-                                        ? AppTheme.primaryBlue
-                                        : Colors.grey,
-                                  ),
-                                  onPressed: () => MovieManager.instance
-                                      .toggleFavorite(movie),
-                                ),
-                              ),
-                            ),
-                          );
-                        }),
-
-                      // --- SAYFALAMA SADECE NORMAL MODDA ÇALIŞIR ---
-                      if (isFetching && hasMore && searchQuery.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.all(16.0),
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              color: AppTheme.primaryBlue,
-                            ),
-                          ),
-                        ),
-                    ],
+              // Yükleniyor...
+              if (manager.isFetching)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: AppTheme.primaryBlue,
+                      ),
+                    ),
                   ),
                 ),
-              ],
-            ),
-          ),
-        );
-      },
+
+              const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
+            ],
+          );
+        },
+      ),
     );
   }
 }

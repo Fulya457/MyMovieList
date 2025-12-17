@@ -1,14 +1,13 @@
 import 'dart:async';
-import 'dart:ui'; // Blur efekti için
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-// cloud_firestore importuna bu sayfada artık gerek yok
+import 'package:cloud_firestore/cloud_firestore.dart'; // EKLENDİ
 import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/app/theme.dart';
 import 'package:video_player/video_player.dart';
 
-// Mailden üye ismini çıkaran yardımcı fonksiyon
 String _getMemberName(String email) {
   if (email.contains('@')) {
     return email.substring(0, email.indexOf('@'));
@@ -28,7 +27,6 @@ class _LoginViewState extends State<LoginView> {
   final TextEditingController _passwordController = TextEditingController();
   bool isLoading = false;
 
-  // --- VİDEO VE ANİMASYON DEĞİŞKENLERİ ---
   late VideoPlayerController _videoController;
   int _currentSloganIndex = 0;
   Timer? _sloganTimer;
@@ -50,7 +48,6 @@ class _LoginViewState extends State<LoginView> {
   }
 
   void _initializeVideo() {
-    // NOT: Kendi videonuz için: VideoPlayerController.asset('assets/intro_video.mp4')
     _videoController =
         VideoPlayerController.networkUrl(
             Uri.parse(
@@ -84,7 +81,6 @@ class _LoginViewState extends State<LoginView> {
     super.dispose();
   }
 
-  // --- ARTIK SADECE STANDART GİRİŞ YAPAN FONKSİYON ---
   Future<void> _signIn() async {
     final String email = _emailController.text.trim();
     final String password = _passwordController.text.trim();
@@ -97,23 +93,36 @@ class _LoginViewState extends State<LoginView> {
     setState(() => isLoading = true);
 
     try {
-      // SADECE FIREBASE AUTH KONTROLÜ
       final UserCredential userCredential = await FirebaseAuth.instance
           .signInWithEmailAndPassword(email: email, password: password);
 
       final User? user = userCredential.user;
 
       if (user != null) {
-        // Giriş Başarılı!
-        // Firestore kontrolü yok, veritabanı güncellemesi yok.
-        // Doğrudan Welcome Screen'e git.
+        // --- KRİTİK EKLEME: GİRİŞ YAPAN KULLANICIYI VERİTABANINA KAYDET ---
+        // Bu sayede arkadaş aramasında çıkabilir hale gelir.
+        final userDoc = FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid);
+        final snapshot = await userDoc.get();
+        if (!snapshot.exists) {
+          await userDoc.set({
+            'uid': user.uid,
+            'email': user.email?.toLowerCase(),
+            'created_at': FieldValue.serverTimestamp(),
+            'favorites': [],
+          });
+        }
+        // -----------------------------------------------------------------
 
         final memberName = _getMemberName(email);
         if (mounted) context.go(AppRouters.welcome, extra: memberName);
       }
     } on FirebaseAuthException catch (e) {
       String message = 'Giriş hatası.';
-      if (e.code == 'user-not-found' || e.code == 'wrong-password') {
+      if (e.code == 'user-not-found' ||
+          e.code == 'wrong-password' ||
+          e.code == 'invalid-credential') {
         message = 'Kullanıcı adı veya şifre hatalı.';
       } else if (e.code == 'invalid-email') {
         message = 'Geçersiz e-posta formatı.';
@@ -150,7 +159,7 @@ class _LoginViewState extends State<LoginView> {
       backgroundColor: AppTheme.backgroundBlack,
       body: Stack(
         children: [
-          // KATMAN 1: VİDEO ARKA PLAN
+          // KATMAN 1: VİDEO
           if (_videoController.value.isInitialized)
             SizedBox.expand(
               child: FittedBox(

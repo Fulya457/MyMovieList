@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/app/theme.dart';
 import 'package:mymovielist/data/movie_manager.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
@@ -46,7 +47,85 @@ class _MovieDetailViewState extends State<MovieDetailView> {
     super.dispose();
   }
 
-  // --- PUAN VE YORUM EKLEME DİYALOĞU ---
+  // --- FILM PAYLAŞMA MENÜSÜ ---
+  void _showShareBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.backgroundBlack,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          height: 400,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Arkadaşına Öner",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: MovieManager.instance.getFriendsStream(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData)
+                      return const Center(child: CircularProgressIndicator());
+                    final docs = snapshot.data!.docs;
+                    if (docs.isEmpty)
+                      return const Center(
+                        child: Text(
+                          "Arkadaş listesi boş.",
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      );
+
+                    return ListView.builder(
+                      itemCount: docs.length,
+                      itemBuilder: (context, index) {
+                        final data = docs[index].data() as Map<String, dynamic>;
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: AppTheme.primaryBlue,
+                            child: Text(
+                              data['email'][0].toUpperCase(),
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ),
+                          title: Text(
+                            data['email'],
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            context.push(
+                              AppRouters.chat,
+                              extra: {
+                                'targetUid': data['uid'],
+                                'targetEmail': data['email'],
+                                'movie': widget.movie,
+                              },
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   void _showRatingDialog() {
     final TextEditingController reviewController = TextEditingController();
     double rating = 5.0;
@@ -142,7 +221,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
       backgroundColor: AppTheme.backgroundBlack,
       body: CustomScrollView(
         slivers: [
-          // 1. APP BAR & POSTER
+          // 1. APP BAR
           SliverAppBar(
             expandedHeight: 300.0,
             pinned: true,
@@ -152,6 +231,10 @@ class _MovieDetailViewState extends State<MovieDetailView> {
               onPressed: () => context.pop(),
             ),
             actions: [
+              IconButton(
+                icon: const Icon(Icons.share, color: Colors.white),
+                onPressed: () => _showShareBottomSheet(context),
+              ),
               IconButton(
                 icon: const Icon(
                   Icons.rate_review,
@@ -187,7 +270,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
             ),
           ),
 
-          // 2. FİLM DETAYLARI (SliverToBoxAdapter içinde)
+          // 2. FİLM DETAYLARI
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
@@ -203,6 +286,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                     ),
                   ),
                   const SizedBox(height: 8),
+
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
@@ -219,49 +303,107 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                       style: const TextStyle(color: AppTheme.primaryBlue),
                     ),
                   ),
-                  const SizedBox(height: 15),
+                  const SizedBox(height: 20),
+
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Icon(Icons.star, color: Colors.amber, size: 22),
-                      Text(
-                        " ${widget.movie.rating.toStringAsFixed(1)} / 10 (TMDB)",
-                        style: const TextStyle(
-                          color: Colors.white,
+                      const Text(
+                        "TMDB Rating :",
+                        style: TextStyle(
+                          color: Colors.grey,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                    ],
-                  ),
-                  if (widget.movie.appRating != null &&
-                      widget.movie.appRating! > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: Row(
+                      Row(
                         children: [
-                          const Icon(
-                            Icons.star,
-                            color: Colors.lightBlueAccent,
-                            size: 22,
-                          ),
+                          const Icon(Icons.star, color: Colors.amber, size: 22),
                           Text(
-                            " ${widget.movie.appRating!.toStringAsFixed(1)} / 10 ",
+                            " ${widget.movie.rating.toStringAsFixed(1)} / 10",
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 16,
+                              fontSize: 18,
                               fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            "(${widget.movie.appVoteCount} votes)",
-                            style: const TextStyle(
-                              color: Colors.lightBlueAccent,
                             ),
                           ),
                         ],
                       ),
+                    ],
+                  ),
+                  const Divider(color: Colors.white24, height: 20),
+
+                  // CANLI PUANLAMA
+                  StreamBuilder<DocumentSnapshot>(
+                    stream: MovieManager.instance.getMovieLiveRating(
+                      widget.movie.id,
                     ),
-                  const SizedBox(height: 20),
+                    builder: (context, snapshot) {
+                      double liveRating = 0.0;
+                      int liveCount = 0;
+                      bool hasData = false;
+
+                      if (snapshot.hasData &&
+                          snapshot.data != null &&
+                          snapshot.data!.exists) {
+                        final data =
+                            snapshot.data!.data() as Map<String, dynamic>;
+                        liveRating = (data['app_rating'] ?? 0.0).toDouble();
+                        liveCount = (data['vote_count'] ?? 0).toInt();
+                        hasData = true;
+                      }
+
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            "User Rate :",
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          if (hasData && liveCount > 0)
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.star,
+                                  color: Colors.lightBlueAccent,
+                                  size: 22,
+                                ),
+                                Text(
+                                  " ${liveRating.toStringAsFixed(1)} / 10",
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  " ($liveCount)",
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            )
+                          else
+                            const Text(
+                              "No ratings yet",
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 25),
+
                   Text(
                     "Director: ${widget.movie.director}",
                     style: const TextStyle(color: Colors.grey, fontSize: 16),
@@ -342,7 +484,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
             ),
           ),
 
-          // 3. YORUMLAR (BUĞA GİRMEMESİ İÇİN SLIVER LIST KULLANIYORUZ)
           StreamBuilder<QuerySnapshot>(
             stream: MovieManager.instance.getReviewsStream(widget.movie.id),
             builder: (context, snapshot) {
@@ -374,7 +515,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
               );
             },
           ),
-
           const SliverPadding(padding: EdgeInsets.only(bottom: 50)),
         ],
       ),
@@ -382,7 +522,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
   }
 }
 
-// --- GELİŞMİŞ YORUM KARTI WIDGET'I ---
 class ReviewCard extends StatefulWidget {
   final QueryDocumentSnapshot doc;
   const ReviewCard({super.key, required this.doc});
@@ -456,7 +595,7 @@ class _ReviewCardState extends State<ReviewCard> {
                 replyController.text.trim(),
               );
               if (mounted) Navigator.pop(ctx);
-              setState(() => showReplies = true); // Otomatik aç
+              setState(() => showReplies = true);
             },
             child: const Text("Gönder"),
           ),
@@ -485,7 +624,6 @@ class _ReviewCardState extends State<ReviewCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Üst Kısım: İsim, Puan ve Menü
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -527,7 +665,6 @@ class _ReviewCardState extends State<ReviewCard> {
                   ),
               ],
             ),
-
             Text(
               dateStr,
               style: TextStyle(color: Colors.grey[600], fontSize: 10),
@@ -543,10 +680,8 @@ class _ReviewCardState extends State<ReviewCard> {
                   fontStyle: FontStyle.italic,
                 ),
               ),
-
             const SizedBox(height: 10),
 
-            // Alt Butonlar: Beğen, Yanıtla
             Row(
               children: [
                 IconButton(
@@ -582,7 +717,6 @@ class _ReviewCardState extends State<ReviewCard> {
               ],
             ),
 
-            // Yanıtlar Bölümü (Expandable)
             if (showReplies)
               StreamBuilder<QuerySnapshot>(
                 stream: MovieManager.instance.getRepliesStream(widget.doc.id),

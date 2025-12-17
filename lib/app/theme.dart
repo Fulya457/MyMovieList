@@ -1,21 +1,27 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
+  static const Color backgroundBlack = Color(0xFF12141C);
+  static const Color surfaceDark = Color(0xFF1E202B);
+  static const Color primaryBlue = Color(
+    0xFF09FBD3,
+  ); // Neonumsu modern bir mavi/turkuaz
+  static const Color accentPink = Color(0xFFFE53BB); // Vurgular için
+  static const Color textWhite = Color(0xFFF2F2F2);
   AppTheme._();
 
   // Renk Paleti (Dark & Blue)
-  static const Color primaryBlue = Color(0xFF2979FF); // Parlak Neon Mavi
-  static const Color backgroundBlack = Color(0xFF000000); // Tam Siyah
-  static const Color surfaceDark = Color(0xFF1E1E1E); // Kartlar için Koyu Gri
+  // Vurgular için
 
   static ThemeData get darkTheme => ThemeData(
     brightness: Brightness.dark,
     scaffoldBackgroundColor: backgroundBlack,
     primaryColor: primaryBlue,
-    
+
     // AppBar (Üst Kısım) Teması
     appBarTheme: const AppBarTheme(
-      backgroundColor: backgroundBlack, // Üst taraf siyah olsun ki mavi yazı parlasın
+      backgroundColor:
+          backgroundBlack, // Üst taraf siyah olsun ki mavi yazı parlasın
       elevation: 0,
       centerTitle: true,
       iconTheme: IconThemeData(color: primaryBlue),
