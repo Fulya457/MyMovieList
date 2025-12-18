@@ -9,6 +9,10 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+// Modeller
+import 'package:mymovielist/models/movie_model.dart';
+import 'package:mymovielist/models/person_model.dart';
+
 class MovieDetailView extends StatefulWidget {
   final Movie movie;
   const MovieDetailView({super.key, required this.movie});
@@ -25,10 +29,16 @@ class _MovieDetailViewState extends State<MovieDetailView> {
   void initState() {
     super.initState();
     MovieManager.instance.fetchCast(widget.movie);
+    // HATA KORUMASI: trailerId null gelebilir diye varsayılan boş string atıyoruz
+    final trailerId = widget.movie.trailerId;
+
     MovieManager.instance.fetchTrailerId(widget.movie).then((_) {
       if (mounted) {
         _controller = YoutubePlayerController(
-          initialVideoId: widget.movie.trailerId,
+          // Eğer trailerId boşsa dummy bir id veriyoruz ki çökmesin
+          initialVideoId: (widget.movie.trailerId.isNotEmpty)
+              ? widget.movie.trailerId
+              : 'dQw4w9WgXcQ',
           flags: const YoutubePlayerFlags(autoPlay: false, mute: false),
         )..addListener(_listener);
         setState(() {});
@@ -44,7 +54,10 @@ class _MovieDetailViewState extends State<MovieDetailView> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    // Controller null olabilir kontrolü (initState bitmeden dispose olursa diye)
+    try {
+      _controller.dispose();
+    } catch (e) {}
     super.dispose();
   }
 
@@ -76,9 +89,8 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                 child: StreamBuilder<QuerySnapshot>(
                   stream: MovieManager.instance.getUserListsStream(),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
+                    if (!snapshot.hasData)
                       return const Center(child: CircularProgressIndicator());
-                    }
                     final docs = snapshot.data!.docs;
 
                     if (docs.isEmpty) {
@@ -117,7 +129,10 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                         final listData =
                             docs[index].data() as Map<String, dynamic>;
                         final listId = docs[index].id;
-                        final movies = listData['movies'] as List? ?? [];
+                        final movies =
+                            listData['items'] as List? ??
+                            listData['movies'] as List? ??
+                            [];
                         final bool alreadyAdded = movies.any(
                           (m) => m['id'] == widget.movie.id,
                         );
@@ -125,7 +140,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                         return ListTile(
                           leading: const Icon(Icons.list, color: Colors.white),
                           title: Text(
-                            listData['name'],
+                            listData['name'] ?? 'İsimsiz',
                             style: const TextStyle(color: Colors.white),
                           ),
                           subtitle: Text(
@@ -196,44 +211,43 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                 child: StreamBuilder<QuerySnapshot>(
                   stream: MovieManager.instance.getFriendsStream(),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
+                    if (!snapshot.hasData)
                       return const Center(child: CircularProgressIndicator());
-                    }
                     final docs = snapshot.data!.docs;
-                    if (docs.isEmpty) {
+                    if (docs.isEmpty)
                       return const Center(
                         child: Text(
                           "Arkadaş listesi boş.",
                           style: TextStyle(color: Colors.grey),
                         ),
                       );
-                    }
 
                     return ListView.builder(
                       itemCount: docs.length,
                       itemBuilder: (context, index) {
                         final data = docs[index].data() as Map<String, dynamic>;
+                        final email = data['email'] ?? 'Unknown';
                         return ListTile(
                           leading: CircleAvatar(
                             backgroundColor: AppTheme.primaryBlue,
                             child: Text(
-                              data['email'][0].toUpperCase(),
+                              email.isNotEmpty ? email[0].toUpperCase() : '?',
                               style: const TextStyle(color: Colors.white),
                             ),
                           ),
                           title: Text(
-                            data['email'],
+                            email,
                             style: const TextStyle(color: Colors.white),
                           ),
                           onTap: () {
                             Navigator.pop(ctx);
-                            context.push(
-                              AppRouters.chat,
-                              extra: {
-                                'targetUid': data['uid'],
-                                'targetEmail': data['email'],
-                                'movie': widget.movie,
-                              },
+                            MovieManager.instance.sendMessage(
+                              receiverUid: data['uid'],
+                              text: "Sana bir film önerdim!",
+                              sharedMovie: widget.movie,
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("Film önerildi!")),
                             );
                           },
                         );
@@ -319,11 +333,10 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                       rating,
                       reviewController.text.trim(),
                     );
-                    if (mounted) {
+                    if (mounted)
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text("Yorum eklendi!")),
                       );
-                    }
                   },
                   child: const Text(
                     'Gönder',
@@ -364,9 +377,8 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                       color: isFav ? Colors.red : Colors.grey,
                       size: 28,
                     ),
-                    onPressed: () {
-                      MovieManager.instance.toggleFavorite(widget.movie);
-                    },
+                    onPressed: () =>
+                        MovieManager.instance.toggleFavorite(widget.movie),
                   ),
                   IconButton(
                     icon: const Icon(
@@ -393,9 +405,8 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                   background: Stack(
                     fit: StackFit.expand,
                     children: [
-                      // --- HERO ANİMASYONU EKLENDİ ---
                       Hero(
-                        tag: 'movie_${widget.movie.id}', // Benzersiz etiket
+                        tag: 'movie_${widget.movie.id}',
                         child: CachedNetworkImage(
                           imageUrl: widget.movie.poster,
                           fit: BoxFit.cover,
@@ -405,7 +416,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                               Container(color: Colors.grey),
                         ),
                       ),
-                      // -------------------------------
                       Container(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
@@ -439,34 +449,40 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 8,
-                        children: widget.movie.genres.map((genre) {
-                          return InkWell(
-                            onTap: () => context.pushNamed(
-                              AppRouters.genreMovies,
-                              pathParameters: {'genre': genre},
-                            ),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppTheme.primaryBlue.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: AppTheme.primaryBlue.withOpacity(0.5),
+                        children: widget.movie.genres
+                            .map(
+                              (genre) => InkWell(
+                                onTap: () => context.pushNamed(
+                                  AppRouters.genreMovies,
+                                  pathParameters: {'genre': genre},
+                                ),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.primaryBlue.withOpacity(
+                                      0.2,
+                                    ),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: AppTheme.primaryBlue.withOpacity(
+                                        0.5,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    genre,
+                                    style: const TextStyle(
+                                      color: AppTheme.primaryBlue,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ),
                               ),
-                              child: Text(
-                                genre,
-                                style: const TextStyle(
-                                  color: AppTheme.primaryBlue,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
+                            )
+                            .toList(),
                       ),
                       const SizedBox(height: 20),
                       Row(
@@ -525,7 +541,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                           double liveRating = 0.0;
                           int liveCount = 0;
                           bool hasData = false;
-
                           if (snapshot.hasData &&
                               snapshot.data != null &&
                               snapshot.data!.exists) {
@@ -535,7 +550,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                             liveCount = (data['vote_count'] ?? 0).toInt();
                             hasData = true;
                           }
-
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -591,27 +605,20 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                   widget.movie.id,
                                 ),
                                 builder: (context, revSnap) {
-                                  if (!revSnap.hasData) {
-                                    return const SizedBox();
-                                  }
-
+                                  if (!revSnap.hasData) return const SizedBox();
                                   List<String> friendRatings = [];
                                   for (var doc in revSnap.data!.docs) {
                                     final data =
                                         doc.data() as Map<String, dynamic>;
                                     if (MovieManager.instance.isFriend(
                                       data['user_id'],
-                                    )) {
+                                    ))
                                       friendRatings.add(
-                                        "${data['user_name']} ${(data['rating'] as num).toStringAsFixed(1)} verdi",
+                                        "${data['user_name'] ?? 'Arkadaş'} ${(data['rating'] as num).toStringAsFixed(1)} verdi",
                                       );
-                                    }
                                   }
-
-                                  if (friendRatings.isEmpty) {
+                                  if (friendRatings.isEmpty)
                                     return const SizedBox();
-                                  }
-
                                   return Padding(
                                     padding: const EdgeInsets.only(top: 8.0),
                                     child: Text(
@@ -651,6 +658,8 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                         style: const TextStyle(color: Colors.white70),
                       ),
                       const SizedBox(height: 20),
+
+                      // --- OYUNCULAR (CAST) - HATA DÜZELTİLDİ ---
                       const Text(
                         "Cast",
                         style: TextStyle(
@@ -678,14 +687,30 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                             itemBuilder: (context, index) {
                               if (widget.movie.castDetails.isNotEmpty) {
                                 final actor = widget.movie.castDetails[index];
+                                // HATA ÇÖZÜMÜ: (?? '') ekledik
+                                final photoUrl = actor['photo'] ?? '';
+                                final actorName = actor['name'] ?? 'Unknown';
+
                                 return Padding(
                                   padding: const EdgeInsets.only(right: 15.0),
                                   child: GestureDetector(
                                     onTap: () {
-                                      context.push(
-                                        '/actor-detail',
-                                        extra: actor['name'],
-                                      );
+                                      if (actor['id'] != null) {
+                                        final person = Person(
+                                          id:
+                                              int.tryParse(
+                                                actor['id'].toString(),
+                                              ) ??
+                                              0,
+                                          name: actorName,
+                                          profilePath: photoUrl,
+                                          knownFor: 'Acting',
+                                        );
+                                        context.push(
+                                          '/person-detail',
+                                          extra: person,
+                                        );
+                                      }
                                     },
                                     child: Column(
                                       children: [
@@ -704,10 +729,11 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                               ),
                                             ],
                                           ),
+                                          // HATA ÇÖZÜMÜ: isNotEmpty yerine .length > 0 veya direkt kontrol
                                           child: ClipOval(
-                                            child: actor['photo']!.isNotEmpty
+                                            child: (photoUrl.length > 5)
                                                 ? CachedNetworkImage(
-                                                    imageUrl: actor['photo']!,
+                                                    imageUrl: photoUrl,
                                                     fit: BoxFit.cover,
                                                     placeholder: (c, u) =>
                                                         Container(
@@ -718,6 +744,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                                           color: Colors.grey,
                                                           child: const Icon(
                                                             Icons.person,
+                                                            color: Colors.white,
                                                           ),
                                                         ),
                                                   )
@@ -734,7 +761,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                         SizedBox(
                                           width: 80,
                                           child: Text(
-                                            actor['name']!,
+                                            actorName,
                                             textAlign: TextAlign.center,
                                             style: const TextStyle(
                                               color: Colors.white70,
@@ -772,8 +799,10 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                             },
                           ),
                         ),
+                      // ---------------------------------------------------
                       const SizedBox(height: 20),
-                      if (widget.movie.trailerId.isNotEmpty &&
+                      // HATA ÇÖZÜMÜ: Trailer ID Kontrolü
+                      if ((widget.movie.trailerId.isNotEmpty) &&
                           widget.movie.trailerId != 'dQw4w9WgXcQ')
                         ClipRRect(
                           borderRadius: BorderRadius.circular(12),
@@ -802,13 +831,12 @@ class _MovieDetailViewState extends State<MovieDetailView> {
               StreamBuilder<QuerySnapshot>(
                 stream: MovieManager.instance.getReviewsStream(widget.movie.id),
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
+                  if (snapshot.connectionState == ConnectionState.waiting)
                     return const SliverToBoxAdapter(
                       child: Center(child: CircularProgressIndicator()),
                     );
-                  }
                   final docs = snapshot.data?.docs ?? [];
-                  if (docs.isEmpty) {
+                  if (docs.isEmpty)
                     return const SliverToBoxAdapter(
                       child: Padding(
                         padding: EdgeInsets.all(20),
@@ -819,7 +847,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                         ),
                       ),
                     );
-                  }
                   return SliverList(
                     delegate: SliverChildBuilderDelegate((context, index) {
                       final doc = docs[index];
@@ -850,7 +877,7 @@ class _ReviewCardState extends State<ReviewCard> {
 
   void _editReview() {
     final TextEditingController editController = TextEditingController(
-      text: widget.doc['comment'],
+      text: widget.doc['comment'] ?? '',
     );
     showDialog(
       context: context,
@@ -976,9 +1003,8 @@ class _ReviewCardState extends State<ReviewCard> {
                     icon: const Icon(Icons.more_vert, color: Colors.grey),
                     onSelected: (value) {
                       if (value == 'edit') _editReview();
-                      if (value == 'delete') {
+                      if (value == 'delete')
                         MovieManager.instance.deleteReview(widget.doc.id);
-                      }
                     },
                     itemBuilder: (context) => [
                       const PopupMenuItem(
@@ -998,7 +1024,10 @@ class _ReviewCardState extends State<ReviewCard> {
               style: TextStyle(color: Colors.grey[600], fontSize: 10),
             ),
             const SizedBox(height: 8),
-            Text(data['comment'], style: const TextStyle(color: Colors.white)),
+            Text(
+              data['comment'] ?? '',
+              style: const TextStyle(color: Colors.white),
+            ),
             if (data['is_edited'] == true)
               const Text(
                 "(düzenlendi)",
@@ -1048,7 +1077,7 @@ class _ReviewCardState extends State<ReviewCard> {
                 stream: MovieManager.instance.getRepliesStream(widget.doc.id),
                 builder: (context, snapshot) {
                   final replies = snapshot.data?.docs ?? [];
-                  if (replies.isEmpty) {
+                  if (replies.isEmpty)
                     return const Padding(
                       padding: EdgeInsets.only(left: 20),
                       child: Text(
@@ -1056,7 +1085,6 @@ class _ReviewCardState extends State<ReviewCard> {
                         style: TextStyle(color: Colors.grey, fontSize: 12),
                       ),
                     );
-                  }
                   return Padding(
                     padding: const EdgeInsets.only(left: 20, top: 5),
                     child: Column(

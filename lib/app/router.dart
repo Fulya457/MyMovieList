@@ -15,6 +15,7 @@ import 'package:mymovielist/views/profile_view/notifications_view.dart';
 import 'package:mymovielist/views/profile_view/user_reviews_view.dart';
 import 'package:mymovielist/views/profile_view/friends_view.dart';
 import 'package:mymovielist/views/profile_view/chat_view.dart';
+import 'package:mymovielist/views/home_view/personal_detail_view.dart';
 
 final _rooterKey = GlobalKey<NavigatorState>();
 
@@ -49,6 +50,11 @@ final router = GoRouter(
         return WelcomeScreen(userName: userName);
       },
     ),
+    GoRoute(
+      path: '/person-detail',
+      builder: (context, state) =>
+          PersonDetailView(person: state.extra as Person),
+    ),
 
     // --- PROFİL VE SOSYAL ---
     GoRoute(
@@ -77,6 +83,7 @@ final router = GoRouter(
         return ChatView(extras: map);
       },
     ),
+
     // ------------------------------------------
 
     // --- DETAY VE LİSTELER ---

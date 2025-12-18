@@ -10,6 +10,11 @@ import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/app/theme.dart';
 import 'package:mymovielist/data/movie_manager.dart';
 
+// Yeni Widget'ları Import Ediyoruz
+import 'package:mymovielist/views/home_view/widgets/movie_card.dart';
+import 'package:mymovielist/views/home_view/widgets/person_card.dart';
+import 'package:mymovielist/views/home_view/widgets/search_filter_modal.dart';
+
 class HomeView extends StatefulWidget {
   const HomeView({super.key});
 
@@ -28,7 +33,8 @@ class _HomeViewState extends State<HomeView> {
     MovieManager.instance.ensureUserExistsInFirestore();
     MovieManager.instance.fetchNextPageMovies(initial: true);
     MovieManager.instance.loadFavoritesFromFirebase();
-    MovieManager.instance.listenToFriendsList(); // Arkadaş listesini dinle
+    MovieManager.instance.listenToFriendsList();
+    MovieManager.instance.fetchGenres();
 
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=
@@ -61,6 +67,41 @@ class _HomeViewState extends State<HomeView> {
     });
   }
 
+  void _resetHome() {
+    _searchController.clear();
+    FocusScope.of(context).unfocus();
+    final manager = MovieManager.instance;
+    manager.activeGenreFilters.clear();
+    manager.filterActor = false;
+    manager.filterDirector = false;
+    manager.searchMovies('');
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeOutCubic,
+      );
+    }
+    manager.fetchNextPageMovies(initial: true);
+    setState(() {});
+  }
+
+  // Filtre penceresini açan fonksiyon (Artık harici dosyadan çağırıyor)
+  void _showFilterDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.backgroundBlack,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SearchFilterModal(
+        onApply: () =>
+            MovieManager.instance.searchMovies(_searchController.text),
+      ),
+    );
+  }
+
   void _showAddToListSheet(BuildContext context, Movie movie) {
     showModalBottomSheet(
       context: context,
@@ -91,12 +132,15 @@ class _HomeViewState extends State<HomeView> {
                 child: StreamBuilder<QuerySnapshot>(
                   stream: MovieManager.instance.getUserListsStream(),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
+                    if (!snapshot.hasData)
                       return const Center(child: CircularProgressIndicator());
-                    }
                     final docs = snapshot.data!.docs;
+                    final movieLists = docs.where((d) {
+                      final data = d.data() as Map<String, dynamic>;
+                      return (data['type'] == 'movie' || data['type'] == null);
+                    }).toList();
 
-                    if (docs.isEmpty) {
+                    if (movieLists.isEmpty) {
                       return Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -108,7 +152,7 @@ class _HomeViewState extends State<HomeView> {
                             ),
                             const SizedBox(height: 10),
                             const Text(
-                              "Henüz listeniz yok.",
+                              "Henüz film listeniz yok.",
                               style: TextStyle(color: Colors.grey),
                             ),
                             TextButton(
@@ -127,13 +171,15 @@ class _HomeViewState extends State<HomeView> {
                     }
 
                     return ListView.builder(
-                      itemCount: docs.length,
+                      itemCount: movieLists.length,
                       itemBuilder: (context, index) {
                         final listData =
-                            docs[index].data() as Map<String, dynamic>;
-                        final listId = docs[index].id;
-                        final movies = listData['movies'] as List? ?? [];
-                        final bool alreadyAdded = movies.any(
+                            movieLists[index].data() as Map<String, dynamic>;
+                        final items =
+                            listData['items'] as List? ??
+                            listData['movies'] as List? ??
+                            [];
+                        final bool alreadyAdded = items.any(
                           (m) => m['id'] == movie.id,
                         );
 
@@ -144,7 +190,7 @@ class _HomeViewState extends State<HomeView> {
                             style: const TextStyle(color: Colors.white),
                           ),
                           subtitle: Text(
-                            "${movies.length} films",
+                            "${items.length} films",
                             style: const TextStyle(color: Colors.grey),
                           ),
                           trailing: alreadyAdded
@@ -156,7 +202,7 @@ class _HomeViewState extends State<HomeView> {
                           onTap: () async {
                             if (!alreadyAdded) {
                               await MovieManager.instance.addMovieToCustomList(
-                                listId,
+                                movieLists[index].id,
                                 movie,
                               );
                               if (mounted) {
@@ -192,7 +238,11 @@ class _HomeViewState extends State<HomeView> {
         animation: MovieManager.instance,
         builder: (context, child) {
           final manager = MovieManager.instance;
-          final isSearching = _searchController.text.isNotEmpty;
+          final isSearching =
+              _searchController.text.isNotEmpty ||
+              manager.activeGenreFilters.isNotEmpty ||
+              manager.filterActor ||
+              manager.filterDirector;
 
           return CustomScrollView(
             controller: _scrollController,
@@ -208,22 +258,25 @@ class _HomeViewState extends State<HomeView> {
                     child: Container(color: Colors.transparent),
                   ),
                 ),
-                title: const Row(
-                  children: [
-                    Icon(
-                      Icons.movie_filter_rounded,
-                      color: AppTheme.primaryBlue,
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      "MyMovieList",
-                      style: TextStyle(
+                title: GestureDetector(
+                  onTap: _resetHome,
+                  child: const Row(
+                    children: [
+                      Icon(
+                        Icons.movie_filter_rounded,
                         color: AppTheme.primaryBlue,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.0,
                       ),
-                    ),
-                  ],
+                      SizedBox(width: 8),
+                      Text(
+                        "MyMovieList",
+                        style: TextStyle(
+                          color: AppTheme.primaryBlue,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 actions: [
                   Padding(
@@ -248,12 +301,12 @@ class _HomeViewState extends State<HomeView> {
                                   .getCurrentUserIconIndex(),
                               builder: (context, snapshot) {
                                 final index = snapshot.data ?? 0;
-                                final iconUrl =
-                                    MovieManager.instance.profileIcons[index];
                                 return CircleAvatar(
                                   radius: 12,
                                   backgroundColor: Colors.transparent,
-                                  backgroundImage: NetworkImage(iconUrl),
+                                  backgroundImage: NetworkImage(
+                                    MovieManager.instance.profileIcons[index],
+                                  ),
                                 );
                               },
                             ),
@@ -275,38 +328,70 @@ class _HomeViewState extends State<HomeView> {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-                  child: TextField(
-                    controller: _searchController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: "Search Movies, Actors...",
-                      hintStyle: TextStyle(color: Colors.grey[600]),
-                      prefixIcon: const Icon(
-                        Icons.search,
-                        color: AppTheme.primaryBlue,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            hintText: "Search Movies, Actors...",
+                            hintStyle: TextStyle(color: Colors.grey[600]),
+                            prefixIcon: const Icon(
+                              Icons.search,
+                              color: AppTheme.primaryBlue,
+                            ),
+                            suffixIcon: isSearching
+                                ? IconButton(
+                                    icon: const Icon(
+                                      Icons.clear,
+                                      color: Colors.grey,
+                                    ),
+                                    onPressed: _resetHome,
+                                  )
+                                : null,
+                            filled: true,
+                            fillColor: AppTheme.surfaceDark,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 0,
+                              horizontal: 20,
+                            ),
+                          ),
+                          onChanged: _onSearchChanged,
+                        ),
                       ),
-                      suffixIcon: isSearching
-                          ? IconButton(
-                              icon: const Icon(Icons.clear, color: Colors.grey),
-                              onPressed: () {
-                                _searchController.clear();
-                                FocusScope.of(context).unfocus();
-                                MovieManager.instance.searchMovies('');
-                              },
-                            )
-                          : null,
-                      filled: true,
-                      fillColor: AppTheme.surfaceDark,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(30),
-                        borderSide: BorderSide.none,
+                      const SizedBox(width: 10),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: AppTheme.surfaceDark,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color:
+                                (manager.activeGenreFilters.isNotEmpty ||
+                                    manager.filterActor ||
+                                    manager.filterDirector)
+                                ? AppTheme.primaryBlue
+                                : Colors.transparent,
+                          ),
+                        ),
+                        child: IconButton(
+                          icon: Icon(
+                            Icons.filter_list,
+                            color:
+                                (manager.activeGenreFilters.isNotEmpty ||
+                                    manager.filterActor ||
+                                    manager.filterDirector)
+                                ? AppTheme.primaryBlue
+                                : Colors.white,
+                          ),
+                          onPressed: _showFilterDialog,
+                        ),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        vertical: 0,
-                        horizontal: 20,
-                      ),
-                    ),
-                    onChanged: _onSearchChanged,
+                    ],
                   ),
                 ),
               ),
@@ -335,30 +420,11 @@ class _HomeViewState extends State<HomeView> {
                             mainAxisSpacing: 10,
                           ),
                       delegate: SliverChildBuilderDelegate((context, index) {
-                        final movie = manager.searchResults[index];
-                        return GestureDetector(
-                          onTap: () =>
-                              context.push('/movie-detail', extra: movie),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            // --- HERO SEARCH ---
-                            child: Hero(
-                              tag: 'movie_${movie.id}',
-                              child: CachedNetworkImage(
-                                imageUrl: movie.poster,
-                                fit: BoxFit.cover,
-                                memCacheWidth: 200,
-                                placeholder: (context, url) =>
-                                    Container(color: AppTheme.surfaceDark),
-                                errorWidget: (context, url, error) => Container(
-                                  color: Colors.grey[800],
-                                  child: const Icon(Icons.error),
-                                ),
-                              ),
-                            ),
-                            // -------------------
-                          ),
-                        );
+                        final item = manager.searchResults[index];
+                        // --- KİŞİ İSE PERSON CARD ---
+                        if (item is Person) return PersonCard(person: item);
+                        // --- FİLM İSE MOVIE CARD (GRID) ---
+                        return MovieCard(movie: item as Movie, isGrid: true);
                       }, childCount: manager.searchResults.length),
                     ),
                   ),
@@ -401,19 +467,17 @@ class _HomeViewState extends State<HomeView> {
                             child: Stack(
                               fit: StackFit.expand,
                               children: [
-                                // --- HERO CAROUSEL ---
                                 Hero(
                                   tag: 'movie_${movie.id}',
                                   child: CachedNetworkImage(
                                     imageUrl: movie.poster,
                                     fit: BoxFit.cover,
-                                    placeholder: (context, url) =>
+                                    placeholder: (c, u) =>
                                         Container(color: AppTheme.surfaceDark),
-                                    errorWidget: (context, url, error) =>
+                                    errorWidget: (c, u, e) =>
                                         Container(color: Colors.grey),
                                   ),
                                 ),
-                                // ---------------------
                                 Container(
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
@@ -459,7 +523,7 @@ class _HomeViewState extends State<HomeView> {
                           height: 24,
                           color: AppTheme.primaryBlue,
                         ),
-                        SizedBox(width: 10),
+                        const SizedBox(width: 10),
                         const Text(
                           "Popular Movies",
                           style: TextStyle(
@@ -476,6 +540,11 @@ class _HomeViewState extends State<HomeView> {
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
                       final movie = manager.allMovies[index];
+                      // --- BURADA LİSTE GÖRÜNÜMÜ KULLANIYORUZ, AMA HALA CUSTOM ---
+                      // MovieCard'ın liste modunu da kullanabiliriz veya eski yapıyı koruyabiliriz.
+                      // HomeView'daki buton fonksiyonları (Favori vb.) MovieCard içine taşınmadığı için
+                      // (Karmaşıklık olmasın diye), burada manuel yapı kurdum.
+                      // İstersen MovieCard'ı tamamen buraya da entegre edebiliriz ama bu hali daha güvenli.
                       return Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -494,7 +563,6 @@ class _HomeViewState extends State<HomeView> {
                               children: [
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
-                                  // --- HERO LIST ---
                                   child: Hero(
                                     tag: 'movie_${movie.id}',
                                     child: CachedNetworkImage(
@@ -503,7 +571,7 @@ class _HomeViewState extends State<HomeView> {
                                       height: 100,
                                       fit: BoxFit.cover,
                                       memCacheWidth: 150,
-                                      placeholder: (context, url) => Container(
+                                      placeholder: (c, u) => Container(
                                         width: 70,
                                         height: 100,
                                         color: AppTheme.surfaceDark,
@@ -515,7 +583,6 @@ class _HomeViewState extends State<HomeView> {
                                       ),
                                     ),
                                   ),
-                                  // -----------------
                                 ),
                                 const SizedBox(width: 15),
                                 Expanded(

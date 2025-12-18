@@ -1,13 +1,21 @@
+// Dosya: lib/data/genre_service.dart
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'movie_manager.dart'; // Movie sınıfına erişmek için
-// manager. öneki ile global değişkenlere erişimi sağlayan import
-import 'package:mymovielist/data/movie_manager.dart' as manager;
+import 'package:mymovielist/data/movie_manager.dart'; // Manager'a erişim
+import 'package:mymovielist/models/movie_model.dart'; // Movie Modeline erişim
 
-// KRİTİK DÜZELTME: manager. öneki ile global sabitlere doğru erişim
-const String TMDB_API_KEY = manager.TMDB_API_KEY;
-const String TMDB_IMAGE_BASE_URL = manager.TMDB_IMAGE_BASE_URL;
+// HATA ÇÖZÜMÜ: Const hatasını önlemek için API Key'i buraya direkt string olarak yazdım.
+const String _API_KEY = "cea49e6756dd9655a98066426a1b934d";
+const String _IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
+
+class GenreState {
+  List<Movie> movies = [];
+  int currentPage = 1;
+  bool isFetching = false;
+  bool hasMorePages = true;
+}
 
 class GenreService extends ChangeNotifier {
   static final GenreService instance = GenreService._privateConstructor();
@@ -28,78 +36,58 @@ class GenreService extends ChangeNotifier {
 
   void setGenreMapping(Map<int, String> idToNameMap) {
     _genreNameToId = idToNameMap.map((id, name) => MapEntry(name, id));
-    print(
-      'GenreService: ${idToNameMap.length} adet tür ID/İsim eşleşmesi yüklendi.',
-    );
+    notifyListeners();
   }
 
-  // Yeni Metot: Kategoriye ait en popüler filmin posterini çekme
   Future<void> fetchGenrePosterUrl(String genreName, int genreId) async {
-    if (_genrePosterUrls.containsKey(genreName) || genreId == 0) return;
+    if (_genrePosterUrls.containsKey(genreName)) return;
 
     final url = Uri.parse(
-      'https://api.themoviedb.org/3/discover/movie?api_key=$TMDB_API_KEY&with_genres=$genreId&sort_by=popularity.desc&page=1',
+      'https://api.themoviedb.org/3/discover/movie?api_key=$_API_KEY&with_genres=$genreId&sort_by=popularity.desc&page=1',
     );
-
     try {
       final response = await http.get(url);
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final results = data['results'] as List;
-
         if (results.isNotEmpty) {
-          final posterPath = results.first['poster_path'];
+          final posterPath = results[0]['poster_path'];
           if (posterPath != null) {
-            final fullUrl = TMDB_IMAGE_BASE_URL + posterPath;
-            _genrePosterUrls[genreName] = fullUrl;
-            notifyListeners(); // Poster yüklendiğinde CategoriesView'i güncelle
+            _genrePosterUrls[genreName] = _IMAGE_BASE + posterPath;
+            notifyListeners();
           }
         }
       }
     } catch (e) {
-      print('Genre poster fetch error for $genreName: $e');
+      print("Genre Poster Error: $e");
     }
   }
 
-  // --- FİLM ÇEKME FONKSİYONU ---
   Future<void> fetchNextPageGenreMovies(
     String genreName, {
     bool initial = false,
   }) async {
     final state = getGenreState(genreName);
-    final genreId = _genreNameToId[genreName];
-    final String apiKey = TMDB_API_KEY;
-
-    if (genreId == null ||
-        genreId == 0 ||
-        apiKey.isEmpty ||
-        apiKey.contains("YAPIŞTIR")) {
-      print(
-        'GENRE SERVİS HATA: Tür ID\'si bulunamadı veya API Key eksik. Adı: $genreName',
-      );
-      state.hasMorePages = false;
-      state.isFetching = false;
-      notifyListeners();
-      return;
-    }
-
-    if (state.isFetching || !state.hasMorePages) return;
-
-    state.isFetching = true;
-    notifyListeners();
 
     if (initial) {
       state.currentPage = 1;
       state.movies.clear();
       state.hasMorePages = true;
+      state.isFetching = false;
+    }
+
+    if (state.isFetching || !state.hasMorePages) return;
+
+    state.isFetching = true;
+
+    final genreId = _genreNameToId[genreName];
+    if (genreId == null) {
+      state.isFetching = false;
+      return;
     }
 
     final url = Uri.parse(
-      'https://api.themoviedb.org/3/discover/movie?api_key=$apiKey&with_genres=$genreId&page=${state.currentPage}',
-    );
-
-    print(
-      'GENRE SERVİS ÇAĞRISI: $genreName için Sayfa ${state.currentPage} çekiliyor. ID: $genreId',
+      'https://api.themoviedb.org/3/discover/movie?api_key=$_API_KEY&with_genres=$genreId&page=${state.currentPage}',
     );
 
     try {
@@ -108,8 +96,9 @@ class GenreService extends ChangeNotifier {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
 
+        // HATA ÇÖZÜMÜ: fromTMDB'ye 2. parametre olarak Manager'daki haritayı veriyoruz
         List<Movie> newMovies = (data['results'] as List)
-            .map((json) => Movie.fromTMDB(json))
+            .map((json) => Movie.fromTMDB(json, MovieManager.instance.genreMap))
             .toList();
 
         state.movies.addAll(newMovies);
@@ -120,29 +109,14 @@ class GenreService extends ChangeNotifier {
         } else {
           state.currentPage++;
         }
-        print(
-          'GENRE SERVİS BAŞARILI: $genreName için ${newMovies.length} film yüklendi. Toplam: ${state.movies.length}',
-        );
       } else {
-        print('TMDB Genre Fetch Failed: ${response.statusCode}. URL: $url');
         state.hasMorePages = false;
       }
     } catch (e) {
       print('Genre connection error: $e');
-      state.hasMorePages = false;
     } finally {
       state.isFetching = false;
       notifyListeners();
     }
   }
-}
-
-// Kategori yükleme durumunu tutan model
-class GenreState {
-  List<Movie> movies = [];
-  int currentPage = 1;
-  bool isFetching = false;
-  bool hasMorePages = true;
-
-  GenreState();
 }
