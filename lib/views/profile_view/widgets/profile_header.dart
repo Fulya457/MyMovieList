@@ -9,7 +9,7 @@ class ProfileHeader extends StatelessWidget {
   const ProfileHeader({super.key, required this.onEditAvatar});
 
   String _getMemberName() {
-    final email = FirebaseAuth.instance.currentUser?.email ?? 'Kullanıcı';
+    final email = FirebaseAuth.instance.currentUser?.email ?? 'User';
     if (email.contains('@')) {
       return email.substring(0, email.indexOf('@')).toUpperCase();
     }

@@ -5,7 +5,7 @@
 
     <application 
    
-        android:label="mymovielist"
+        android:label="Prototip"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

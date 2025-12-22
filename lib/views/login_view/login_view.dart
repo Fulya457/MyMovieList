@@ -32,11 +32,11 @@ class _LoginViewState extends State<LoginView> {
   Timer? _sloganTimer;
 
   final List<String> _slogans = [
-    "Sınırsız Eğlence",
+    "AVADA KEDAVRA !!!",
     "I'm gonna make him an offer he can't refuse.",
-    "Favorilerini Keşfet",
+    "You shall not pass!",
     "May the Force be with you.",
-    "Sinema Cebinizde",
+    "Why so serious?",
     "To infinity and beyond!",
   ];
 
