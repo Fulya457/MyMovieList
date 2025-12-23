@@ -258,7 +258,8 @@ class ProfileView extends StatelessWidget {
                         count: favCount.toString(), 
                         icon: Icons.favorite,
                         onTap: () {
-                           // Favorilere tıklandığında ne olacağı (şuan zaten açık sayılır veya bir yere gitmez)
+                          // DÜZELTME: Favoriler sekmesine git
+                          context.go(AppRouters.favorites);
                         },
                       ),
                       
@@ -278,7 +279,6 @@ class ProfileView extends StatelessWidget {
                         },
                       ),
                       
-                      // --- CANLI YORUM SAYISI ---
                       StreamBuilder<QuerySnapshot>(
                         stream: FirebaseFirestore.instance
                             .collection('reviews')
