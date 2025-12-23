@@ -79,55 +79,138 @@ class _ProfileViewState extends State<ProfileView> {
     );
   }
 
+  // Dosya: lib/views/profile_view/profile_view.dart içinde
+
   void _showChangePasswordDialog(BuildContext context) {
-    final TextEditingController passwordController = TextEditingController();
+    final TextEditingController currentPassController = TextEditingController();
+    final TextEditingController newPassController = TextEditingController();
+    bool isLoading = false;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.surfaceDark,
-        title: const Text(
-          "Şifre Değiştir",
-          style: TextStyle(color: Colors.white),
-        ),
-        content: TextField(
-          controller: passwordController,
-          obscureText: true,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: "Yeni Şifre",
-            filled: true,
-            fillColor: Colors.black26,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("İptal"),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryBlue,
+      barrierDismissible: false, // İşlem bitmeden kapatamasın
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            backgroundColor: AppTheme.surfaceDark,
+            title: const Text(
+              "Şifre Değiştir",
+              style: TextStyle(color: Colors.white),
             ),
-            onPressed: () async {
-              try {
-                await MovieManager.instance.changePassword(
-                  passwordController.text.trim(),
-                );
-                if (context.mounted) {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Şifre başarıyla değiştirildi."),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  "Güvenlik gereği mevcut şifrenizi girmelisiniz.",
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+                const SizedBox(height: 15),
+                // --- MEVCUT ŞİFRE ---
+                TextField(
+                  controller: currentPassController,
+                  obscureText: true,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    hintText: "Mevcut Şifreniz",
+                    filled: true,
+                    fillColor: Colors.black26,
+                    prefixIcon: Icon(Icons.lock_outline, color: Colors.grey),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                // --- YENİ ŞİFRE ---
+                TextField(
+                  controller: newPassController,
+                  obscureText: true,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    hintText: "Yeni Şifre (En az 6 karakter)",
+                    filled: true,
+                    fillColor: Colors.black26,
+                    prefixIcon: Icon(Icons.vpn_key, color: Colors.grey),
+                  ),
+                ),
+                if (isLoading)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 15.0),
+                    child: CircularProgressIndicator(
+                      color: AppTheme.primaryBlue,
                     ),
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) Navigator.pop(ctx);
-              }
-            },
-            child: const Text("Kaydet", style: TextStyle(color: Colors.white)),
-          ),
-        ],
+                  ),
+              ],
+            ),
+            actions: [
+              if (!isLoading)
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text(
+                    "İptal",
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+              if (!isLoading)
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryBlue,
+                  ),
+                  onPressed: () async {
+                    if (currentPassController.text.isEmpty ||
+                        newPassController.text.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Lütfen tüm alanları doldurun."),
+                        ),
+                      );
+                      return;
+                    }
+
+                    if (newPassController.text.length < 6) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Yeni şifre en az 6 karakter olmalı."),
+                        ),
+                      );
+                      return;
+                    }
+
+                    setState(() => isLoading = true); // Yükleniyor'u aç
+
+                    try {
+                      await MovieManager.instance.changePassword(
+                        currentPassController.text.trim(),
+                        newPassController.text.trim(),
+                      );
+
+                      if (context.mounted) {
+                        Navigator.pop(ctx); // Pencereyi kapat
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            backgroundColor: Colors.green,
+                            content: Text("Şifreniz başarıyla güncellendi!"),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            backgroundColor: Colors.red,
+                            content: Text(e.toString()),
+                          ),
+                        );
+                      }
+                    } finally {
+                      if (context.mounted) setState(() => isLoading = false);
+                    }
+                  },
+                  child: const Text(
+                    "Güncelle",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }

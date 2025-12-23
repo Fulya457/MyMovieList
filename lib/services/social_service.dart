@@ -47,8 +47,41 @@ class SocialService {
     });
   }
 
-  Future<void> changePassword(String newPassword) async {
-    await currentUser?.updatePassword(newPassword);
+  // Dosya: lib/services/social_service.dart
+
+  Future<void> changePassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
+    final user = _auth.currentUser;
+    final email = user?.email;
+
+    if (user == null || email == null) return;
+
+    try {
+      // 1. Önce kullanıcıyı yeniden doğrula (Re-authenticate)
+      // Bu işlem, "requires-recent-login" hatasını çözer.
+      AuthCredential credential = EmailAuthProvider.credential(
+        email: email,
+        password: currentPassword,
+      );
+
+      await user.reauthenticateWithCredential(credential);
+
+      // 2. Doğrulama başarılıysa şifreyi güncelle
+      await user.updatePassword(newPassword);
+      print("Şifre başarıyla değiştirildi.");
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'wrong-password') {
+        throw 'Mevcut şifrenizi yanlış girdiniz.';
+      } else if (e.code == 'weak-password') {
+        throw 'Yeni şifreniz çok zayıf. En az 6 karakter olmalı.';
+      } else {
+        throw 'Bir hata oluştu: ${e.message}';
+      }
+    } catch (e) {
+      throw 'Beklenmedik bir hata oluştu.';
+    }
   }
 
   Future<List<Map<String, dynamic>>> searchUsersByEmail(

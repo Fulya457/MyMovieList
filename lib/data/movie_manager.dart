@@ -301,8 +301,19 @@ class MovieManager extends ChangeNotifier {
       _socialService.getUserIconIndexStream();
   Future<List<Map<String, dynamic>>> searchUsersByEmail(String q) =>
       _socialService.searchUsersByEmail(q);
-  Future<void> changePassword(String p) async =>
-      await _socialService.changePassword(p);
+  // Dosya: lib/data/movie_manager.dart
+
+  Future<void> changePassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
+    try {
+      await _socialService.changePassword(currentPassword, newPassword);
+    } catch (e) {
+      // Hatayı View katmanına fırlat ki ekranda gösterebilelim
+      rethrow;
+    }
+  }
 
   // Arkadaşlık & Chat
   Future<void> sendFriendRequest(String uid) async {
