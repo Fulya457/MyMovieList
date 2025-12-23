@@ -262,7 +262,6 @@ class ProfileView extends StatelessWidget {
                         },
                       ),
                       
-                      // --- CANLI LİSTE SAYISI ---
                       StreamBuilder<QuerySnapshot>(
                         stream: MovieManager.instance.getUserListsStream(),
                         builder: (context, snapshot) {
@@ -273,20 +272,29 @@ class ProfileView extends StatelessWidget {
                             count: count.toString(), 
                             icon: Icons.list,
                             onTap: () {
-                              // YENİ: Listelerim Sayfasına Git
                               context.push(AppRouters.userLists);
                             },
                           );
                         },
                       ),
                       
-                      _buildStatCard(
-                        context: context,
-                        label: "Yorumlar", 
-                        count: "-", 
-                        icon: Icons.comment,
-                        onTap: () {
-                           context.push(AppRouters.userReviews);
+                      // --- CANLI YORUM SAYISI ---
+                      StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('reviews')
+                            .where('user_id', isEqualTo: FirebaseAuth.instance.currentUser?.uid ?? '')
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                          return _buildStatCard(
+                            context: context,
+                            label: "Yorumlar", 
+                            count: count.toString(), 
+                            icon: Icons.comment,
+                            onTap: () {
+                              context.push(AppRouters.userReviews);
+                            },
+                          );
                         },
                       ), 
                     ],
@@ -410,7 +418,7 @@ class ProfileView extends StatelessWidget {
     );
   }
 
-  // Helper Widget: İstatistik Kartı (GÜNCELLENDİ: Tıklanabilir ve Context Alıyor)
+  // Helper Widget: İstatistik Kartı
   Widget _buildStatCard({
     required BuildContext context,
     required String label, 
