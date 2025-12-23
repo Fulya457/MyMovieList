@@ -6,7 +6,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/app/theme.dart';
-import 'package:video_player/video_player.dart';
+
+// VideoPlayer importu kaldırıldı
 
 String _getMemberName(String email) {
   if (email.contains('@')) {
@@ -26,8 +27,11 @@ class _LoginViewState extends State<LoginView> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool isLoading = false;
+  
+  // Giriş mi Kayıt mı modu kontrolü
+  bool _isLogin = true;
 
-  late VideoPlayerController _videoController;
+  // Sloganlar için değişkenler
   int _currentSloganIndex = 0;
   Timer? _sloganTimer;
 
@@ -43,19 +47,8 @@ class _LoginViewState extends State<LoginView> {
   @override
   void initState() {
     super.initState();
-    _initializeVideo();
+    // Video başlatma kaldırıldı
     _startSloganRotation();
-  }
-
-  void _initializeVideo() {
-    // --- BURASI GÜNCELLENDİ: ASSET KULLANIMI ---
-    _videoController = VideoPlayerController.asset('assets/intro.mp4')
-      ..initialize().then((_) {
-        _videoController.setVolume(0.0);
-        _videoController.setLooping(true);
-        _videoController.play();
-        setState(() {});
-      });
   }
 
   void _startSloganRotation() {
@@ -72,12 +65,12 @@ class _LoginViewState extends State<LoginView> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
-    _videoController.dispose();
+    // Video controller dispose kaldırıldı
     _sloganTimer?.cancel();
     super.dispose();
   }
 
-  Future<void> _signIn() async {
+  Future<void> _submit() async {
     final String email = _emailController.text.trim();
     final String password = _passwordController.text.trim();
 
@@ -85,41 +78,72 @@ class _LoginViewState extends State<LoginView> {
       _showErrorDialog("Lütfen tüm alanları doldurunuz.");
       return;
     }
+    
+    // YENİ EKLENEN KISIM: ŞİFRE UZUNLUĞU KONTROLÜ
+    // Sadece kayıt olurken kontrol ediyoruz.
+    if (!_isLogin && password.length < 6) {
+      _showErrorDialog("Şifreniz en az 6 karakter olmalıdır.");
+      return;
+    }
 
     setState(() => isLoading = true);
 
     try {
-      final UserCredential userCredential = await FirebaseAuth.instance
-          .signInWithEmailAndPassword(email: email, password: password);
+      UserCredential userCredential;
+
+      if (_isLogin) {
+        // --- GİRİŞ YAPMA ---
+        userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      } else {
+        // --- KAYIT OLMA ---
+        userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      }
 
       final User? user = userCredential.user;
 
       if (user != null) {
-        // Giriş yapan kullanıcıyı veritabanına kaydet (Arkadaş araması için)
-        final userDoc = FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid);
-        final snapshot = await userDoc.get();
-        if (!snapshot.exists) {
-          await userDoc.set({
-            'uid': user.uid,
-            'email': user.email?.toLowerCase(),
-            'created_at': FieldValue.serverTimestamp(),
-            'favorites': [],
-          });
+        final userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
+        
+        if (!_isLogin) {
+             await userDoc.set({
+              'uid': user.uid,
+              'email': user.email?.toLowerCase(),
+              'created_at': FieldValue.serverTimestamp(),
+              'favorites': [],
+              'profile_icon_id': 0,
+            });
+        } else {
+            final snapshot = await userDoc.get();
+            if (!snapshot.exists) {
+              await userDoc.set({
+                'uid': user.uid,
+                'email': user.email?.toLowerCase(),
+                'created_at': FieldValue.serverTimestamp(),
+                'favorites': [],
+                'profile_icon_id': 0,
+              });
+            }
         }
 
         final memberName = _getMemberName(email);
         if (mounted) context.go(AppRouters.welcome, extra: memberName);
       }
     } on FirebaseAuthException catch (e) {
-      String message = 'Giriş hatası.';
-      if (e.code == 'user-not-found' ||
-          e.code == 'wrong-password' ||
-          e.code == 'invalid-credential') {
+      String message = 'İşlem başarısız.';
+      if (e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential') {
         message = 'Kullanıcı adı veya şifre hatalı.';
+      } else if (e.code == 'email-already-in-use') {
+        message = 'Bu e-posta adresi zaten kullanımda.';
       } else if (e.code == 'invalid-email') {
         message = 'Geçersiz e-posta formatı.';
+      } else if (e.code == 'weak-password') {
+        message = 'Şifre çok zayıf. En az 6 karakter olmalı.';
       }
       _showErrorDialog(message);
     } catch (e) {
@@ -153,31 +177,19 @@ class _LoginViewState extends State<LoginView> {
       backgroundColor: AppTheme.backgroundBlack,
       body: Stack(
         children: [
-          // KATMAN 1: VİDEO (ASSET)
-          if (_videoController.value.isInitialized)
-            SizedBox.expand(
-              child: FittedBox(
-                fit: BoxFit.cover,
-                child: SizedBox(
-                  width: _videoController.value.size.width,
-                  height: _videoController.value.size.height,
-                  child: VideoPlayer(_videoController),
-                ),
-              ),
-            )
-          else
-            Container(
-              color: AppTheme.backgroundBlack,
-              child: const Center(
-                child: CircularProgressIndicator(color: AppTheme.primaryBlue),
-              ),
+          // KATMAN 1: ARKA PLAN RESMİ (Local Asset)
+          Positioned.fill(
+            child: Image.asset(
+              'assets/bg1.jfif', // İNTERNET RESMİ YERİNE ASSET EKLENDİ
+              fit: BoxFit.cover,
             ),
+          ),
 
-          // KATMAN 2: BLUR
+          // KATMAN 2: BLUR (Biraz daha koyu yaptık ki yazılar okunsun)
           Positioned.fill(
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
-              child: Container(color: Colors.black.withOpacity(0.5)),
+              filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
+              child: Container(color: Colors.black.withOpacity(0.6)),
             ),
           ),
 
@@ -301,7 +313,7 @@ class _LoginViewState extends State<LoginView> {
                             ],
                           ),
                           child: ElevatedButton(
-                            onPressed: _signIn,
+                            onPressed: _submit,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.transparent,
                               shadowColor: Colors.transparent,
@@ -309,9 +321,9 @@ class _LoginViewState extends State<LoginView> {
                                 borderRadius: BorderRadius.circular(15),
                               ),
                             ),
-                            child: const Text(
-                              'GİRİŞ YAP',
-                              style: TextStyle(
+                            child: Text(
+                              _isLogin ? 'GİRİŞ YAP' : 'KAYIT OL',
+                              style: const TextStyle(
                                 fontSize: 18,
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
@@ -319,6 +331,25 @@ class _LoginViewState extends State<LoginView> {
                             ),
                           ),
                         ),
+                  
+                  // Mod Değiştirme Butonu
+                  const SizedBox(height: 20),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _isLogin = !_isLogin;
+                      });
+                    },
+                    child: Text(
+                      _isLogin 
+                        ? "Hesabın yok mu? Kayıt Ol" 
+                        : "Zaten hesabın var mı? Giriş Yap",
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),

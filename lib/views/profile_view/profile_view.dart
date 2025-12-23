@@ -1,26 +1,23 @@
+import 'package:cloud_firestore/cloud_firestore.dart'; // StreamBuilder için gerekli
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/app/theme.dart';
 import 'package:mymovielist/data/movie_manager.dart';
 
-// Yeni Widget'ları Import Et
-import 'package:mymovielist/views/profile_view/widgets/profile_header.dart';
-import 'package:mymovielist/views/profile_view/widgets/profile_menu_item.dart';
-import 'package:mymovielist/views/profile_view/user_list_detail_view.dart';
-
-class ProfileView extends StatefulWidget {
+class ProfileView extends StatelessWidget {
   const ProfileView({super.key});
 
-  @override
-  State<ProfileView> createState() => _ProfileViewState();
-}
+  String _getMemberName() {
+    final email = FirebaseAuth.instance.currentUser?.email ?? 'Kullanıcı';
+    if (email.contains('@')) {
+      return email.substring(0, email.indexOf('@')).toUpperCase();
+    }
+    return 'USER';
+  }
 
-class _ProfileViewState extends State<ProfileView> {
-  String _selectedListType = 'movie'; // 'movie', 'actor', 'director'
-
+  // AVATAR SEÇME PENCERESİ
   void _showAvatarSelection(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -79,421 +76,371 @@ class _ProfileViewState extends State<ProfileView> {
     );
   }
 
-  // Dosya: lib/views/profile_view/profile_view.dart içinde
-
   void _showChangePasswordDialog(BuildContext context) {
-    final TextEditingController currentPassController = TextEditingController();
-    final TextEditingController newPassController = TextEditingController();
-    bool isLoading = false;
-
+    final TextEditingController passwordController = TextEditingController();
     showDialog(
       context: context,
-      barrierDismissible: false, // İşlem bitmeden kapatamasın
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            backgroundColor: AppTheme.surfaceDark,
-            title: const Text(
-              "Şifre Değiştir",
-              style: TextStyle(color: Colors.white),
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceDark,
+        title: const Text(
+          "Şifre Değiştir",
+          style: TextStyle(color: Colors.white),
+        ),
+        content: TextField(
+          controller: passwordController,
+          obscureText: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: "Yeni Şifre",
+            filled: true,
+            fillColor: Colors.black26,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("İptal"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryBlue,
             ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  "Güvenlik gereği mevcut şifrenizi girmelisiniz.",
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
-                ),
-                const SizedBox(height: 15),
-                // --- MEVCUT ŞİFRE ---
-                TextField(
-                  controller: currentPassController,
-                  obscureText: true,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
-                    hintText: "Mevcut Şifreniz",
-                    filled: true,
-                    fillColor: Colors.black26,
-                    prefixIcon: Icon(Icons.lock_outline, color: Colors.grey),
+            onPressed: () async {
+              final newPass = passwordController.text.trim();
+              
+              if (newPass.length < 6) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Şifre en az 6 karakter olmalıdır!"),
+                    backgroundColor: Colors.red,
+                    duration: Duration(seconds: 2),
                   ),
-                ),
-                const SizedBox(height: 10),
-                // --- YENİ ŞİFRE ---
-                TextField(
-                  controller: newPassController,
-                  obscureText: true,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
-                    hintText: "Yeni Şifre (En az 6 karakter)",
-                    filled: true,
-                    fillColor: Colors.black26,
-                    prefixIcon: Icon(Icons.vpn_key, color: Colors.grey),
-                  ),
-                ),
-                if (isLoading)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 15.0),
-                    child: CircularProgressIndicator(
-                      color: AppTheme.primaryBlue,
+                );
+                return;
+              }
+
+              try {
+                await MovieManager.instance.changePassword(newPass);
+                
+                if (context.mounted) {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Şifre başarıyla değiştirildi."),
+                      backgroundColor: Colors.green,
                     ),
-                  ),
-              ],
-            ),
-            actions: [
-              if (!isLoading)
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text(
-                    "İptal",
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ),
-              if (!isLoading)
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryBlue,
-                  ),
-                  onPressed: () async {
-                    if (currentPassController.text.isEmpty ||
-                        newPassController.text.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Lütfen tüm alanları doldurun."),
-                        ),
-                      );
-                      return;
-                    }
-
-                    if (newPassController.text.length < 6) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Yeni şifre en az 6 karakter olmalı."),
-                        ),
-                      );
-                      return;
-                    }
-
-                    setState(() => isLoading = true); // Yükleniyor'u aç
-
-                    try {
-                      await MovieManager.instance.changePassword(
-                        currentPassController.text.trim(),
-                        newPassController.text.trim(),
-                      );
-
-                      if (context.mounted) {
-                        Navigator.pop(ctx); // Pencereyi kapat
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            backgroundColor: Colors.green,
-                            content: Text("Şifreniz başarıyla güncellendi!"),
-                          ),
-                        );
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            backgroundColor: Colors.red,
-                            content: Text(e.toString()),
-                          ),
-                        );
-                      }
-                    } finally {
-                      if (context.mounted) setState(() => isLoading = false);
-                    }
-                  },
-                  child: const Text(
-                    "Güncelle",
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  void _showCreateListDialog(BuildContext context) {
-    final TextEditingController listNameController = TextEditingController();
-    String tempType = _selectedListType;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            backgroundColor: AppTheme.surfaceDark,
-            title: const Text(
-              "Yeni Liste Oluştur",
-              style: TextStyle(color: Colors.white),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: listNameController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
-                    hintText: "Liste Adı (Örn: En İyi Komediler)",
-                    filled: true,
-                    fillColor: Colors.black26,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                DropdownButton<String>(
-                  value: tempType,
-                  dropdownColor: AppTheme.surfaceDark,
-                  isExpanded: true,
-                  style: const TextStyle(color: Colors.white),
-                  underline: Container(height: 1, color: AppTheme.primaryBlue),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'movie',
-                      child: Text("Film Listesi"),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Hata: $e"),
+                      backgroundColor: Colors.red,
                     ),
-                    DropdownMenuItem(
-                      value: 'actor',
-                      child: Text("Aktör Listesi"),
-                    ),
-                    DropdownMenuItem(
-                      value: 'director',
-                      child: Text("Yönetmen Listesi"),
-                    ),
-                  ],
-                  onChanged: (val) => setState(() => tempType = val!),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text("İptal"),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryBlue,
-                ),
-                onPressed: () async {
-                  if (listNameController.text.isNotEmpty) {
-                    await MovieManager.instance.createCustomList(
-                      listNameController.text.trim(),
-                      tempType,
-                    );
-                    if (context.mounted) Navigator.pop(ctx);
-                  }
-                },
-                child: const Text(
-                  "Oluştur",
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-            ],
-          );
-        },
+                  );
+                }
+              }
+            },
+            child: const Text("Kaydet", style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundBlack,
-      appBar: AppBar(
-        title: const Text('Profilim', style: TextStyle(color: Colors.white)),
-        backgroundColor: AppTheme.backgroundBlack,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => context.pop(),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            // --- PROFİL BAŞLIĞI (WIDGET OLARAK AYRILDI) ---
-            ProfileHeader(onEditAvatar: () => _showAvatarSelection(context)),
+    final userEmail = FirebaseAuth.instance.currentUser?.email ?? '';
+    final userName = _getMemberName();
 
-            const SizedBox(height: 30),
-
-            // --- LİSTELER BÖLÜMÜ ---
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  "Listelerim",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+    return ListenableBuilder(
+      listenable: MovieManager.instance,
+      builder: (context, child) {
+        final favCount = MovieManager.instance.favoriteMovies.length;
+        
+        return Scaffold(
+          backgroundColor: AppTheme.backgroundBlack,
+          body: CustomScrollView(
+            slivers: [
+              // 1. HEADER
+              SliverAppBar(
+                expandedHeight: 280,
+                backgroundColor: AppTheme.backgroundBlack,
+                pinned: true,
+                flexibleSpace: FlexibleSpaceBar(
+                  background: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          AppTheme.primaryBlue.withOpacity(0.3),
+                          AppTheme.backgroundBlack,
+                        ],
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const SizedBox(height: 40),
+                        // Avatar
+                        StreamBuilder<int>(
+                          stream: MovieManager.instance.getCurrentUserIconIndex(),
+                          builder: (context, snapshot) {
+                            final iconIndex = snapshot.data ?? 0;
+                            final iconUrl = MovieManager.instance.profileIcons[iconIndex];
+                            return GestureDetector(
+                              onTap: () => _showAvatarSelection(context),
+                              child: Stack(
+                                alignment: Alignment.bottomRight,
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: AppTheme.primaryBlue, width: 3),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: AppTheme.primaryBlue.withOpacity(0.4),
+                                          blurRadius: 20,
+                                        ),
+                                      ],
+                                    ),
+                                    child: CircleAvatar(
+                                      radius: 50,
+                                      backgroundImage: NetworkImage(iconUrl),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: const BoxDecoration(
+                                      color: AppTheme.primaryBlue,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.edit, color: Colors.white, size: 16),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 15),
+                        // İsim
+                        Text(
+                          userName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        Text(
+                          userEmail,
+                          style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 14),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(
-                    Icons.add_circle,
-                    color: AppTheme.primaryBlue,
+              ),
+
+              // 2. İSTATİSTİKLER (Row)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildStatCard(
+                        context: context,
+                        label: "Favoriler", 
+                        count: favCount.toString(), 
+                        icon: Icons.favorite,
+                        onTap: () {
+                           // Favorilere tıklandığında ne olacağı (şuan zaten açık sayılır veya bir yere gitmez)
+                        },
+                      ),
+                      
+                      // --- CANLI LİSTE SAYISI ---
+                      StreamBuilder<QuerySnapshot>(
+                        stream: MovieManager.instance.getUserListsStream(),
+                        builder: (context, snapshot) {
+                          final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                          return _buildStatCard(
+                            context: context,
+                            label: "Listeler", 
+                            count: count.toString(), 
+                            icon: Icons.list,
+                            onTap: () {
+                              // YENİ: Listelerim Sayfasına Git
+                              context.push(AppRouters.userLists);
+                            },
+                          );
+                        },
+                      ),
+                      
+                      _buildStatCard(
+                        context: context,
+                        label: "Yorumlar", 
+                        count: "-", 
+                        icon: Icons.comment,
+                        onTap: () {
+                           context.push(AppRouters.userReviews);
+                        },
+                      ), 
+                    ],
                   ),
-                  onPressed: () => _showCreateListDialog(context),
+                ),
+              ),
+
+              // 3. SON FAVORİLER (Yatay Liste)
+              if (favCount > 0) ...[
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
+                    child: Text(
+                      "Son Favorilerim",
+                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 160,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 15),
+                      itemCount: MovieManager.instance.favoriteMovies.length,
+                      itemBuilder: (context, index) {
+                        final reversedList = MovieManager.instance.favoriteMovies.reversed.toList();
+                        final movie = reversedList[index];
+                        
+                        return GestureDetector(
+                          onTap: () => context.push('/movie-detail', extra: movie),
+                          child: Container(
+                            width: 100,
+                            margin: const EdgeInsets.symmetric(horizontal: 5),
+                            child: Column(
+                              children: [
+                                Expanded(
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Image.network(movie.poster, fit: BoxFit.cover),
+                                  ),
+                                ),
+                                const SizedBox(height: 5),
+                                Text(
+                                  movie.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 ),
               ],
-            ),
 
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildFilterChip('movie', "Filmler"),
-                  const SizedBox(width: 10),
-                  _buildFilterChip('actor', "Aktörler"),
-                  const SizedBox(width: 10),
-                  _buildFilterChip('director', "Yönetmenler"),
-                ],
-              ),
-            ),
-            const SizedBox(height: 15),
-
-            StreamBuilder<QuerySnapshot>(
-              stream: MovieManager.instance.getUserListsStream(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData)
-                  return const Center(child: CircularProgressIndicator());
-
-                final docs = snapshot.data!.docs.where((d) {
-                  final data = d.data() as Map<String, dynamic>;
-                  final listType = data['type'] ?? 'movie';
-                  return listType == _selectedListType;
-                }).toList();
-
-                if (docs.isEmpty) {
-                  return Container(
-                    height: 100,
-                    alignment: Alignment.center,
-                    child: Text(
-                      "${_getTypeName(_selectedListType)} türünde listeniz yok.",
-                      style: const TextStyle(color: Colors.grey),
+              // 4. MENÜ LİSTESİ
+              SliverPadding(
+                padding: const EdgeInsets.all(20),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    const SizedBox(height: 10),
+                    const Text("Hesap Ayarları", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    _buildMenuItem(
+                      icon: Icons.people,
+                      text: "Arkadaşlarım",
+                      color: Colors.purpleAccent,
+                      onTap: () => context.push(AppRouters.friends),
                     ),
-                  );
-                }
-
-                return SizedBox(
-                  height: 140,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: docs.length,
-                    itemBuilder: (context, index) {
-                      final data = docs[index].data() as Map<String, dynamic>;
-                      final items =
-                          data['items'] as List? ??
-                          data['movies'] as List? ??
-                          [];
-
-                      String coverImage = '';
-                      if (items.isNotEmpty) {
-                        coverImage =
-                            items.first['poster_path'] ??
-                            items.first['profile_path'] ??
-                            '';
-                      }
-
-                      return GestureDetector(
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => UserListDetailView(
-                              listId: docs[index].id,
-                              listName: data['name'],
-                              items: items,
-                              type: _selectedListType,
-                            ),
-                          ),
+                    _buildMenuItem(
+                      icon: Icons.notifications,
+                      text: "Bildirimler",
+                      color: Colors.orangeAccent,
+                      onTap: () => context.push(AppRouters.notifications),
+                    ),
+                    _buildMenuItem(
+                      icon: Icons.rate_review,
+                      text: "Değerlendirmelerim",
+                      color: Colors.blueAccent,
+                      onTap: () => context.push(AppRouters.userReviews),
+                    ),
+                    _buildMenuItem(
+                      icon: Icons.lock_reset,
+                      text: "Şifre Değiştir",
+                      color: Colors.greenAccent,
+                      onTap: () => _showChangePasswordDialog(context),
+                    ),
+                    const SizedBox(height: 30),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2C2C2C),
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15),
+                          side: BorderSide(color: Colors.red.withOpacity(0.5)),
                         ),
-                        child: Container(
-                          width: 100,
-                          margin: const EdgeInsets.only(right: 15),
-                          decoration: BoxDecoration(
-                            color: AppTheme.surfaceDark,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Colors.white10),
-                            image: coverImage.isNotEmpty
-                                ? DecorationImage(
-                                    image: NetworkImage(coverImage),
-                                    fit: BoxFit.cover,
-                                    opacity: 0.6,
-                                  )
-                                : null,
-                          ),
-                          child: Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(8.0),
-                              child: Text(
-                                data['name'],
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  shadows: [
-                                    Shadow(blurRadius: 5, color: Colors.black),
-                                  ],
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 30),
-
-            // --- MENÜLER (WIDGET OLARAK AYRILDI) ---
-            ProfileMenuItem(
-              icon: Icons.people,
-              text: "Arkadaşlarım",
-              onTap: () => context.push(AppRouters.friends),
-            ),
-            ProfileMenuItem(
-              icon: Icons.notifications,
-              text: "Bildirim Geçmişi",
-              onTap: () => context.push(AppRouters.notifications),
-            ),
-            ProfileMenuItem(
-              icon: Icons.rate_review,
-              text: "Değerlendirmelerim",
-              onTap: () => context.push(AppRouters.userReviews),
-            ),
-            ProfileMenuItem(
-              icon: Icons.lock_reset,
-              text: "Şifre Değiştir",
-              onTap: () => _showChangePasswordDialog(context),
-            ),
-
-            const SizedBox(height: 30),
-
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red[900],
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                        elevation: 0,
+                      ),
+                      icon: const Icon(Icons.logout, color: Colors.red),
+                      label: const Text(
+                        "Çıkış Yap",
+                        style: TextStyle(color: Colors.red, fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      onPressed: () async {
+                        await FirebaseAuth.instance.signOut();
+                        if (context.mounted) context.go(AppRouters.login);
+                      },
+                    ),
+                    const SizedBox(height: 40),
+                  ]),
                 ),
-                icon: const Icon(Icons.logout, color: Colors.white),
-                label: const Text(
-                  "Çıkış Yap",
-                  style: TextStyle(color: Colors.white, fontSize: 16),
-                ),
-                onPressed: () async {
-                  await FirebaseAuth.instance.signOut();
-                  if (context.mounted) context.go(AppRouters.login);
-                },
               ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Helper Widget: İstatistik Kartı (GÜNCELLENDİ: Tıklanabilir ve Context Alıyor)
+  Widget _buildStatCard({
+    required BuildContext context,
+    required String label, 
+    required String count, 
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceDark,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: Colors.white10),
+          boxShadow: [
+            BoxShadow(color: Colors.black12, blurRadius: 5, offset: Offset(0, 2))
+          ],
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: AppTheme.primaryBlue, size: 24),
+            const SizedBox(height: 8),
+            Text(
+              count,
+              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.grey, fontSize: 12),
             ),
           ],
         ),
@@ -501,24 +448,33 @@ class _ProfileViewState extends State<ProfileView> {
     );
   }
 
-  Widget _buildFilterChip(String type, String label) {
-    final bool isSelected = _selectedListType == type;
-    return ChoiceChip(
-      label: Text(label),
-      selected: isSelected,
-      selectedColor: AppTheme.primaryBlue,
-      backgroundColor: AppTheme.surfaceDark,
-      labelStyle: TextStyle(
-        color: isSelected ? Colors.black : Colors.white,
-        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+  // Helper Widget: Menü Elemanı
+  Widget _buildMenuItem({
+    required IconData icon,
+    required String text,
+    required VoidCallback onTap,
+    Color color = AppTheme.primaryBlue,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceDark,
+        borderRadius: BorderRadius.circular(15),
       ),
-      onSelected: (val) => setState(() => _selectedListType = type),
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: color, size: 20),
+        ),
+        title: Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+        onTap: onTap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      ),
     );
-  }
-
-  String _getTypeName(String type) {
-    if (type == 'movie') return 'Film';
-    if (type == 'actor') return 'Aktör';
-    return 'Yönetmen';
   }
 }

@@ -29,6 +29,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   
-  # Videoyu buraya ekledim:
+  # Arka plan resmi eklendi:
   assets:
     - assets/intro.mp4
+    - assets/bg1.jfif

@@ -16,6 +16,8 @@ import 'package:mymovielist/views/profile_view/user_reviews_view.dart';
 import 'package:mymovielist/views/profile_view/friends_view.dart';
 import 'package:mymovielist/views/profile_view/chat_view.dart';
 import 'package:mymovielist/views/home_view/personal_detail_view.dart';
+// YENİ IMPORT
+import 'package:mymovielist/views/profile_view/user_lists_view.dart';
 
 final _rooterKey = GlobalKey<NavigatorState>();
 
@@ -27,6 +29,9 @@ class AppRouters {
   static const String userReviews = '/user-reviews';
   static const String friends = '/friends';
   static const String chat = '/chat';
+  
+  // YENİ ROTA
+  static const String userLists = '/user-lists';
 
   static const String home = '/';
   static const String favorites = '/favorites';
@@ -73,18 +78,19 @@ final router = GoRouter(
       path: AppRouters.friends,
       builder: (context, state) => const FriendsView(),
     ),
+    // YENİ EKLENEN ROTA TANIMI
+    GoRoute(
+      path: AppRouters.userLists,
+      builder: (context, state) => const UserListsView(),
+    ),
 
-    // --- GÜNCELLENEN KISIM (HATA BURADAYDI) ---
     GoRoute(
       path: AppRouters.chat,
       builder: (context, state) {
-        // ChatView artık tek bir 'extras' parametresi bekliyor
         final map = state.extra as Map<String, dynamic>;
         return ChatView(extras: map);
       },
     ),
-
-    // ------------------------------------------
 
     // --- DETAY VE LİSTELER ---
     GoRoute(

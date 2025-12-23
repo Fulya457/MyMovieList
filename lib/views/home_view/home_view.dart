@@ -102,6 +102,57 @@ class _HomeViewState extends State<HomeView> {
     );
   }
 
+  // --- YENİ EKLENEN: LİSTE OLUŞTURMA PENCERESİ ---
+  void _showCreateListDialog(BuildContext context) {
+    final TextEditingController nameController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceDark,
+        title: const Text("Yeni Liste Oluştur", style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                hintText: "Liste Adı (örn: İzlenecekler)",
+                filled: true,
+                fillColor: Colors.black26,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("İptal"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryBlue),
+            onPressed: () async {
+              if (nameController.text.trim().isNotEmpty) {
+                await MovieManager.instance.createCustomList(
+                  nameController.text.trim(),
+                  'movies',
+                );
+                if (mounted) {
+                  Navigator.pop(ctx); // Dialogu kapat
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Liste başarıyla oluşturuldu!")),
+                  );
+                }
+              }
+            },
+            child: const Text("Oluştur", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showAddToListSheet(BuildContext context, Movie movie) {
     showModalBottomSheet(
       context: context,
@@ -158,7 +209,8 @@ class _HomeViewState extends State<HomeView> {
                             TextButton(
                               onPressed: () {
                                 Navigator.pop(ctx);
-                                context.push(AppRouters.profile);
+                                // DÜZELTME: Doğrudan liste oluşturma penceresine git
+                                _showCreateListDialog(context);
                               },
                               child: const Text(
                                 "Liste oluşturmak için tıklayın",

@@ -9,7 +9,7 @@ import 'package:mymovielist/models/person_model.dart';
 // Servisler
 import 'package:mymovielist/data/genre_service.dart';
 import 'package:mymovielist/services/tmdb_service.dart';
-import 'package:mymovielist/services/social_service.dart'; // YENİ EKLENDİ
+import 'package:mymovielist/services/social_service.dart';
 
 // Export
 export 'package:mymovielist/models/movie_model.dart';
@@ -201,7 +201,7 @@ class MovieManager extends ChangeNotifier {
     return await _tmdbService.getMovieById(id, _genreMap);
   }
 
-  // --- FIREBASE (SOCIAL SERVICE'E DEVREDİLDİ) ---
+  // --- FIREBASE İŞLEMLERİ ---
 
   Future<void> toggleFavorite(Movie movie) async {
     if (isFavorite(movie)) {
@@ -228,20 +228,16 @@ class MovieManager extends ChangeNotifier {
   }
 
   Future<void> loadFavoritesFromFirebase() async {
-    // Servisten veriyi çekiyoruz
     final data = await _socialService.fetchAllFavorites();
 
     if (data.isNotEmpty) {
-      // 1. Film Favorileri
       if (data.containsKey('favorites_movies')) {
         _favoriteMovies.clear();
-        // HATA ÇÖZÜMÜ: (data[...] as List? ?? []) yapısı kullanıldı.
         final list = data['favorites_movies'] as List? ?? [];
         for (var item in list) {
           _favoriteMovies.add(Movie.fromMap(item));
         }
       }
-      // Eski veri yapısı desteği
       else if (data.containsKey('favorites')) {
         _favoriteMovies.clear();
         final list = data['favorites'] as List? ?? [];
@@ -250,7 +246,6 @@ class MovieManager extends ChangeNotifier {
         }
       }
 
-      // 2. Aktör Favorileri
       if (data.containsKey('favorites_actors')) {
         _favoriteActors.clear();
         final list = data['favorites_actors'] as List? ?? [];
@@ -259,7 +254,6 @@ class MovieManager extends ChangeNotifier {
         }
       }
 
-      // 3. Yönetmen Favorileri
       if (data.containsKey('favorites_directors')) {
         _favoriteDirectors.clear();
         final list = data['favorites_directors'] as List? ?? [];
@@ -301,35 +295,16 @@ class MovieManager extends ChangeNotifier {
       _socialService.getUserIconIndexStream();
   Future<List<Map<String, dynamic>>> searchUsersByEmail(String q) =>
       _socialService.searchUsersByEmail(q);
-  // Dosya: lib/data/movie_manager.dart
-
-  Future<void> changePassword(
-    String currentPassword,
-    String newPassword,
-  ) async {
-    try {
-      await _socialService.changePassword(currentPassword, newPassword);
-    } catch (e) {
-      // Hatayı View katmanına fırlat ki ekranda gösterebilelim
-      rethrow;
-    }
+      
+  // GÜNCELLENEN METOD: Tek parametreli hale getirildi
+  Future<void> changePassword(String newPassword) async {
+    await FirebaseAuth.instance.currentUser?.updatePassword(newPassword);
   }
 
   // Arkadaşlık & Chat
   Future<void> sendFriendRequest(String uid) async {
-    // Burada targetEmail bulmak zor olduğu için basitleştirilmiş
-    // SocialService'de bu mantığı biraz daha esnetmek gerekebilir ama şimdilik:
-    // Bu metod genellikle FriendsView'dan çağrılır, orada email bilinir.
-    // Ancak Manager yapısını bozmamak için burada dummy email veya
-    // SocialService içindeki metod imzasını güncellemek gerekebilir.
-    // Şimdilik null gönderiyoruz, SocialService'de düzeltilmeli veya
-    // kullanıcı ararken email'i de parametre geçmelisin.
-    // (Kodun bozulmaması için SocialService'deki sendFriendRequest'i biraz değiştirelim
-    // veya buraya dummy parametre girelim)
     await _socialService.sendFriendRequest(uid, "");
   }
-  // DOĞRUSU: UI tarafında (FriendsView) direkt SocialService çağırılabilir veya buraya email eklenmeli.
-  // Ama söz verdiğim gibi fonksiyon imzalarını bozmuyorum.
 
   Future<void> acceptFriendRequest(String uid, String email) async =>
       await _socialService.acceptFriendRequest(uid, email);
@@ -393,10 +368,6 @@ class MovieManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Helper
   Map<String, String> getActorDetails(String n) => {"bio": "...", "photo": ""};
-  List<Movie> recommendByFavoriteGenres() {
-    /* ... (Yukarıda tanımlı) ... */
-    return [];
-  }
+  List<Movie> recommendByFavoriteGenres() => [];
 }

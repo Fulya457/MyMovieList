@@ -30,8 +30,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
     super.initState();
     MovieManager.instance.fetchCast(widget.movie);
     // HATA KORUMASI: trailerId null gelebilir diye varsayılan boş string atıyoruz
-    final trailerId = widget.movie.trailerId;
-
+    
     MovieManager.instance.fetchTrailerId(widget.movie).then((_) {
       if (mounted) {
         _controller = YoutubePlayerController(
@@ -54,12 +53,64 @@ class _MovieDetailViewState extends State<MovieDetailView> {
 
   @override
   void dispose() {
-    // Controller null olabilir kontrolü (initState bitmeden dispose olursa diye)
     try {
       _controller.dispose();
     } catch (e) {}
     super.dispose();
   }
+
+  // --- YENİ EKLENEN: LİSTE OLUŞTURMA PENCERESİ ---
+  void _showCreateListDialog(BuildContext context) {
+    final TextEditingController nameController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceDark,
+        title: const Text("Yeni Liste Oluştur", style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                hintText: "Liste Adı (örn: İzlenecekler)",
+                filled: true,
+                fillColor: Colors.black26,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("İptal"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryBlue),
+            onPressed: () async {
+              if (nameController.text.trim().isNotEmpty) {
+                await MovieManager.instance.createCustomList(
+                  nameController.text.trim(),
+                  'movies',
+                );
+                if (mounted) {
+                  Navigator.pop(ctx); // Dialogu kapat
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Liste başarıyla oluşturuldu!")),
+                  );
+                  // BottomSheet'i tekrar açabiliriz veya kullanıcı kendi açar
+                }
+              }
+            },
+            child: const Text("Oluştur", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+  // -----------------------------------------------
 
   void _showAddToListSheet(BuildContext context) {
     showModalBottomSheet(
@@ -111,7 +162,8 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                             TextButton(
                               onPressed: () {
                                 Navigator.pop(ctx);
-                                context.push(AppRouters.profile);
+                                // DÜZELTİLDİ: Artık direkt liste oluşturma dialogunu açıyor
+                                _showCreateListDialog(context); 
                               },
                               child: const Text(
                                 "Liste oluşturmak için tıklayın",
@@ -659,7 +711,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                       ),
                       const SizedBox(height: 20),
 
-                      // --- OYUNCULAR (CAST) - HATA DÜZELTİLDİ ---
+                      // --- OYUNCULAR (CAST) ---
                       const Text(
                         "Cast",
                         style: TextStyle(
@@ -687,7 +739,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                             itemBuilder: (context, index) {
                               if (widget.movie.castDetails.isNotEmpty) {
                                 final actor = widget.movie.castDetails[index];
-                                // HATA ÇÖZÜMÜ: (?? '') ekledik
                                 final photoUrl = actor['photo'] ?? '';
                                 final actorName = actor['name'] ?? 'Unknown';
 
@@ -729,7 +780,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                               ),
                                             ],
                                           ),
-                                          // HATA ÇÖZÜMÜ: isNotEmpty yerine .length > 0 veya direkt kontrol
                                           child: ClipOval(
                                             child: (photoUrl.length > 5)
                                                 ? CachedNetworkImage(
@@ -801,7 +851,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                         ),
                       // ---------------------------------------------------
                       const SizedBox(height: 20),
-                      // HATA ÇÖZÜMÜ: Trailer ID Kontrolü
                       if ((widget.movie.trailerId.isNotEmpty) &&
                           widget.movie.trailerId != 'dQw4w9WgXcQ')
                         ClipRRect(
