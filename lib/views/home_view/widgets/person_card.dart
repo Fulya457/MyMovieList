@@ -19,7 +19,7 @@ class PersonCard extends StatelessWidget {
             child: Hero(
               tag: 'person_${person.id}',
               child: Container(
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: AppTheme.surfaceDark,
                 ),

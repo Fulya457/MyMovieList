@@ -1,3 +1,5 @@
+// Dosya: lib/views/home_view/genre_movies_view.dart
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -6,6 +8,7 @@ import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/app/theme.dart';
 import 'package:mymovielist/data/movie_manager.dart';
 import 'package:mymovielist/data/genre_service.dart';
+import 'package:mymovielist/models/movie_model.dart';
 
 class GenreMoviesView extends StatefulWidget {
   final String genre;
@@ -37,7 +40,68 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
     super.dispose();
   }
 
-  // --- LİSTEYE EKLEME PENCERESİ (HomeView'dan Alındı) ---
+  // --- LİSTE OLUŞTURMA PENCERESİ (HomeView'dan Kopyalandı) ---
+  void _showCreateListDialog(BuildContext context) {
+    final TextEditingController nameController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceDark,
+        title: Text(
+          "Yeni Liste Oluştur",
+          style: TextStyle(color: AppTheme.textColor),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              style: TextStyle(color: AppTheme.textColor),
+              decoration: InputDecoration(
+                hintText: "Liste Adı (örn: İzlenecekler)",
+                hintStyle: TextStyle(
+                  color: AppTheme.textColor.withValues(alpha: 0.5),
+                ),
+                filled: true,
+                fillColor: Colors.black26,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("İptal"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryBlue,
+            ),
+            onPressed: () async {
+              if (nameController.text.trim().isNotEmpty) {
+                await MovieManager.instance.createCustomList(
+                  nameController.text.trim(),
+                  'movies',
+                );
+                if (mounted) {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Liste başarıyla oluşturuldu!"),
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text("Oluştur", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- LİSTEYE EKLEME PENCERESİ ---
   void _showAddToListSheet(BuildContext context, Movie movie) {
     showModalBottomSheet(
       context: context,
@@ -54,8 +118,8 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
             children: [
               Text(
                 "Listeye Ekle: ${movie.title}",
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: AppTheme.textColor, // Dinamik
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
@@ -63,42 +127,52 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 10),
+              Divider(color: AppTheme.textColor.withValues(alpha: 0.2)),
+
+              // --- YENİ LİSTE OLUŞTUR BUTONU ---
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryBlue.withValues(alpha: 0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.add, color: AppTheme.primaryBlue),
+                ),
+                title: Text(
+                  "Yeni Liste Oluştur",
+                  style: TextStyle(
+                    color: AppTheme.primaryBlue,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showCreateListDialog(context);
+                },
+              ),
               const Divider(color: Colors.grey),
+
               Expanded(
                 child: StreamBuilder<QuerySnapshot>(
                   stream: MovieManager.instance.getUserListsStream(),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
+                      return Center(
+                        child: CircularProgressIndicator(
+                          color: AppTheme.primaryBlue,
+                        ),
+                      );
                     }
                     final docs = snapshot.data!.docs;
 
                     if (docs.isEmpty) {
                       return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.playlist_add,
-                              size: 50,
-                              color: Colors.grey,
-                            ),
-                            const SizedBox(height: 10),
-                            const Text(
-                              "Henüz listeniz yok.",
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.pop(ctx);
-                                context.push(AppRouters.profile);
-                              },
-                              child: const Text(
-                                "Liste oluşturmak için tıklayın",
-                                style: TextStyle(color: AppTheme.primaryBlue),
-                              ),
-                            ),
-                          ],
+                        child: Text(
+                          "Henüz listeniz yok.",
+                          style: TextStyle(
+                            color: AppTheme.textColor.withValues(alpha: 0.5),
+                          ),
                         ),
                       );
                     }
@@ -109,27 +183,34 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
                         final listData =
                             docs[index].data() as Map<String, dynamic>;
                         final listId = docs[index].id;
-                        final movies = listData['movies'] as List? ?? [];
+
+                        // Sadece film listelerini göster
+                        if (listData['type'] != null &&
+                            listData['type'] != 'movies' &&
+                            listData['type'] != 'movie') {
+                          return const SizedBox.shrink();
+                        }
+
+                        final movies = listData['items'] as List? ?? [];
                         final bool alreadyAdded = movies.any(
                           (m) => m['id'] == movie.id,
                         );
 
                         return ListTile(
-                          leading: const Icon(Icons.list, color: Colors.white),
+                          leading: Icon(Icons.list, color: AppTheme.iconColor),
                           title: Text(
-                            listData['name'],
-                            style: const TextStyle(color: Colors.white),
+                            listData['name'] ?? 'İsimsiz',
+                            style: TextStyle(color: AppTheme.textColor),
                           ),
                           subtitle: Text(
                             "${movies.length} film",
-                            style: const TextStyle(color: Colors.grey),
+                            style: TextStyle(
+                              color: AppTheme.textColor.withValues(alpha: 0.6),
+                            ),
                           ),
                           trailing: alreadyAdded
                               ? const Icon(Icons.check, color: Colors.green)
-                              : const Icon(
-                                  Icons.add,
-                                  color: AppTheme.primaryBlue,
-                                ),
+                              : Icon(Icons.add, color: AppTheme.primaryBlue),
                           onTap: () async {
                             if (!alreadyAdded) {
                               await MovieManager.instance.addMovieToCustomList(
@@ -139,10 +220,8 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
                               if (mounted) {
                                 Navigator.pop(ctx);
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      "${movie.title} listeye eklendi!",
-                                    ),
+                                  const SnackBar(
+                                    content: Text("Listeye eklendi!"),
                                   ),
                                 );
                               }
@@ -165,19 +244,6 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
-      appBar: AppBar(
-        title: Text(
-          widget.genre,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor: AppTheme.backgroundBlack,
-        iconTheme: const IconThemeData(color: Colors.white),
-        elevation: 0,
-      ),
-      // --- KRİTİK NOKTA: Hem Manager'ı hem Servisi Dinliyoruz ---
       body: ListenableBuilder(
         listenable: Listenable.merge([
           MovieManager.instance,
@@ -186,149 +252,230 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
         builder: (context, child) {
           final state = GenreService.instance.getGenreState(widget.genre);
           final movies = state.movies;
+          final isDark = MovieManager.instance.isDarkMode;
 
-          if (state.isFetching && movies.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (movies.isEmpty) {
-            return const Center(
-              child: Text(
-                "Bu türde film bulunamadı.",
-                style: TextStyle(color: Colors.grey),
-              ),
-            );
-          }
-
-          return ListView.builder(
+          return CustomScrollView(
             controller: _scrollController,
-            padding: const EdgeInsets.all(16),
-            itemCount: movies.length + (state.hasMorePages ? 1 : 0),
-            itemBuilder: (context, index) {
-              if (index == movies.length) {
-                return const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(10),
-                    child: CircularProgressIndicator(),
-                  ),
-                );
-              }
-
-              final movie = movies[index];
-              final isFav = MovieManager.instance.isFavorite(movie);
-
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 16.0),
-                child: GestureDetector(
-                  onTap: () => context.push('/movie-detail', extra: movie),
-                  child: Container(
+            slivers: [
+              // --- 1. PROFIL TARZI GRADIENT HEADER ---
+              SliverAppBar(
+                expandedHeight:
+                    120, // Biraz yükseklik verip gradient'i gösteriyoruz
+                pinned: true,
+                backgroundColor: AppTheme.backgroundBlack,
+                iconTheme: IconThemeData(color: AppTheme.textColor),
+                flexibleSpace: FlexibleSpaceBar(
+                  background: Container(
                     decoration: BoxDecoration(
-                      color: AppTheme.surfaceDark,
-                      borderRadius: BorderRadius.circular(12),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          // Üstten gelen renk (Tema rengi)
+                          AppTheme.primaryBlue.withValues(
+                            alpha: isDark ? 0.3 : 0.2,
+                          ),
+                          AppTheme.backgroundBlack,
+                        ],
+                      ),
                     ),
-                    padding: const EdgeInsets.all(8),
-                    child: Row(
-                      children: [
-                        // Film Posteri
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          // --- HERO GENRE LIST ---
-                          child: Hero(
-                            tag: 'movie_${movie.id}',
-                            child: CachedNetworkImage(
-                              imageUrl: movie.poster,
-                              width: 70,
-                              height: 105,
-                              fit: BoxFit.cover,
-                              placeholder: (c, u) => Container(
-                                width: 70,
-                                height: 105,
-                                color: AppTheme.backgroundBlack,
+                    child: Center(
+                      child: Text(
+                        widget.genre.toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 2,
+                          color: AppTheme.textColor, // Dinamik Renk
+                          shadows: [
+                            Shadow(
+                              color: AppTheme.primaryBlue.withValues(
+                                alpha: 0.5,
                               ),
-                              errorWidget: (c, u, e) => Container(
-                                width: 70,
-                                height: 105,
-                                color: Colors.grey,
-                                child: const Icon(Icons.movie),
-                              ),
-                            ),
-                          ),
-                          // -----------------------
-                        ),
-                        const SizedBox(width: 15),
-                        // Film Bilgileri
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                movie.title,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 5),
-                              Row(
-                                children: [
-                                  const Icon(
-                                    Icons.star,
-                                    color: Colors.amber,
-                                    size: 14,
-                                  ),
-                                  Text(
-                                    " ${movie.rating.toStringAsFixed(1)}",
-                                    style: const TextStyle(color: Colors.grey),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 5),
-                              Text(
-                                movie.genres.join(', '),
-                                style: const TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 12,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                        // BUTONLAR (Favori & Liste)
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Listeye Ekle Butonu
-                            IconButton(
-                              icon: const Icon(
-                                Icons.playlist_add,
-                                color: Colors.white,
-                              ),
-                              onPressed: () =>
-                                  _showAddToListSheet(context, movie),
-                            ),
-                            // Favori Butonu
-                            IconButton(
-                              icon: Icon(
-                                isFav ? Icons.favorite : Icons.favorite_border,
-                                color: isFav ? Colors.red : Colors.grey,
-                              ),
-                              onPressed: () {
-                                MovieManager.instance.toggleFavorite(movie);
-                              },
+                              blurRadius: 10,
                             ),
                           ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-              );
-            },
+              ),
+
+              // --- 2. İÇERİK ---
+              if (state.isFetching && movies.isEmpty)
+                SliverFillRemaining(
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: AppTheme.primaryBlue,
+                    ),
+                  ),
+                )
+              else if (movies.isEmpty)
+                SliverFillRemaining(
+                  child: Center(
+                    child: Text(
+                      "Bu türde film bulunamadı.",
+                      style: TextStyle(
+                        color: AppTheme.textColor.withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.all(16),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      if (index == movies.length) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(10),
+                            child: CircularProgressIndicator(),
+                          ),
+                        );
+                      }
+
+                      final movie = movies[index];
+                      final isFav = MovieManager.instance.isFavorite(movie);
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16.0),
+                        child: GestureDetector(
+                          onTap: () =>
+                              context.push('/movie-detail', extra: movie),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: AppTheme.surfaceDark,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.05),
+                                  blurRadius: 5,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            padding: const EdgeInsets.all(8),
+                            child: Row(
+                              children: [
+                                // Film Posteri
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Hero(
+                                    tag: 'movie_${movie.id}',
+                                    child: CachedNetworkImage(
+                                      imageUrl: movie.poster,
+                                      width: 80,
+                                      height: 120,
+                                      fit: BoxFit.cover,
+                                      placeholder: (c, u) => Container(
+                                        width: 80,
+                                        height: 120,
+                                        color: AppTheme.backgroundBlack,
+                                      ),
+                                      errorWidget: (c, u, e) => Container(
+                                        width: 80,
+                                        height: 120,
+                                        color: Colors.grey,
+                                        child: const Icon(Icons.movie),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 15),
+
+                                // Film Bilgileri
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        movie.title,
+                                        style: TextStyle(
+                                          color: AppTheme.textColor,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 5),
+                                      Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.star,
+                                            color: Colors.amber,
+                                            size: 16,
+                                          ),
+                                          Text(
+                                            " ${movie.rating.toStringAsFixed(1)}",
+                                            style: TextStyle(
+                                              color: AppTheme.textColor
+                                                  .withValues(alpha: 0.7),
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 5),
+                                      Text(
+                                        movie.genres.join(', '),
+                                        style: TextStyle(
+                                          color: AppTheme.textColor.withValues(
+                                            alpha: 0.5,
+                                          ),
+                                          fontSize: 12,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                // Butonlar
+                                Column(
+                                  children: [
+                                    IconButton(
+                                      icon: Icon(
+                                        isFav
+                                            ? Icons.favorite
+                                            : Icons.favorite_border,
+                                        color: isFav
+                                            ? Colors.red
+                                            : AppTheme.iconColor.withValues(
+                                                alpha: 0.5,
+                                              ),
+                                      ),
+                                      onPressed: () {
+                                        MovieManager.instance.toggleFavorite(
+                                          movie,
+                                        );
+                                      },
+                                    ),
+                                    IconButton(
+                                      icon: Icon(
+                                        Icons.playlist_add,
+                                        color: AppTheme.iconColor.withValues(
+                                          alpha: 0.5,
+                                        ),
+                                      ),
+                                      onPressed: () =>
+                                          _showAddToListSheet(context, movie),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }, childCount: movies.length + (state.hasMorePages ? 1 : 0)),
+                  ),
+                ),
+            ],
           );
         },
       ),

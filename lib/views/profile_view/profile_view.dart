@@ -1,4 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart'; // StreamBuilder için gerekli
+// Dosya: lib/views/profile_view/profile_view.dart
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -17,7 +19,6 @@ class ProfileView extends StatelessWidget {
     return 'USER';
   }
 
-  // AVATAR SEÇME PENCERESİ
   void _showAvatarSelection(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -31,10 +32,10 @@ class ProfileView extends StatelessWidget {
           height: 400,
           child: Column(
             children: [
-              const Text(
+              Text(
                 "Profil Avatarını Seç",
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppTheme.textColor, // DÜZELTİLDİ
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
@@ -77,24 +78,70 @@ class ProfileView extends StatelessWidget {
   }
 
   void _showChangePasswordDialog(BuildContext context) {
-    final TextEditingController passwordController = TextEditingController();
+    final TextEditingController currentPassController = TextEditingController();
+    final TextEditingController newPassController = TextEditingController();
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceDark,
-        title: const Text(
+        title: Text(
           "Şifre Değiştir",
-          style: TextStyle(color: Colors.white),
-        ),
-        content: TextField(
-          controller: passwordController,
-          obscureText: true,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: "Yeni Şifre",
-            filled: true,
-            fillColor: Colors.black26,
-          ),
+          style: TextStyle(color: AppTheme.textColor),
+        ), // DÜZELTİLDİ
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              "Güvenliğiniz için önce mevcut şifrenizi girin.",
+              style: TextStyle(
+                color: AppTheme.textColor.withValues(alpha: 0.7),
+                fontSize: 12,
+              ), // DÜZELTİLDİ
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: currentPassController,
+              obscureText: true,
+              style: TextStyle(color: AppTheme.textColor), // DÜZELTİLDİ
+              decoration: InputDecoration(
+                hintText: "Mevcut Şifre",
+                hintStyle: TextStyle(
+                  color: AppTheme.textColor.withValues(alpha: 0.5),
+                ), // DÜZELTİLDİ
+                prefixIcon: const Icon(Icons.lock_outline, color: Colors.grey),
+                filled: true,
+                fillColor: MovieManager.instance.isDarkMode
+                    ? Colors.black26
+                    : Colors.grey.withValues(alpha: 0.1),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: newPassController,
+              obscureText: true,
+              style: TextStyle(color: AppTheme.textColor), // DÜZELTİLDİ
+              decoration: InputDecoration(
+                hintText: "Yeni Şifre",
+                hintStyle: TextStyle(
+                  color: AppTheme.textColor.withValues(alpha: 0.5),
+                ), // DÜZELTİLDİ
+                prefixIcon: Icon(Icons.vpn_key, color: AppTheme.primaryBlue),
+                filled: true,
+                fillColor: MovieManager.instance.isDarkMode
+                    ? Colors.black26
+                    : Colors.grey.withValues(alpha: 0.1),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -106,22 +153,14 @@ class ProfileView extends StatelessWidget {
               backgroundColor: AppTheme.primaryBlue,
             ),
             onPressed: () async {
-              final newPass = passwordController.text.trim();
-              
-              if (newPass.length < 6) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Şifre en az 6 karakter olmalıdır!"),
-                    backgroundColor: Colors.red,
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-                return;
-              }
-
+              final currentPass = currentPassController.text.trim();
+              final newPass = newPassController.text.trim();
+              if (currentPass.isEmpty || newPass.isEmpty) return;
               try {
-                await MovieManager.instance.changePassword(newPass);
-                
+                await MovieManager.instance.changePassword(
+                  currentPass,
+                  newPass,
+                );
                 if (context.mounted) {
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -135,7 +174,7 @@ class ProfileView extends StatelessWidget {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text("Hata: $e"),
+                      content: Text(e.toString()),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -158,12 +197,12 @@ class ProfileView extends StatelessWidget {
       listenable: MovieManager.instance,
       builder: (context, child) {
         final favCount = MovieManager.instance.favoriteMovies.length;
-        
+        final isDark = MovieManager.instance.isDarkMode;
+
         return Scaffold(
           backgroundColor: AppTheme.backgroundBlack,
           body: CustomScrollView(
             slivers: [
-              // 1. HEADER
               SliverAppBar(
                 expandedHeight: 280,
                 backgroundColor: AppTheme.backgroundBlack,
@@ -175,7 +214,9 @@ class ProfileView extends StatelessWidget {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          AppTheme.primaryBlue.withOpacity(0.3),
+                          AppTheme.primaryBlue.withValues(
+                            alpha: isDark ? 0.3 : 0.1,
+                          ), // Aydınlıkta hafif
                           AppTheme.backgroundBlack,
                         ],
                       ),
@@ -186,10 +227,12 @@ class ProfileView extends StatelessWidget {
                         const SizedBox(height: 40),
                         // Avatar
                         StreamBuilder<int>(
-                          stream: MovieManager.instance.getCurrentUserIconIndex(),
+                          stream: MovieManager.instance
+                              .getCurrentUserIconIndex(),
                           builder: (context, snapshot) {
                             final iconIndex = snapshot.data ?? 0;
-                            final iconUrl = MovieManager.instance.profileIcons[iconIndex];
+                            final iconUrl =
+                                MovieManager.instance.profileIcons[iconIndex];
                             return GestureDetector(
                               onTap: () => _showAvatarSelection(context),
                               child: Stack(
@@ -198,10 +241,14 @@ class ProfileView extends StatelessWidget {
                                   Container(
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
-                                      border: Border.all(color: AppTheme.primaryBlue, width: 3),
+                                      border: Border.all(
+                                        color: AppTheme.primaryBlue,
+                                        width: 3,
+                                      ),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: AppTheme.primaryBlue.withOpacity(0.4),
+                                          color: AppTheme.primaryBlue
+                                              .withValues(alpha: 0.4),
                                           blurRadius: 20,
                                         ),
                                       ],
@@ -213,11 +260,15 @@ class ProfileView extends StatelessWidget {
                                   ),
                                   Container(
                                     padding: const EdgeInsets.all(6),
-                                    decoration: const BoxDecoration(
+                                    decoration: BoxDecoration(
                                       color: AppTheme.primaryBlue,
                                       shape: BoxShape.circle,
                                     ),
-                                    child: const Icon(Icons.edit, color: Colors.white, size: 16),
+                                    child: const Icon(
+                                      Icons.edit,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -225,11 +276,10 @@ class ProfileView extends StatelessWidget {
                           },
                         ),
                         const SizedBox(height: 15),
-                        // İsim
                         Text(
                           userName,
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: AppTheme.textColor, // DÜZELTİLDİ: İsim rengi
                             fontSize: 26,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 1,
@@ -237,7 +287,10 @@ class ProfileView extends StatelessWidget {
                         ),
                         Text(
                           userEmail,
-                          style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 14),
+                          style: TextStyle(
+                            color: AppTheme.textColor.withValues(alpha: 0.7),
+                            fontSize: 14,
+                          ), // DÜZELTİLDİ: Email rengi
                         ),
                       ],
                     ),
@@ -245,71 +298,77 @@ class ProfileView extends StatelessWidget {
                 ),
               ),
 
-              // 2. İSTATİSTİKLER (Row)
+              // 2. İSTATİSTİKLER
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       _buildStatCard(
                         context: context,
-                        label: "Favoriler", 
-                        count: favCount.toString(), 
+                        label: "Favoriler",
+                        count: favCount.toString(),
                         icon: Icons.favorite,
-                        onTap: () {
-                          // DÜZELTME: Favoriler sekmesine git
-                          context.go(AppRouters.favorites);
-                        },
+                        onTap: () => context.go(AppRouters.favorites),
                       ),
-                      
                       StreamBuilder<QuerySnapshot>(
                         stream: MovieManager.instance.getUserListsStream(),
                         builder: (context, snapshot) {
-                          final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                          final count = snapshot.hasData
+                              ? snapshot.data!.docs.length
+                              : 0;
                           return _buildStatCard(
                             context: context,
-                            label: "Listeler", 
-                            count: count.toString(), 
+                            label: "Listeler",
+                            count: count.toString(),
                             icon: Icons.list,
-                            onTap: () {
-                              context.push(AppRouters.userLists);
-                            },
+                            onTap: () => context.push(AppRouters.userLists),
                           );
                         },
                       ),
-                      
                       StreamBuilder<QuerySnapshot>(
                         stream: FirebaseFirestore.instance
                             .collection('reviews')
-                            .where('user_id', isEqualTo: FirebaseAuth.instance.currentUser?.uid ?? '')
+                            .where(
+                              'user_id',
+                              isEqualTo:
+                                  FirebaseAuth.instance.currentUser?.uid ?? '',
+                            )
                             .snapshots(),
                         builder: (context, snapshot) {
-                          final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                          final count = snapshot.hasData
+                              ? snapshot.data!.docs.length
+                              : 0;
                           return _buildStatCard(
                             context: context,
-                            label: "Yorumlar", 
-                            count: count.toString(), 
+                            label: "Yorumlar",
+                            count: count.toString(),
                             icon: Icons.comment,
-                            onTap: () {
-                              context.push(AppRouters.userReviews);
-                            },
+                            onTap: () => context.push(AppRouters.userReviews),
                           );
                         },
-                      ), 
+                      ),
                     ],
                   ),
                 ),
               ),
 
-              // 3. SON FAVORİLER (Yatay Liste)
+              // 3. SON FAVORİLER (Yatay)
               if (favCount > 0) ...[
-                const SliverToBoxAdapter(
+                SliverToBoxAdapter(
                   child: Padding(
-                    padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
                     child: Text(
                       "Son Favorilerim",
-                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        color: AppTheme.textColor,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ), // DÜZELTİLDİ
                     ),
                   ),
                 ),
@@ -321,11 +380,15 @@ class ProfileView extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 15),
                       itemCount: MovieManager.instance.favoriteMovies.length,
                       itemBuilder: (context, index) {
-                        final reversedList = MovieManager.instance.favoriteMovies.reversed.toList();
+                        final reversedList = MovieManager
+                            .instance
+                            .favoriteMovies
+                            .reversed
+                            .toList();
                         final movie = reversedList[index];
-                        
                         return GestureDetector(
-                          onTap: () => context.push('/movie-detail', extra: movie),
+                          onTap: () =>
+                              context.push('/movie-detail', extra: movie),
                           child: Container(
                             width: 100,
                             margin: const EdgeInsets.symmetric(horizontal: 5),
@@ -334,7 +397,10 @@ class ProfileView extends StatelessWidget {
                                 Expanded(
                                   child: ClipRRect(
                                     borderRadius: BorderRadius.circular(12),
-                                    child: Image.network(movie.poster, fit: BoxFit.cover),
+                                    child: Image.network(
+                                      movie.poster,
+                                      fit: BoxFit.cover,
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(height: 5),
@@ -342,7 +408,12 @@ class ProfileView extends StatelessWidget {
                                   movie.title,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                  style: TextStyle(
+                                    color: AppTheme.textColor.withValues(
+                                      alpha: 0.8,
+                                    ),
+                                    fontSize: 12,
+                                  ), // DÜZELTİLDİ
                                 ),
                               ],
                             ),
@@ -360,7 +431,13 @@ class ProfileView extends StatelessWidget {
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
                     const SizedBox(height: 10),
-                    const Text("Hesap Ayarları", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                    Text(
+                      "Hesap Ayarları",
+                      style: TextStyle(
+                        color: AppTheme.textColor.withValues(alpha: 0.6),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ), // DÜZELTİLDİ
                     const SizedBox(height: 10),
                     _buildMenuItem(
                       icon: Icons.people,
@@ -386,21 +463,45 @@ class ProfileView extends StatelessWidget {
                       color: Colors.greenAccent,
                       onTap: () => _showChangePasswordDialog(context),
                     ),
+
+                    // --- TEMA DEĞİŞTİR BUTONU ---
+                    _buildMenuItem(
+                      icon: isDark ? Icons.light_mode : Icons.dark_mode,
+                      text: isDark ? "Aydınlık Tema" : "Karanlık Tema",
+                      color: isDark ? Colors.amber : Colors.indigo,
+                      onTap: () {
+                        MovieManager.instance.toggleTheme();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              isDark
+                                  ? "Aydınlık moda geçildi!"
+                                  : "Karanlık moda geçildi!",
+                            ),
+                            duration: const Duration(milliseconds: 800),
+                          ),
+                        );
+                      },
+                    ),
+
                     const SizedBox(height: 30),
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2C2C2C),
+                        backgroundColor: Colors.redAccent,
                         padding: const EdgeInsets.symmetric(vertical: 15),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(15),
-                          side: BorderSide(color: Colors.red.withOpacity(0.5)),
                         ),
-                        elevation: 0,
+                        elevation: 5,
                       ),
-                      icon: const Icon(Icons.logout, color: Colors.red),
+                      icon: const Icon(Icons.logout, color: Colors.white),
                       label: const Text(
                         "Çıkış Yap",
-                        style: TextStyle(color: Colors.red, fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       onPressed: () async {
                         await FirebaseAuth.instance.signOut();
@@ -418,11 +519,10 @@ class ProfileView extends StatelessWidget {
     );
   }
 
-  // Helper Widget: İstatistik Kartı
   Widget _buildStatCard({
     required BuildContext context,
-    required String label, 
-    required String count, 
+    required String label,
+    required String count,
     required IconData icon,
     required VoidCallback onTap,
   }) {
@@ -433,9 +533,15 @@ class ProfileView extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppTheme.surfaceDark,
           borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: Colors.white10),
+          border: Border.all(
+            color: AppTheme.textColor.withValues(alpha: 0.1),
+          ), // DÜZELTİLDİ: Kenarlık rengi
           boxShadow: [
-            BoxShadow(color: Colors.black12, blurRadius: 5, offset: Offset(0, 2))
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
           ],
         ),
         child: Column(
@@ -444,11 +550,18 @@ class ProfileView extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               count,
-              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: AppTheme.textColor,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ), // DÜZELTİLDİ
             ),
             Text(
               label,
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
+              style: TextStyle(
+                color: AppTheme.textColor.withValues(alpha: 0.6),
+                fontSize: 12,
+              ), // DÜZELTİLDİ
             ),
           ],
         ),
@@ -456,30 +569,46 @@ class ProfileView extends StatelessWidget {
     );
   }
 
-  // Helper Widget: Menü Elemanı
   Widget _buildMenuItem({
     required IconData icon,
     required String text,
     required VoidCallback onTap,
-    Color color = AppTheme.primaryBlue,
+    Color color = Colors.blue,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: AppTheme.surfaceDark,
         borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 5,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: ListTile(
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             shape: BoxShape.circle,
           ),
           child: Icon(icon, color: color, size: 20),
         ),
-        title: Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+        title: Text(
+          text,
+          style: TextStyle(
+            color: AppTheme.textColor,
+            fontWeight: FontWeight.w500,
+          ),
+        ), // DÜZELTİLDİ
+        trailing: Icon(
+          Icons.arrow_forward_ios,
+          size: 14,
+          color: AppTheme.textColor.withValues(alpha: 0.4),
+        ), // DÜZELTİLDİ
         onTap: onTap,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       ),

@@ -1,3 +1,5 @@
+// Dosya: lib/views/home_view/movie_detail_view.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -29,12 +31,10 @@ class _MovieDetailViewState extends State<MovieDetailView> {
   void initState() {
     super.initState();
     MovieManager.instance.fetchCast(widget.movie);
-    // HATA KORUMASI: trailerId null gelebilir diye varsayılan boş string atıyoruz
-    
+
     MovieManager.instance.fetchTrailerId(widget.movie).then((_) {
       if (mounted) {
         _controller = YoutubePlayerController(
-          // Eğer trailerId boşsa dummy bir id veriyoruz ki çökmesin
           initialVideoId: (widget.movie.trailerId.isNotEmpty)
               ? widget.movie.trailerId
               : 'dQw4w9WgXcQ',
@@ -59,23 +59,57 @@ class _MovieDetailViewState extends State<MovieDetailView> {
     super.dispose();
   }
 
-  // --- YENİ EKLENEN: LİSTE OLUŞTURMA PENCERESİ ---
+  // --- YÖNETMENE GİTME FONKSİYONU ---
+  void _navigateToDirector() async {
+    final directorName = widget.movie.director;
+    if (directorName == "Unknown" || directorName == "Loading...") return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Yönetmen profili aranıyor...")),
+    );
+
+    await MovieManager.instance.searchMovies(directorName);
+
+    if (mounted) {
+      final results = MovieManager.instance.searchResults;
+      final director = results.firstWhere(
+        (item) => item is Person,
+        orElse: () => null,
+      );
+
+      if (director != null) {
+        context.push('/person-detail', extra: director as Person);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Yönetmen profili bulunamadı.")),
+        );
+      }
+    }
+  }
+
+  // --- LİSTE OLUŞTURMA PENCERESİ ---
   void _showCreateListDialog(BuildContext context) {
     final TextEditingController nameController = TextEditingController();
-    
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceDark,
-        title: const Text("Yeni Liste Oluştur", style: TextStyle(color: Colors.white)),
+        title: Text(
+          "Yeni Liste Oluştur",
+          style: TextStyle(color: AppTheme.textColor),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: nameController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
+              style: TextStyle(color: AppTheme.textColor),
+              decoration: InputDecoration(
                 hintText: "Liste Adı (örn: İzlenecekler)",
+                hintStyle: TextStyle(
+                  color: AppTheme.textColor.withValues(alpha: 0.5),
+                ),
                 filled: true,
                 fillColor: Colors.black26,
               ),
@@ -88,7 +122,9 @@ class _MovieDetailViewState extends State<MovieDetailView> {
             child: const Text("İptal"),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryBlue),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryBlue,
+            ),
             onPressed: () async {
               if (nameController.text.trim().isNotEmpty) {
                 await MovieManager.instance.createCustomList(
@@ -96,11 +132,12 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                   'movies',
                 );
                 if (mounted) {
-                  Navigator.pop(ctx); // Dialogu kapat
+                  Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Liste başarıyla oluşturuldu!")),
+                    const SnackBar(
+                      content: Text("Liste başarıyla oluşturuldu!"),
+                    ),
                   );
-                  // BottomSheet'i tekrar açabiliriz veya kullanıcı kendi açar
                 }
               }
             },
@@ -110,77 +147,89 @@ class _MovieDetailViewState extends State<MovieDetailView> {
       ),
     );
   }
-  // -----------------------------------------------
 
   void _showAddToListSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppTheme.backgroundBlack,
+      backgroundColor: AppTheme.backgroundBlack, // Dinamik Arkaplan
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
         return Container(
           padding: const EdgeInsets.all(16),
-          height: 400,
+          height: 450,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                "Add to List",
+              Text(
+                "Listeye Ekle",
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppTheme.textColor,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 10),
-              const Divider(color: Colors.grey),
+
+              // --- HER ZAMAN GÖZÜKEN OLUŞTURMA BUTONU ---
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryBlue.withValues(alpha: 0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.add, color: AppTheme.primaryBlue),
+                ),
+                title: Text(
+                  "Yeni Liste Oluştur",
+                  style: TextStyle(
+                    color: AppTheme.primaryBlue,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showCreateListDialog(context);
+                },
+              ),
+              Divider(color: AppTheme.textColor.withValues(alpha: 0.2)),
+
+              // --- MEVCUT LİSTELER ---
               Expanded(
                 child: StreamBuilder<QuerySnapshot>(
                   stream: MovieManager.instance.getUserListsStream(),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData)
+                    if (!snapshot.hasData) {
                       return const Center(child: CircularProgressIndicator());
+                    }
                     final docs = snapshot.data!.docs;
 
-                    if (docs.isEmpty) {
+                    final movieLists = docs.where((d) {
+                      final data = d.data() as Map<String, dynamic>;
+                      return data['type'] == 'movies' ||
+                          data['type'] == 'movie' ||
+                          data['type'] == null;
+                    }).toList();
+
+                    if (movieLists.isEmpty) {
                       return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.playlist_add,
-                              size: 50,
-                              color: Colors.grey,
-                            ),
-                            const SizedBox(height: 10),
-                            const Text(
-                              "Henüz listeniz yok.",
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.pop(ctx);
-                                // DÜZELTİLDİ: Artık direkt liste oluşturma dialogunu açıyor
-                                _showCreateListDialog(context); 
-                              },
-                              child: const Text(
-                                "Liste oluşturmak için tıklayın",
-                                style: TextStyle(color: AppTheme.primaryBlue),
-                              ),
-                            ),
-                          ],
+                        child: Text(
+                          "Mevcut listeniz yok.",
+                          style: TextStyle(
+                            color: AppTheme.textColor.withValues(alpha: 0.5),
+                          ),
                         ),
                       );
                     }
 
                     return ListView.builder(
-                      itemCount: docs.length,
+                      itemCount: movieLists.length,
                       itemBuilder: (context, index) {
                         final listData =
-                            docs[index].data() as Map<String, dynamic>;
-                        final listId = docs[index].id;
+                            movieLists[index].data() as Map<String, dynamic>;
+                        final listId = movieLists[index].id;
                         final movies =
                             listData['items'] as List? ??
                             listData['movies'] as List? ??
@@ -190,21 +239,20 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                         );
 
                         return ListTile(
-                          leading: const Icon(Icons.list, color: Colors.white),
+                          leading: Icon(Icons.list, color: AppTheme.iconColor),
                           title: Text(
                             listData['name'] ?? 'İsimsiz',
-                            style: const TextStyle(color: Colors.white),
+                            style: TextStyle(color: AppTheme.textColor),
                           ),
                           subtitle: Text(
-                            "${movies.length} films",
-                            style: const TextStyle(color: Colors.grey),
+                            "${movies.length} film",
+                            style: TextStyle(
+                              color: AppTheme.textColor.withValues(alpha: 0.6),
+                            ),
                           ),
                           trailing: alreadyAdded
                               ? const Icon(Icons.check, color: Colors.green)
-                              : const Icon(
-                                  Icons.add,
-                                  color: AppTheme.primaryBlue,
-                                ),
+                              : Icon(Icons.add, color: AppTheme.primaryBlue),
                           onTap: () async {
                             if (!alreadyAdded) {
                               await MovieManager.instance.addMovieToCustomList(
@@ -216,7 +264,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text(
-                                      "${widget.movie.title} listeye eklendi!",
+                                      "${widget.movie.title} eklendi!",
                                     ),
                                   ),
                                 );
@@ -250,10 +298,10 @@ class _MovieDetailViewState extends State<MovieDetailView> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 "Arkadaşına Öner",
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppTheme.textColor,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
@@ -263,16 +311,20 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                 child: StreamBuilder<QuerySnapshot>(
                   stream: MovieManager.instance.getFriendsStream(),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData)
+                    if (!snapshot.hasData) {
                       return const Center(child: CircularProgressIndicator());
+                    }
                     final docs = snapshot.data!.docs;
-                    if (docs.isEmpty)
-                      return const Center(
+                    if (docs.isEmpty) {
+                      return Center(
                         child: Text(
                           "Arkadaş listesi boş.",
-                          style: TextStyle(color: Colors.grey),
+                          style: TextStyle(
+                            color: AppTheme.textColor.withValues(alpha: 0.5),
+                          ),
                         ),
                       );
+                    }
 
                     return ListView.builder(
                       itemCount: docs.length,
@@ -289,7 +341,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                           ),
                           title: Text(
                             email,
-                            style: const TextStyle(color: Colors.white),
+                            style: TextStyle(color: AppTheme.textColor),
                           ),
                           onTap: () {
                             Navigator.pop(ctx);
@@ -325,9 +377,9 @@ class _MovieDetailViewState extends State<MovieDetailView> {
           builder: (context, setState) {
             return AlertDialog(
               backgroundColor: AppTheme.surfaceDark,
-              title: const Text(
+              title: Text(
                 'Rate & Review',
-                style: TextStyle(color: Colors.white),
+                style: TextStyle(color: AppTheme.textColor),
               ),
               content: SingleChildScrollView(
                 child: Column(
@@ -358,7 +410,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                     TextField(
                       controller: reviewController,
                       maxLines: 3,
-                      style: const TextStyle(color: Colors.white),
+                      style: TextStyle(color: AppTheme.textColor),
                       decoration: const InputDecoration(
                         hintText: "Yorumunu yaz...",
                         filled: true,
@@ -385,10 +437,11 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                       rating,
                       reviewController.text.trim(),
                     );
-                    if (mounted)
+                    if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text("Yorum eklendi!")),
                       );
+                    }
                   },
                   child: const Text(
                     'Gönder',
@@ -415,10 +468,11 @@ class _MovieDetailViewState extends State<MovieDetailView> {
           return CustomScrollView(
             slivers: [
               SliverAppBar(
-                expandedHeight: 300.0,
+                expandedHeight: 400.0, // Daha büyük poster alanı
                 pinned: true,
                 backgroundColor: AppTheme.backgroundBlack,
                 leading: IconButton(
+                  // Poster üzerindeki butonlar her zaman beyaz kalsın
                   icon: const Icon(Icons.arrow_back, color: Colors.white),
                   onPressed: () => context.pop(),
                 ),
@@ -426,7 +480,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                   IconButton(
                     icon: Icon(
                       isFav ? Icons.favorite : Icons.favorite_border,
-                      color: isFav ? Colors.red : Colors.grey,
+                      color: isFav ? Colors.red : Colors.white,
                       size: 28,
                     ),
                     onPressed: () =>
@@ -480,10 +534,45 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                           ),
                         ),
                       ),
+                      // Play butonu (Trailer varsa)
+                      if (widget.movie.trailerId.isNotEmpty)
+                        Center(
+                          child: IconButton(
+                            icon: const Icon(
+                              Icons.play_circle_fill,
+                              color: Colors.white70,
+                              size: 70,
+                            ),
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  backgroundColor: Colors.black,
+                                  contentPadding: EdgeInsets.zero,
+                                  content: _controller.value.isReady
+                                      ? YoutubePlayer(
+                                          controller: _controller,
+                                          showVideoProgressIndicator: true,
+                                        )
+                                      : const SizedBox(
+                                          height: 200,
+                                          child: Center(
+                                            child: Text(
+                                              "Fragman yükleniyor...",
+                                            ),
+                                          ),
+                                        ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
                     ],
                   ),
                 ),
               ),
+
+              // --- İÇERİK KISMI ---
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -492,10 +581,10 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                     children: [
                       Text(
                         widget.movie.title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: AppTheme.textColor, // DİNAMİK RENK
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -504,9 +593,8 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                         children: widget.movie.genres
                             .map(
                               (genre) => InkWell(
-                                onTap: () => context.pushNamed(
-                                  AppRouters.genreMovies,
-                                  pathParameters: {'genre': genre},
+                                onTap: () => context.push(
+                                  '/list/${genre}',
                                 ),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
@@ -514,19 +602,19 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                     vertical: 5,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: AppTheme.primaryBlue.withOpacity(
-                                      0.2,
+                                    color: AppTheme.primaryBlue.withValues(
+                                      alpha: 0.2,
                                     ),
                                     borderRadius: BorderRadius.circular(20),
                                     border: Border.all(
-                                      color: AppTheme.primaryBlue.withOpacity(
-                                        0.5,
+                                      color: AppTheme.primaryBlue.withValues(
+                                        alpha: 0.5,
                                       ),
                                     ),
                                   ),
                                   child: Text(
                                     genre,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       color: AppTheme.primaryBlue,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -540,27 +628,33 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
+                          Text(
                             "Release Date:",
-                            style: TextStyle(color: Colors.grey, fontSize: 16),
+                            style: TextStyle(
+                              color: AppTheme.textColor.withValues(alpha: 0.6),
+                              fontSize: 16,
+                            ),
                           ),
                           Text(
                             widget.movie.releaseDate,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: AppTheme.textColor,
                               fontSize: 16,
                             ),
                           ),
                         ],
                       ),
-                      const Divider(color: Colors.white24, height: 20),
+                      Divider(
+                        color: AppTheme.textColor.withValues(alpha: 0.2),
+                        height: 20,
+                      ),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
+                          Text(
                             "TMDB Rating:",
                             style: TextStyle(
-                              color: Colors.grey,
+                              color: AppTheme.textColor.withValues(alpha: 0.6),
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
@@ -574,8 +668,8 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                               ),
                               Text(
                                 " ${widget.movie.rating.toStringAsFixed(1)} / 10",
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: AppTheme.textColor,
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -584,7 +678,12 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                           ),
                         ],
                       ),
-                      const Divider(color: Colors.white24, height: 20),
+                      Divider(
+                        color: AppTheme.textColor.withValues(alpha: 0.2),
+                        height: 20,
+                      ),
+
+                      // Canlı Kullanıcı Puanı
                       StreamBuilder<DocumentSnapshot>(
                         stream: MovieManager.instance.getMovieLiveRating(
                           widget.movie.id,
@@ -609,10 +708,12 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text(
+                                  Text(
                                     "User Rate :",
                                     style: TextStyle(
-                                      color: Colors.grey,
+                                      color: AppTheme.textColor.withValues(
+                                        alpha: 0.6,
+                                      ),
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -627,26 +728,29 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                         ),
                                         Text(
                                           " ${liveRating.toStringAsFixed(1)} / 10",
-                                          style: const TextStyle(
-                                            color: Colors.white,
+                                          style: TextStyle(
+                                            color: AppTheme.textColor,
                                             fontSize: 18,
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
                                         Text(
                                           " ($liveCount)",
-                                          style: const TextStyle(
-                                            color: Colors.grey,
+                                          style: TextStyle(
+                                            color: AppTheme.textColor
+                                                .withValues(alpha: 0.6),
                                             fontSize: 14,
                                           ),
                                         ),
                                       ],
                                     )
                                   else
-                                    const Text(
+                                    Text(
                                       "No ratings yet",
                                       style: TextStyle(
-                                        color: Colors.grey,
+                                        color: AppTheme.textColor.withValues(
+                                          alpha: 0.5,
+                                        ),
                                         fontStyle: FontStyle.italic,
                                       ),
                                     ),
@@ -664,10 +768,11 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                         doc.data() as Map<String, dynamic>;
                                     if (MovieManager.instance.isFriend(
                                       data['user_id'],
-                                    ))
+                                    )) {
                                       friendRatings.add(
                                         "${data['user_name'] ?? 'Arkadaş'} ${(data['rating'] as num).toStringAsFixed(1)} verdi",
                                       );
+                                    }
                                   }
                                   if (friendRatings.isEmpty)
                                     return const SizedBox();
@@ -689,41 +794,61 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                         },
                       ),
                       const SizedBox(height: 25),
-                      Text(
-                        "Director: ${widget.movie.director}",
-                        style: const TextStyle(
-                          color: Colors.grey,
-                          fontSize: 16,
+                      InkWell(
+                        onTap: _navigateToDirector,
+                        child: RichText(
+                          text: TextSpan(
+                            children: [
+                              TextSpan(
+                                text: "Director: ",
+                                style: TextStyle(
+                                  color: AppTheme.textColor.withValues(
+                                    alpha: 0.6,
+                                  ),
+                                  fontSize: 16,
+                                ),
+                              ),
+                              TextSpan(
+                                text: widget.movie.director,
+                                style: TextStyle(
+                                  color: AppTheme.primaryBlue,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       const SizedBox(height: 20),
-                      const Text(
+                      Text(
                         "Plot",
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: AppTheme.textColor,
                         ),
                       ),
                       Text(
                         widget.movie.plot,
-                        style: const TextStyle(color: Colors.white70),
+                        style: TextStyle(
+                          color: AppTheme.textColor.withValues(alpha: 0.8),
+                        ),
                       ),
                       const SizedBox(height: 20),
-
-                      // --- OYUNCULAR (CAST) ---
-                      const Text(
+                      Text(
                         "Cast",
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: AppTheme.textColor,
                         ),
                       ),
                       const SizedBox(height: 10),
                       if (widget.movie.castDetails.isEmpty &&
                           widget.movie.director == "Loading...")
-                        const Center(
+                        Center(
                           child: CircularProgressIndicator(
                             color: AppTheme.primaryBlue,
                           ),
@@ -772,8 +897,8 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                             shape: BoxShape.circle,
                                             boxShadow: [
                                               BoxShadow(
-                                                color: Colors.black.withOpacity(
-                                                  0.5,
+                                                color: Colors.black.withValues(
+                                                  alpha: 0.5,
                                                 ),
                                                 blurRadius: 5,
                                                 offset: const Offset(0, 3),
@@ -813,8 +938,9 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                           child: Text(
                                             actorName,
                                             textAlign: TextAlign.center,
-                                            style: const TextStyle(
-                                              color: Colors.white70,
+                                            style: TextStyle(
+                                              color: AppTheme.textColor
+                                                  .withValues(alpha: 0.7),
                                               fontSize: 11,
                                             ),
                                             maxLines: 2,
@@ -826,6 +952,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                   ),
                                 );
                               } else {
+                                // Fallback (Detay yoksa)
                                 return Padding(
                                   padding: const EdgeInsets.only(right: 12.0),
                                   child: Column(
@@ -837,8 +964,10 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                       const SizedBox(height: 4),
                                       Text(
                                         widget.movie.actors[index],
-                                        style: const TextStyle(
-                                          color: Colors.white70,
+                                        style: TextStyle(
+                                          color: AppTheme.textColor.withValues(
+                                            alpha: 0.7,
+                                          ),
                                           fontSize: 10,
                                         ),
                                       ),
@@ -849,8 +978,9 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                             },
                           ),
                         ),
-                      // ---------------------------------------------------
                       const SizedBox(height: 20),
+
+                      // FRAGMAN (Trailer)
                       if ((widget.movie.trailerId.isNotEmpty) &&
                           widget.movie.trailerId != 'dQw4w9WgXcQ')
                         ClipRRect(
@@ -863,13 +993,15 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                           ),
                         ),
                       const SizedBox(height: 20),
-                      const Divider(color: Colors.grey),
-                      const Text(
+
+                      // REVIEWS BAŞLIĞI
+                      Divider(color: AppTheme.textColor.withValues(alpha: 0.2)),
+                      Text(
                         "User Reviews",
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: AppTheme.textColor,
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -877,6 +1009,8 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                   ),
                 ),
               ),
+
+              // YORUM LİSTESİ
               StreamBuilder<QuerySnapshot>(
                 stream: MovieManager.instance.getReviewsStream(widget.movie.id),
                 builder: (context, snapshot) {
@@ -886,12 +1020,14 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                     );
                   final docs = snapshot.data?.docs ?? [];
                   if (docs.isEmpty)
-                    return const SliverToBoxAdapter(
+                    return SliverToBoxAdapter(
                       child: Padding(
-                        padding: EdgeInsets.all(20),
+                        padding: const EdgeInsets.all(20),
                         child: Text(
                           "Henüz yorum yok. İlk sen ol!",
-                          style: TextStyle(color: Colors.grey),
+                          style: TextStyle(
+                            color: AppTheme.textColor.withValues(alpha: 0.5),
+                          ),
                           textAlign: TextAlign.center,
                         ),
                       ),
@@ -932,13 +1068,13 @@ class _ReviewCardState extends State<ReviewCard> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceDark,
-        title: const Text(
+        title: Text(
           "Yorumu Düzenle",
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: AppTheme.textColor),
         ),
         content: TextField(
           controller: editController,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: AppTheme.textColor),
           maxLines: 3,
         ),
         actions: [
@@ -968,10 +1104,10 @@ class _ReviewCardState extends State<ReviewCard> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceDark,
-        title: const Text("Yanıtla", style: TextStyle(color: Colors.white)),
+        title: Text("Yanıtla", style: TextStyle(color: AppTheme.textColor)),
         content: TextField(
           controller: replyController,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: AppTheme.textColor),
           decoration: const InputDecoration(hintText: "Cevabın..."),
         ),
         actions: [
@@ -1043,7 +1179,9 @@ class _ReviewCardState extends State<ReviewCard> {
                     const Icon(Icons.star, color: Colors.amber, size: 14),
                     Text(
                       " ${data['rating']}",
-                      style: const TextStyle(color: Colors.white70),
+                      style: TextStyle(
+                        color: AppTheme.textColor.withValues(alpha: 0.7),
+                      ),
                     ),
                   ],
                 ),
@@ -1070,18 +1208,21 @@ class _ReviewCardState extends State<ReviewCard> {
             ),
             Text(
               dateStr,
-              style: TextStyle(color: Colors.grey[600], fontSize: 10),
+              style: TextStyle(
+                color: AppTheme.textColor.withValues(alpha: 0.5),
+                fontSize: 10,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               data['comment'] ?? '',
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: AppTheme.textColor),
             ),
             if (data['is_edited'] == true)
-              const Text(
+              Text(
                 "(düzenlendi)",
                 style: TextStyle(
-                  color: Colors.grey,
+                  color: AppTheme.textColor.withValues(alpha: 0.5),
                   fontSize: 10,
                   fontStyle: FontStyle.italic,
                 ),
@@ -1116,7 +1257,7 @@ class _ReviewCardState extends State<ReviewCard> {
                   onPressed: () => setState(() => showReplies = !showReplies),
                   child: Text(
                     showReplies ? "Cevapları Gizle" : "Cevapları Gör",
-                    style: const TextStyle(color: AppTheme.primaryBlue),
+                    style: TextStyle(color: AppTheme.primaryBlue),
                   ),
                 ),
               ],
@@ -1127,11 +1268,14 @@ class _ReviewCardState extends State<ReviewCard> {
                 builder: (context, snapshot) {
                   final replies = snapshot.data?.docs ?? [];
                   if (replies.isEmpty)
-                    return const Padding(
-                      padding: EdgeInsets.only(left: 20),
+                    return Padding(
+                      padding: const EdgeInsets.only(left: 20),
                       child: Text(
                         "Henüz yanıt yok.",
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                        style: TextStyle(
+                          color: AppTheme.textColor.withValues(alpha: 0.5),
+                          fontSize: 12,
+                        ),
                       ),
                     );
                   return Padding(
@@ -1144,7 +1288,7 @@ class _ReviewCardState extends State<ReviewCard> {
                           margin: const EdgeInsets.only(bottom: 6),
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: Colors.white10,
+                            color: AppTheme.textColor.withValues(alpha: 0.05),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Column(
@@ -1152,7 +1296,7 @@ class _ReviewCardState extends State<ReviewCard> {
                             children: [
                               Text(
                                 rData['user_name'] ?? 'User',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: AppTheme.primaryBlue,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 12,
@@ -1160,8 +1304,10 @@ class _ReviewCardState extends State<ReviewCard> {
                               ),
                               Text(
                                 rData['text'] ?? '',
-                                style: const TextStyle(
-                                  color: Colors.white70,
+                                style: TextStyle(
+                                  color: AppTheme.textColor.withValues(
+                                    alpha: 0.8,
+                                  ),
                                   fontSize: 13,
                                 ),
                               ),

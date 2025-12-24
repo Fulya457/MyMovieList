@@ -47,8 +47,7 @@ class SocialService {
     });
   }
 
-  // Dosya: lib/services/social_service.dart
-
+  // --- ŞİFRE DEĞİŞTİRME (Re-Auth Ekli) ---
   Future<void> changePassword(
     String currentPassword,
     String newPassword,
@@ -72,16 +71,35 @@ class SocialService {
       await user.updatePassword(newPassword);
       print("Şifre başarıyla değiştirildi.");
     } on FirebaseAuthException catch (e) {
-      if (e.code == 'wrong-password') {
+      if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
         throw 'Mevcut şifrenizi yanlış girdiniz.';
       } else if (e.code == 'weak-password') {
         throw 'Yeni şifreniz çok zayıf. En az 6 karakter olmalı.';
       } else {
-        throw 'Bir hata oluştu: ${e.message}';
+        throw 'Hata: ${e.message}';
       }
     } catch (e) {
       throw 'Beklenmedik bir hata oluştu.';
     }
+  }
+
+  Future<void> clearActivityLog() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    // Batch işlemi ile toplu silme
+    final batch = _firestore.batch();
+
+    final snapshots = await _firestore
+        .collection('user_activities')
+        .where('user_id', isEqualTo: uid)
+        .get();
+
+    for (var doc in snapshots.docs) {
+      batch.delete(doc.reference);
+    }
+
+    await batch.commit();
   }
 
   Future<List<Map<String, dynamic>>> searchUsersByEmail(
@@ -107,6 +125,12 @@ class SocialService {
       await _firestore.collection('users').doc(currentUid).update({
         'favorites_movies': FieldValue.arrayUnion([movie.toMap()]),
       });
+      // Hareket Dökümü: Favoriye Ekleme
+      await logUserActivity(
+        "${movie.title} favorilere eklendi.",
+        movie.id,
+        'favorite',
+      );
     } else {
       await _firestore.collection('users').doc(currentUid).update({
         'favorites_movies': FieldValue.arrayRemove([movie.toMap()]),
@@ -143,8 +167,7 @@ class SocialService {
     return {};
   }
 
-  // --- LİSTELER (GÜNCELLENEN KISIM BURASI) ---
-
+  // --- LİSTELER ---
   Future<void> createList(String name, String type) async {
     if (currentUid == null) return;
     await _firestore
@@ -157,13 +180,13 @@ class SocialService {
           'created_at': FieldValue.serverTimestamp(),
           'items': [],
         });
+    // Hareket Dökümü: Liste Oluşturma
+    await logUserActivity("Yeni liste oluşturuldu: $name", 0, 'list_create');
   }
 
-  // GÜNCELLENDİ: Duplicate kontrolü eklendi
   Future<void> addToList(String listId, Map<String, dynamic> itemData) async {
     if (currentUid == null) return;
 
-    // 1. Mevcut listeyi çek
     final docRef = _firestore
         .collection('users')
         .doc(currentUid)
@@ -171,20 +194,14 @@ class SocialService {
         .doc(listId);
     final docSnapshot = await docRef.get();
 
-    // 2. Kontrol et
     if (docSnapshot.exists) {
       List currentItems = docSnapshot.data()?['items'] ?? [];
-      // ID kontrolü: Eğer listede bu ID varsa işlemi durdur
       bool alreadyExists = currentItems.any(
         (item) => item['id'] == itemData['id'],
       );
-      if (alreadyExists) {
-        print("Bu öğe zaten listede var.");
-        return;
-      }
+      if (alreadyExists) return;
     }
 
-    // 3. Yoksa ekle
     await docRef.update({
       'items': FieldValue.arrayUnion([itemData]),
     });
@@ -202,7 +219,7 @@ class SocialService {
         .doc(listId)
         .update({
           'items': FieldValue.arrayRemove([itemData]),
-          'movies': FieldValue.arrayRemove([itemData]), // Eski veriler için
+          'movies': FieldValue.arrayRemove([itemData]),
         });
   }
 
@@ -239,6 +256,14 @@ class SocialService {
           'email': currentEmail,
           'timestamp': FieldValue.serverTimestamp(),
         });
+
+    // Karşı tarafa bildirim gönder
+    await createNotification(
+      targetUid,
+      "Sana arkadaşlık isteği gönderdi.",
+      0,
+      'friend_request',
+    );
   }
 
   Future<void> acceptFriendRequest(
@@ -279,6 +304,14 @@ class SocialService {
           .doc(requesterUid),
     );
     await batch.commit();
+
+    // Karşı tarafa kabul edildi bildirimi
+    await createNotification(
+      requesterUid,
+      "Arkadaşlık isteğini kabul etti.",
+      0,
+      'friend_request',
+    );
   }
 
   Future<void> removeFriend(String friendUid) async {
@@ -325,35 +358,91 @@ class SocialService {
   String _getChatId(String userA, String userB) =>
       userA.compareTo(userB) < 0 ? "${userA}_$userB" : "${userB}_$userA";
 
+  // --- CHAT VE BİLDİRİM DEBUG SÜRÜMÜ ---
+
+  // --- GÜNCELLENMİŞ sendMessage FONKSİYONU ---
   Future<void> sendMessage(
     String receiverUid,
     String text, {
     Movie? sharedMovie,
     Map<String, dynamic>? sharedList,
   }) async {
+    if (currentUid == null) {
+      print("❌ HATA: Kullanıcı giriş yapmamış.");
+      return;
+    }
+
+    print("🚀 İşlem Başladı: Mesaj gönderiliyor... (Alıcı: $receiverUid)");
+
+    // 1. ÖNCE MESAJI KAYDET (CHATS)
+    try {
+      final chatId = _getChatId(currentUid!, receiverUid);
+
+      Map<String, dynamic> msgData = {
+        'sender_id': currentUid,
+        'text': text,
+        'timestamp': FieldValue.serverTimestamp(),
+        'is_read': false,
+      };
+
+      if (sharedMovie != null) {
+        msgData['movie_id'] = sharedMovie.id;
+        msgData['movie_title'] = sharedMovie.title;
+        msgData['poster_path'] = sharedMovie.poster;
+      }
+      if (sharedList != null) {
+        msgData['list_id'] = sharedList['id'];
+        msgData['list_name'] = sharedList['name'];
+        msgData['list_count'] = sharedList['count'];
+      }
+
+      // Mesajı Chat'e yaz
+      await _firestore
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .add(msgData);
+
+      print("✅ ADIM 1 BAŞARILI: Mesaj 'chats' koleksiyonuna yazıldı.");
+    } catch (e) {
+      print("🔥 ADIM 1 HATASI (Chat Yazma): $e");
+      // Mesaj yazılamadıysa bildirimi de gönderme, çık.
+      return;
+    }
+
+    // 2. SONRA BİLDİRİMİ OLUŞTUR (NOTIFICATIONS)
+    // Bunu ayrı bir try-catch içine aldık ki yukarıdaki ile bağımsız çalışsın
+    try {
+      print("🔔 ADIM 2 BAŞLIYOR: Bildirim oluşturuluyor...");
+
+      await _firestore.collection('notifications').add({
+        'recipient_id': receiverUid, // BURASI ÇOK ÖNEMLİ: Alıcının ID'si
+        'sender_id': currentUid, // Gönderen biziz
+        'message':
+            "Sana bir mesaj gönderdi: ${text.length > 20 ? text.substring(0, 20) + '...' : text}",
+        'type': 'message',
+        'is_read': false,
+        'timestamp': FieldValue.serverTimestamp(),
+        // Eğer film varsa ID'sini ekle, yoksa 0
+        'movie_id': sharedMovie?.id ?? 0,
+      });
+
+      print(
+        "✅ ADIM 2 BAŞARILI: Bildirim 'notifications' koleksiyonuna EKLENDİ!",
+      );
+    } catch (e) {
+      print("🔥 ADIM 2 HATASI (Bildirim Oluşturma): $e");
+    }
+  }
+
+  Future<void> renameList(String listId, String newName) async {
     if (currentUid == null) return;
-    final chatId = _getChatId(currentUid!, receiverUid);
-    Map<String, dynamic> data = {
-      'sender_id': currentUid,
-      'text': text,
-      'timestamp': FieldValue.serverTimestamp(),
-      'is_read': false,
-    };
-    if (sharedMovie != null) {
-      data['movie_id'] = sharedMovie.id;
-      data['movie_title'] = sharedMovie.title;
-      data['poster_path'] = sharedMovie.poster;
-    }
-    if (sharedList != null) {
-      data['list_id'] = sharedList['id'];
-      data['list_name'] = sharedList['name'];
-      data['list_count'] = sharedList['count'];
-    }
     await _firestore
-        .collection('chats')
-        .doc(chatId)
-        .collection('messages')
-        .add(data);
+        .collection('users')
+        .doc(currentUid)
+        .collection('lists')
+        .doc(listId)
+        .update({'name': newName});
   }
 
   Stream<QuerySnapshot> getMessagesStream(String receiverUid) {
@@ -367,7 +456,7 @@ class SocialService {
         .snapshots();
   }
 
-  // --- YENİ EKLENEN: BAŞKASININ LİSTESİNİ KOPYALAMA ---
+  // --- LİSTE KOPYALAMA ---
   Future<void> importListFromUser(
     String listName,
     List<dynamic> items,
@@ -384,6 +473,8 @@ class SocialService {
           'created_at': FieldValue.serverTimestamp(),
           'items': items,
         });
+
+    await logUserActivity("$listName listesini kopyaladın.", 0, 'list_import');
   }
 
   Future<List<dynamic>> fetchListItems(String userId, String listId) async {
@@ -459,6 +550,7 @@ class SocialService {
       'timestamp': FieldValue.serverTimestamp(),
     });
 
+    // Film puanını güncelleme işlemleri (Transaction)
     final movieRef = _firestore
         .collection('app_movies')
         .doc(movie.id.toString());
@@ -490,11 +582,11 @@ class SocialService {
       }
     });
 
-    await createNotification(
-      currentUid!,
+    // YENİ EKLENDİ: Kendi Hareket Dökümüne Ekle 📝
+    await logUserActivity(
       "${movie.title} filmine yorum yaptın.",
       movie.id,
-      'comment',
+      'review',
     );
   }
 
@@ -541,6 +633,8 @@ class SocialService {
         await docRef.update({
           'likes': FieldValue.arrayUnion([currentUid]),
         });
+
+        // Bildirim: Yorum sahibine
         if (doc.data()?['user_id'] != currentUid) {
           createNotification(
             doc.data()?['user_id'],
@@ -549,6 +643,13 @@ class SocialService {
             'like',
           );
         }
+
+        // Hareket Dökümü: Beğeni yaptın
+        await logUserActivity(
+          "Bir yorumu beğendin.",
+          doc.data()?['movie_id'],
+          'like',
+        );
       }
     }
   }
@@ -563,6 +664,8 @@ class SocialService {
       'text': text,
       'timestamp': FieldValue.serverTimestamp(),
     });
+
+    // Bildirim: Yorum sahibine cevap verildi
     if (parent.exists && parent.data()?['user_id'] != currentUid) {
       createNotification(
         parent.data()?['user_id'],
@@ -571,25 +674,52 @@ class SocialService {
         'reply',
       );
     }
+
+    // Hareket Dökümü: Cevap verdin
+    await logUserActivity(
+      "Bir yoruma cevap verdin.",
+      parent.data()?['movie_id'],
+      'reply',
+    );
   }
 
+  // --- BİLDİRİM VE AKTİVİTE YÖNETİMİ ---
+
+  // 1. Karşı tarafa bildirim gönderir (Gelen Kutusu için)
   Future<void> createNotification(
     String recipientId,
     String message,
     int movieId,
     String type,
   ) async {
-    await _firestore.collection('notifications').add({
-      'recipient_id': recipientId,
-      'message': message,
-      'movie_id': movieId,
-      'type': type,
-      'is_read': false,
+    try {
+      await _firestore.collection('notifications').add({
+        'recipient_id': recipientId,
+        'message': message,
+        'movie_id': movieId,
+        'type': type,
+        'is_read': false,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      print("✅ Bildirim başarıyla veritabanına eklendi! (Alıcı: $recipientId)");
+    } catch (e) {
+      print("🔥 KRİTİK HATA (Bildirim Oluşturma): $e");
+    }
+  }
+
+  // 2. Kendi hareketlerini kaydeder (Hareket Dökümü için)
+  Future<void> logUserActivity(String text, int? movieId, String type) async {
+    if (currentUid == null) return;
+    await _firestore.collection('user_activities').add({
+      'user_id': currentUid,
+      'text': text,
+      'movie_id': movieId ?? 0,
+      'type': type, // 'review', 'like', 'list', 'reply'
       'timestamp': FieldValue.serverTimestamp(),
     });
   }
 
-  // --- YENİ EKLENEN: BİLDİRİMLERİ SİL ---
+  // 3. Bildirimleri sil
   Future<void> clearAllNotifications() async {
     if (currentUid == null) return;
     final batch = _firestore.batch();
@@ -604,6 +734,26 @@ class SocialService {
     await batch.commit();
   }
 
+  // 4. Okunmamış bildirimleri dinle
+  Stream<QuerySnapshot> getUnreadNotificationsStream() {
+    if (currentUid == null) {
+      return const Stream.empty();
+    }
+    // İndeks hatasını önlemek için basitleştirilmiş sorgu
+    return _firestore
+        .collection('notifications')
+        .where('recipient_id', isEqualTo: currentUid)
+        .snapshots();
+  }
+
+  // 5. Bildirimi okundu işaretle
+  Future<void> markNotificationAsRead(String docId) async {
+    await _firestore.collection('notifications').doc(docId).update({
+      'is_read': true,
+    });
+  }
+
+  // --- FİLM VERİLERİ ---
   Future<List<Movie>> fetchAppTopRatedMovies() async {
     try {
       final qs = await _firestore

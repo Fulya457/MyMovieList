@@ -1,3 +1,5 @@
+// Dosya: lib/views/auth_view/login_view.dart
+
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -6,8 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/app/theme.dart';
-
-// VideoPlayer importu kaldırıldı
+import 'package:mymovielist/data/movie_manager.dart'; // MovieManager eklendi
 
 String _getMemberName(String email) {
   if (email.contains('@')) {
@@ -27,7 +28,7 @@ class _LoginViewState extends State<LoginView> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool isLoading = false;
-  
+
   // Giriş mi Kayıt mı modu kontrolü
   bool _isLogin = true;
 
@@ -47,7 +48,6 @@ class _LoginViewState extends State<LoginView> {
   @override
   void initState() {
     super.initState();
-    // Video başlatma kaldırıldı
     _startSloganRotation();
   }
 
@@ -65,7 +65,6 @@ class _LoginViewState extends State<LoginView> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
-    // Video controller dispose kaldırıldı
     _sloganTimer?.cancel();
     super.dispose();
   }
@@ -78,9 +77,8 @@ class _LoginViewState extends State<LoginView> {
       _showErrorDialog("Lütfen tüm alanları doldurunuz.");
       return;
     }
-    
-    // YENİ EKLENEN KISIM: ŞİFRE UZUNLUĞU KONTROLÜ
-    // Sadece kayıt olurken kontrol ediyoruz.
+
+    // ŞİFRE UZUNLUĞU KONTROLÜ (Sadece kayıt olurken)
     if (!_isLogin && password.length < 6) {
       _showErrorDialog("Şifreniz en az 6 karakter olmalıdır.");
       return;
@@ -97,38 +95,46 @@ class _LoginViewState extends State<LoginView> {
           email: email,
           password: password,
         );
+
+        // [ÖNEMLİ EKLEME]
+        // Giriş başarılı oldu, hemen kullanıcının temasını çek!
+        await MovieManager.instance.loadUserTheme();
       } else {
         // --- KAYIT OLMA ---
-        userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-          email: email,
-          password: password,
-        );
+        userCredential = await FirebaseAuth.instance
+            .createUserWithEmailAndPassword(email: email, password: password);
       }
 
       final User? user = userCredential.user;
 
       if (user != null) {
-        final userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
-        
+        final userDoc = FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid);
+
         if (!_isLogin) {
-             await userDoc.set({
+          // Yeni kayıt ise varsayılan verileri yaz
+          await userDoc.set({
+            'uid': user.uid,
+            'email': user.email?.toLowerCase(),
+            'created_at': FieldValue.serverTimestamp(),
+            'favorites': [],
+            'profile_icon_id': 0,
+            'is_dark_mode': true, // Varsayılan tema
+          });
+        } else {
+          // Giriş yapıldıysa ve belge yoksa oluştur (Güvenlik önlemi)
+          final snapshot = await userDoc.get();
+          if (!snapshot.exists) {
+            await userDoc.set({
               'uid': user.uid,
               'email': user.email?.toLowerCase(),
               'created_at': FieldValue.serverTimestamp(),
               'favorites': [],
               'profile_icon_id': 0,
+              'is_dark_mode': true,
             });
-        } else {
-            final snapshot = await userDoc.get();
-            if (!snapshot.exists) {
-              await userDoc.set({
-                'uid': user.uid,
-                'email': user.email?.toLowerCase(),
-                'created_at': FieldValue.serverTimestamp(),
-                'favorites': [],
-                'profile_icon_id': 0,
-              });
-            }
+          }
         }
 
         final memberName = _getMemberName(email);
@@ -136,7 +142,9 @@ class _LoginViewState extends State<LoginView> {
       }
     } on FirebaseAuthException catch (e) {
       String message = 'İşlem başarısız.';
-      if (e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential') {
+      if (e.code == 'user-not-found' ||
+          e.code == 'wrong-password' ||
+          e.code == 'invalid-credential') {
         message = 'Kullanıcı adı veya şifre hatalı.';
       } else if (e.code == 'email-already-in-use') {
         message = 'Bu e-posta adresi zaten kullanımda.';
@@ -177,15 +185,12 @@ class _LoginViewState extends State<LoginView> {
       backgroundColor: AppTheme.backgroundBlack,
       body: Stack(
         children: [
-          // KATMAN 1: ARKA PLAN RESMİ (Local Asset)
+          // KATMAN 1: ARKA PLAN RESMİ
           Positioned.fill(
-            child: Image.asset(
-              'assets/bg1.jfif', // İNTERNET RESMİ YERİNE ASSET EKLENDİ
-              fit: BoxFit.cover,
-            ),
+            child: Image.asset('assets/bg1.jfif', fit: BoxFit.cover),
           ),
 
-          // KATMAN 2: BLUR (Biraz daha koyu yaptık ki yazılar okunsun)
+          // KATMAN 2: BLUR
           Positioned.fill(
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
@@ -200,7 +205,7 @@ class _LoginViewState extends State<LoginView> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.movie_filter_rounded,
                     color: AppTheme.primaryBlue,
                     size: 60,
@@ -263,7 +268,7 @@ class _LoginViewState extends State<LoginView> {
                         borderRadius: BorderRadius.circular(15),
                         borderSide: BorderSide.none,
                       ),
-                      prefixIcon: const Icon(
+                      prefixIcon: Icon(
                         Icons.email,
                         color: AppTheme.primaryBlue,
                       ),
@@ -285,23 +290,21 @@ class _LoginViewState extends State<LoginView> {
                         borderRadius: BorderRadius.circular(15),
                         borderSide: BorderSide.none,
                       ),
-                      prefixIcon: const Icon(
-                        Icons.lock,
-                        color: AppTheme.primaryBlue,
-                      ),
+                      prefixIcon: Icon(Icons.lock, color: AppTheme.primaryBlue),
                     ),
                   ),
                   const SizedBox(height: 40),
                   isLoading
-                      ? const CircularProgressIndicator(
-                          color: AppTheme.primaryBlue,
-                        )
+                      ? CircularProgressIndicator(color: AppTheme.primaryBlue)
                       : Container(
                           width: double.infinity,
                           height: 55,
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [AppTheme.primaryBlue, Color(0xFF1E88E5)],
+                            gradient: LinearGradient(
+                              colors: [
+                                AppTheme.primaryBlue,
+                                const Color(0xFF1E88E5),
+                              ],
                             ),
                             borderRadius: BorderRadius.circular(15),
                             boxShadow: [
@@ -331,7 +334,7 @@ class _LoginViewState extends State<LoginView> {
                             ),
                           ),
                         ),
-                  
+
                   // Mod Değiştirme Butonu
                   const SizedBox(height: 20),
                   TextButton(
@@ -341,9 +344,9 @@ class _LoginViewState extends State<LoginView> {
                       });
                     },
                     child: Text(
-                      _isLogin 
-                        ? "Hesabın yok mu? Kayıt Ol" 
-                        : "Zaten hesabın var mı? Giriş Yap",
+                      _isLogin
+                          ? "Hesabın yok mu? Kayıt Ol"
+                          : "Zaten hesabın var mı? Giriş Yap",
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 16,

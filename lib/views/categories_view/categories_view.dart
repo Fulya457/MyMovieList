@@ -22,10 +22,10 @@ class CategoriesView extends StatelessWidget {
         return Scaffold(
           backgroundColor: AppTheme.backgroundBlack,
           appBar: AppBar(
-            title: const Text(
+            title: Text(
               'Film Kategorileri',
               style: TextStyle(
-                color: Colors.white,
+                color: AppTheme.primaryBlue,
                 fontWeight: FontWeight.bold,
               ),
             ),

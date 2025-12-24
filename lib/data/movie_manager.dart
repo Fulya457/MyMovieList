@@ -1,3 +1,5 @@
+// Dosya: lib/data/movie_manager.dart
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -18,6 +20,94 @@ export 'package:mymovielist/models/person_model.dart';
 class MovieManager extends ChangeNotifier {
   static final MovieManager instance = MovieManager._privateConstructor();
   MovieManager._privateConstructor();
+
+  // --- TEMA VE RENK AYARLARI ---
+  bool isDarkMode = true; // Varsayılan: Karanlık
+  int currentBgColor = 0xFF12141C;
+
+  // 1. TEMAYI DEĞİŞTİR VE KAYDET
+  Future<void> toggleTheme() async {
+    isDarkMode = !isDarkMode;
+
+    // Rengi ayarla
+    if (isDarkMode) {
+      currentBgColor = 0xFF12141C; // Orijinal Dark
+    } else {
+      currentBgColor = 0xFFCFD8DC; // Yeni Mavi-Gri Light
+    }
+
+    notifyListeners(); // Arayüzü anlık güncelle
+
+    // --- FIRESTORE'A KAYDET ---
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      await FirebaseFirestore.instance.collection('users').doc(uid).update({
+        'is_dark_mode': isDarkMode,
+      });
+    }
+  }
+
+  // 2. KULLANICI GİRİŞ YAPINCA TEMAYI ÇEK (Login'de çağıracağız)
+  Future<void> loadUserTheme() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data() as Map<String, dynamic>;
+
+        // Veritabanındaki tercihi al
+        if (data.containsKey('is_dark_mode')) {
+          isDarkMode = data['is_dark_mode'];
+
+          // Rengi güncelle
+          if (isDarkMode) {
+            currentBgColor = 0xFF12141C;
+          } else {
+            currentBgColor = 0xFFCFD8DC;
+          }
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      debugPrint("Tema yüklenirken hata: $e");
+    }
+  }
+
+  // 3. YENİ KULLANICI OLUŞTURURKEN VARSAYILAN TEMA EKLE
+  Future<void> ensureUserExistsInFirestore() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final userDoc = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid);
+    final snapshot = await userDoc.get();
+
+    if (!snapshot.exists) {
+      // Yeni kullanıcı oluştur
+      await userDoc.set({
+        'uid': user.uid,
+        'email': user.email,
+        'created_at': FieldValue.serverTimestamp(),
+        'profile_icon_id': 0,
+        'is_dark_mode': true, // Varsayılan Karanlık Mod
+      });
+    } else {
+      // Kullanıcı zaten varsa, temasını yükle
+      await loadUserTheme();
+    }
+  }
+
+  // Sadece Arka Planı Değiştirme (Manuel Seçim)
+  void changeBackgroundColor(int colorValue) {
+    currentBgColor = colorValue;
+    notifyListeners();
+  }
 
   // Servisler
   final TmdbService _tmdbService = TmdbService.instance;
@@ -74,8 +164,9 @@ class MovieManager extends ChangeNotifier {
   bool isFavorite(Movie movie) =>
       _favoriteMovies.any((fav) => fav.id == movie.id);
   bool isPersonFavorite(Person person) {
-    if (person.knownFor == 'Directing')
+    if (person.knownFor == 'Directing') {
       return _favoriteDirectors.any((p) => p.id == person.id);
+    }
     return _favoriteActors.any((p) => p.id == person.id);
   }
 
@@ -110,10 +201,11 @@ class MovieManager extends ChangeNotifier {
     _allMovies.addAll(result['movies']);
     if (initial) _trendingMovies.addAll(result['movies'].take(10));
 
-    if ((result['totalPages']) <= _currentPage)
+    if ((result['totalPages']) <= _currentPage) {
       _hasMorePages = false;
-    else
+    } else {
       _currentPage++;
+    }
     _isFetching = false;
     notifyListeners();
   }
@@ -143,14 +235,15 @@ class MovieManager extends ChangeNotifier {
         final ids = <int>{};
         _searchResults = filteredMovies.where((m) => ids.add(m.id)).toList();
       } else {
-        if (filterActor && !filterDirector)
+        if (filterActor && !filterDirector) {
           _searchResults = people.where((p) => p.knownFor == 'Acting').toList();
-        else if (!filterActor && filterDirector)
+        } else if (!filterActor && filterDirector) {
           _searchResults = people
               .where((p) => p.knownFor == 'Directing')
               .toList();
-        else
+        } else {
           _searchResults = people;
+        }
       }
     } else {
       // Film Bazlı
@@ -170,8 +263,9 @@ class MovieManager extends ChangeNotifier {
           if (activeGenreFilters.isEmpty ||
               (m as Movie).genreIds.any(
                 (id) => activeGenreFilters.contains(id),
-              ))
+              )) {
             combined.add(m);
+          }
         }
         if (activeGenreFilters.isEmpty) combined.addAll(results['people']!);
         _searchResults = combined;
@@ -237,8 +331,7 @@ class MovieManager extends ChangeNotifier {
         for (var item in list) {
           _favoriteMovies.add(Movie.fromMap(item));
         }
-      }
-      else if (data.containsKey('favorites')) {
+      } else if (data.containsKey('favorites')) {
         _favoriteMovies.clear();
         final list = data['favorites'] as List? ?? [];
         for (var item in list) {
@@ -265,27 +358,39 @@ class MovieManager extends ChangeNotifier {
     }
   }
 
-  // Listeler
+  // --- LİSTE YÖNETİMİ ---
+  // Listeleri Dinle
+  Stream<QuerySnapshot> getUserListsStream() =>
+      _socialService.getUserListsStream();
+
+  // Yeni Liste Oluştur
   Future<void> createCustomList(String name, String type) async =>
       await _socialService.createList(name, type);
+
+  // Listeye Film Ekle
   Future<void> addMovieToCustomList(String listId, Movie movie) async =>
       await _socialService.addToList(listId, movie.toMap());
+
+  // Listeye Genel Öğe Ekle
   Future<void> addItemToCustomList(
     String listId,
     Map<String, dynamic> item,
   ) async => await _socialService.addToList(listId, item);
+
+  // Listeden Film/Öğe Çıkar
   Future<void> removeMovieFromCustomList(
     String listId,
     Map<String, dynamic> item,
   ) async => await _socialService.removeFromList(listId, item);
+
+  // Listeyi Sil
   Future<void> deleteCustomList(String listId) async =>
       await _socialService.deleteList(listId);
-  Stream<QuerySnapshot> getUserListsStream() =>
-      _socialService.getUserListsStream();
 
-  // Kullanıcı
-  Future<void> ensureUserExistsInFirestore() async =>
+  // --- KULLANICI & PROFİL ---
+  Future<void> ensureUserExists() async =>
       await _socialService.ensureUserExists();
+
   Future<void> updateProfileIcon(int iconIndex) async {
     await _socialService.updateProfileIcon(iconIndex);
     notifyListeners();
@@ -293,31 +398,36 @@ class MovieManager extends ChangeNotifier {
 
   Stream<int> getCurrentUserIconIndex() =>
       _socialService.getUserIconIndexStream();
+
   Future<List<Map<String, dynamic>>> searchUsersByEmail(String q) =>
       _socialService.searchUsersByEmail(q);
-      
-  // GÜNCELLENEN METOD: Tek parametreli hale getirildi
-  Future<void> changePassword(String newPassword) async {
-    await FirebaseAuth.instance.currentUser?.updatePassword(newPassword);
+
+  Future<void> changePassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
+    await _socialService.changePassword(currentPassword, newPassword);
   }
 
-  // Arkadaşlık & Chat
-  Future<void> sendFriendRequest(String uid) async {
-    await _socialService.sendFriendRequest(uid, "");
-  }
-
-  Future<void> acceptFriendRequest(String uid, String email) async =>
-      await _socialService.acceptFriendRequest(uid, email);
-  Future<void> removeFriend(String uid) async =>
-      await _socialService.removeFriend(uid);
-
+  // --- ARKADAŞLIK & CHAT ---
   Stream<QuerySnapshot> getFriendsStream() => _socialService.getFriendsStream();
   Stream<QuerySnapshot> getFriendRequestsStream() =>
       _socialService.getFriendRequestsStream();
 
+  Future<void> sendFriendRequest(String uid) async {
+    await _socialService.sendFriendRequest(uid, "Unknown");
+  }
+
+  Future<void> acceptFriendRequest(String uid, String email) async =>
+      await _socialService.acceptFriendRequest(uid, email);
+
+  Future<void> removeFriend(String uid) async =>
+      await _socialService.removeFriend(uid);
+
   void listenToFriendsList() {
     getFriendsStream().listen((snapshot) {
       _friendIds = snapshot.docs.map((d) => d.id).toSet();
+      notifyListeners();
     });
   }
 
@@ -338,7 +448,7 @@ class MovieManager extends ChangeNotifier {
   Stream<QuerySnapshot> getMessagesStream(String uid) =>
       _socialService.getMessagesStream(uid);
 
-  // Review
+  // --- YORUMLAR (REVIEW) ---
   Stream<DocumentSnapshot> getMovieLiveRating(int id) =>
       _socialService.getMovieLiveRating(id);
   Stream<QuerySnapshot> getReviewsStream(int id) =>
@@ -363,11 +473,37 @@ class MovieManager extends ChangeNotifier {
   Future<void> replyToReview(String id, String t) async =>
       await _socialService.replyToReview(id, t);
 
+  // --- ÖNERİLER ---
   Future<void> fetchAppTopRatedMovies() async {
     _appTopRatedMovies = await _socialService.fetchAppTopRatedMovies();
     notifyListeners();
   }
 
+  List<Movie> recommendByFavoriteGenres() {
+    if (_favoriteMovies.isEmpty) return [];
+    Map<String, int> genreCounts = {};
+    for (var m in _favoriteMovies) {
+      for (var g in m.genres) {
+        genreCounts[g] = (genreCounts[g] ?? 0) + 1;
+      }
+    }
+    var sortedGenres = genreCounts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    var topGenres = sortedGenres.take(3).map((e) => e.key).toSet();
+
+    return _allMovies
+        .where((m) {
+          bool hasGenre = m.genres.any((g) => topGenres.contains(g));
+          bool alreadyFav = isFavorite(m);
+          return hasGenre && !alreadyFav;
+        })
+        .take(10)
+        .toList();
+  }
+
+  Future<void> renameCustomList(String listId, String newName) async =>
+      await _socialService.renameList(listId, newName);
+
   Map<String, String> getActorDetails(String n) => {"bio": "...", "photo": ""};
-  List<Movie> recommendByFavoriteGenres() => [];
 }

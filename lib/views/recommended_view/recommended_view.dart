@@ -31,10 +31,10 @@ class _RecommendedViewState extends State<RecommendedView> {
         return Scaffold(
           backgroundColor: AppTheme.backgroundBlack,
           appBar: AppBar(
-            title: const Text(
+            title: Text(
               'FOR YOU',
               style: TextStyle(
-                color: Colors.amber,
+                color: AppTheme.primaryBlue,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -87,8 +87,8 @@ class _RecommendedViewState extends State<RecommendedView> {
         const SizedBox(width: 8),
         Text(
           title,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: AppTheme.primaryBlue,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
@@ -142,7 +142,7 @@ class _RecommendedViewState extends State<RecommendedView> {
               ),
               title: Text(
                 movie.title,
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(color: AppTheme.primaryBlue),
               ),
               subtitle: Row(
                 children: [

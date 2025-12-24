@@ -1,9 +1,12 @@
+// Dosya: lib/views/app_view.dart
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mymovielist/app/theme.dart';
 import 'package:mymovielist/app/router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:mymovielist/services/social_service.dart';
 import 'dart:async';
 
 class AppView extends StatefulWidget {
@@ -16,11 +19,16 @@ class AppView extends StatefulWidget {
 
 class _AppViewState extends State<AppView> {
   StreamSubscription? _notificationSubscription;
+  // İlk açılışta eski bildirimleri basmasın diye zaman damgası tutuyoruz
+  DateTime _startTime = DateTime.now();
 
   @override
   void initState() {
     super.initState();
-    _startListeningForNotifications();
+    // Widget çizildikten hemen sonra dinlemeyi başlat
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startListeningForNotifications();
+    });
   }
 
   @override
@@ -31,77 +39,149 @@ class _AppViewState extends State<AppView> {
 
   void _startListeningForNotifications() {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      print("DEBUG: Kullanıcı oturum açmamış, bildirim dinlenemiyor.");
+      return;
+    }
 
-    // Son 10 saniye içindeki bildirimleri dinle (Eski bildirimlerin aniden çıkmasını önlemek için)
-    // Ancak Firestore'da timestamp filtresi bazen karmaşık olabilir, basitçe okunmamışlara bakalım.
-    // Daha iyi bir yöntem: Dinlemeye başladığımız andan sonrakileri gösterelim.
-    // Şimdilik sadece 'is_read: false' olanları dinliyoruz.
-    
-    _notificationSubscription = FirebaseFirestore.instance
+    print("DEBUG: Bildirim dinleyicisi başlatılıyor... (User: ${user.uid})");
+
+    // SORGUSU: Sadece bana gelenler
+    // Hata riskini azaltmak için orderBy kaldırdık, Dart tarafında süzeriz.
+    final stream = FirebaseFirestore.instance
         .collection('notifications')
         .where('recipient_id', isEqualTo: user.uid)
-        .where('is_read', isEqualTo: false)
-        .orderBy('timestamp', descending: true)
-        .limit(1) // Sadece en son gelen bildirimi alalım
-        .snapshots()
-        .listen((snapshot) {
-          if (snapshot.docs.isNotEmpty) {
-            final doc = snapshot.docs.first;
-            // Bildirimin yeni olduğunu anlamak için timestamp kontrolü yapılabilir
-            // Veya basitçe her değişiklikte göster (bazen aynı bildirim update olursa tekrar çıkabilir, dikkat)
-            
-            // Veriyi al
-            final data = doc.data();
-            final message = data['message'] as String? ?? 'Yeni bildirim';
-            
-            // Eğer bildirim yeni gelmişse göster (Daha önce gösterildiyse tekrar gösterme mantığı eklenebilir)
-            // Biz basitçe kullanıcıya gösterip, ardından 'gösterildi' olarak işaretlemiyoruz,
-            // kullanıcı tıklayınca veya bildirim sayfasına gidince okunmuş sayılacak.
-            // Ama sürekli popup çıkmasın diye local bir state tutabiliriz.
-            
-            // Pratik Çözüm: Snackbar göster.
-            if (mounted) {
-              // Mevcut snackbar'ı temizle
-              ScaffoldMessenger.of(context).clearSnackBars();
-              
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  behavior: SnackBarBehavior.floating,
-                  backgroundColor: AppTheme.surfaceDark,
-                  margin: const EdgeInsets.all(16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  content: Row(
-                    children: [
-                      const Icon(Icons.notifications_active, color: AppTheme.primaryBlue),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          message,
-                          style: const TextStyle(color: Colors.white),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  action: SnackBarAction(
-                    label: 'GÖSTER',
-                    textColor: AppTheme.primaryBlue,
-                    onPressed: () {
-                      // Bildirime tıklandığında Bildirimler sayfasına git
-                      context.push(AppRouters.notifications);
-                      
-                      // Bildirimi okundu olarak işaretle
-                      doc.reference.update({'is_read': true});
-                    },
-                  ),
-                  duration: const Duration(seconds: 4),
-                ),
-              );
-            }
+        .snapshots();
+
+    _notificationSubscription = stream.listen(
+      (snapshot) {
+        print(
+          "DEBUG: Veritabanında hareket algılandı! Doküman sayısı: ${snapshot.docs.length}",
+        );
+
+        for (var change in snapshot.docChanges) {
+          // Sadece YENİ eklenenleri (Added) yakala
+          if (change.type == DocumentChangeType.added) {
+            final data = change.doc.data() as Map<String, dynamic>;
+            final docId = change.doc.id;
+
+            // Kontrol 1: Okunmuş mu?
+            bool isRead = data['is_read'] ?? false;
+            if (isRead) continue;
+
+            // Kontrol 2: Bu bildirim uygulama açıldıktan SONRA mı geldi?
+            // (Eski bildirimlerin hepsini birden ekrana basmamak için)
+
+            print("DEBUG: Yeni bildirim gösteriliyor: ${data['message']}");
+            _showInAppNotification(context, data, docId);
           }
-        });
+        }
+      },
+      onError: (error) {
+        print("KIRMIZI ALARM (HATA): Bildirim Stream Hatası: $error");
+        // Eğer bu hatayı görürsen Firebase Konsol'da indeks oluşturman gerekir.
+        // Konsoldaki linke tıklaman yeterli olur.
+      },
+    );
+  }
+
+  void _showInAppNotification(
+    BuildContext context,
+    Map<String, dynamic> data,
+    String docId,
+  ) {
+    // Mesaj içeriği ve ikonu belirle
+    String message = data['message'] ?? 'Yeni bildirim';
+    String type = data['type'] ?? 'general';
+
+    IconData icon = Icons.notifications;
+    Color iconColor = AppTheme.primaryBlue;
+
+    if (type == 'message') {
+      icon = Icons.mail;
+      iconColor = Colors.orange;
+    } else if (type == 'friend_request') {
+      icon = Icons.person_add;
+      iconColor = Colors.green;
+    } else if (type == 'like') {
+      icon = Icons.favorite;
+      iconColor = Colors.redAccent;
+    } else if (type == 'comment') {
+      icon = Icons.comment;
+      iconColor = Colors.purpleAccent;
+    }
+
+    // SnackBar Göster
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: AppTheme.surfaceDark,
+        behavior: SnackBarBehavior.floating, // Havada duran stil
+        margin: const EdgeInsets.all(16), // Kenar boşlukları
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 5), // Ekranda kalma süresi
+        content: Row(
+          children: [
+            // İkon
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+            const SizedBox(width: 12),
+            // Yazı
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    "Yeni Bildirim",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                  Text(
+                    message,
+                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        action: SnackBarAction(
+          label: 'GİT',
+          textColor: AppTheme.primaryBlue,
+          onPressed: () {
+            // 1. Bildirimi okundu yap (Database)
+            SocialService.instance.markNotificationAsRead(docId);
+
+            // 2. SnackBar'ı hemen kapat
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+            // 3. İlgili sayfaya yönlendir
+            _handleNavigation(type);
+          },
+        ),
+      ),
+    );
+  }
+
+  void _handleNavigation(String type) {
+    if (type == 'friend_request' || type == 'message') {
+      // Mesaj veya Arkadaşlık isteğiyse -> Arkadaşlar/Chat sayfasına
+      context.push(AppRouters.friends);
+    } else {
+      // Beğeni, Yorum vb. ise -> Bildirim merkezine
+      context.push(AppRouters.notifications);
+    }
   }
 
   @override
@@ -109,16 +189,15 @@ class _AppViewState extends State<AppView> {
     return Scaffold(
       body: widget.navigationShell,
       bottomNavigationBar: NavigationBar(
+        backgroundColor: AppTheme.backgroundBlack,
+        indicatorColor: AppTheme.primaryBlue.withOpacity(0.2),
         selectedIndex: widget.navigationShell.currentIndex,
         onDestinationSelected: widget.navigationShell.goBranch,
         destinations: const [
           NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
           NavigationDestination(icon: Icon(Icons.list), label: 'Categories'),
           NavigationDestination(icon: Icon(Icons.favorite), label: 'Favorites'),
-          NavigationDestination(
-            icon: Icon(Icons.recommend),
-            label: 'Recommended',
-          ),
+          NavigationDestination(icon: Icon(Icons.recommend), label: 'For You'),
         ],
       ),
     );

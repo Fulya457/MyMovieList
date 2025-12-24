@@ -18,9 +18,9 @@ class UserReviewsView extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           "Değerlendirmelerim",
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: AppTheme.primaryBlue),
         ),
         backgroundColor: AppTheme.backgroundBlack,
         iconTheme: const IconThemeData(color: Colors.white),
@@ -33,7 +33,7 @@ class UserReviewsView extends StatelessWidget {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
+            return Center(
               child: CircularProgressIndicator(color: AppTheme.primaryBlue),
             );
           }
@@ -137,8 +137,8 @@ class UserReviewsView extends StatelessWidget {
                             children: [
                               Text(
                                 movieTitle,
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: AppTheme.primaryBlue,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 16,
                                 ),
@@ -171,7 +171,7 @@ class UserReviewsView extends StatelessWidget {
                               const Divider(color: Colors.white24),
                               Text(
                                 comment,
-                                style: const TextStyle(color: Colors.white70),
+                                style: TextStyle(color: AppTheme.primaryBlue),
                                 maxLines: 3,
                                 overflow: TextOverflow.ellipsis,
                               ),

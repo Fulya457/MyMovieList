@@ -22,16 +22,16 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             "Arama Filtreleri",
             style: TextStyle(
-              color: Colors.white,
+              color: AppTheme.primaryBlue,
               fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 20),
-          const Text(
+          Text(
             "Rol Seçimi",
             style: TextStyle(color: AppTheme.primaryBlue, fontSize: 16),
           ),
@@ -52,7 +52,7 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
             ],
           ),
           const SizedBox(height: 20),
-          const Text(
+          Text(
             "Film Türleri",
             style: TextStyle(color: AppTheme.primaryBlue, fontSize: 16),
           ),
@@ -79,7 +79,7 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
                     backgroundColor: AppTheme.surfaceDark,
                     selectedColor: AppTheme.primaryBlue,
                     labelStyle: TextStyle(
-                      color: isSelected ? Colors.black : Colors.white,
+                      color: isSelected ? Colors.black : AppTheme.primaryBlue,
                     ),
                   );
                 }).toList(),
@@ -96,10 +96,10 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
                 Navigator.pop(context);
                 widget.onApply(); // HomeView'daki aramayı tetikle
               },
-              child: const Text(
+              child: Text(
                 "Uygula",
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppTheme.primaryBlue,
                   fontWeight: FontWeight.bold,
                 ),
               ),
