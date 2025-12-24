@@ -34,7 +34,7 @@ class _NotificationsViewState extends State<NotificationsView>
 
   @override
   Widget build(BuildContext context) {
-    // TEMA DİNLEYİCİSİ EKLENDİ
+    // Tema değişince anlık güncellensin diye AnimatedBuilder
     return AnimatedBuilder(
       animation: MovieManager.instance,
       builder: (context, child) {
@@ -46,7 +46,7 @@ class _NotificationsViewState extends State<NotificationsView>
               style: TextStyle(color: AppTheme.primaryBlue),
             ),
             backgroundColor: AppTheme.backgroundBlack,
-            // İkonlar aydınlık modda görünsün diye textColor kullanıldı
+            // İkonlar (Geri tuşu vs.) aydınlık modda görünsün diye:
             iconTheme: IconThemeData(color: AppTheme.textColor),
             bottom: TabBar(
               controller: _tabController,
@@ -128,6 +128,7 @@ class _NotificationListTabState extends State<NotificationListTab>
           );
         }
 
+        // Tarihe göre sırala
         docs.sort((a, b) {
           Timestamp? t1 = a['timestamp'];
           Timestamp? t2 = b['timestamp'];
@@ -150,16 +151,19 @@ class _NotificationListTabState extends State<NotificationListTab>
               child: ListTile(
                 leading: _buildIcon(data['type']),
                 title: Text(
-                  data['message'] ?? '',
+                  // Hem 'text' hem 'message' alanını kontrol et
+                  data['text'] ?? data['message'] ?? '',
                   style: TextStyle(
-                    color: AppTheme.textColor, // OKUNAKLI RENK
+                    color: AppTheme.textColor, // MAVİ/KOYU YAZI (Düzeltildi)
                     fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
                   ),
                 ),
                 subtitle: Text(
                   _formatDate(data['timestamp']),
                   style: TextStyle(
-                    color: AppTheme.textColor.withValues(alpha: 0.6),
+                    color: AppTheme.textColor.withValues(
+                      alpha: 0.6,
+                    ), // Okunaklı Gri/Mavi
                     fontSize: 12,
                   ),
                 ),
@@ -236,13 +240,15 @@ class _ActivityLogTabState extends State<ActivityLogTab>
               title: Text(
                 data['text'] ?? '',
                 style: TextStyle(
-                  color: AppTheme.textColor.withValues(alpha: 0.9), // OKUNAKLI
+                  color: AppTheme.textColor.withValues(
+                    alpha: 0.9,
+                  ), // MAVİ/KOYU YAZI (Düzeltildi)
                 ),
               ),
               subtitle: Text(
                 _formatDate(data['timestamp']),
                 style: TextStyle(
-                  color: AppTheme.textColor.withValues(alpha: 0.6),
+                  color: AppTheme.textColor.withValues(alpha: 0.6), // Okunaklı
                   fontSize: 11,
                 ),
               ),

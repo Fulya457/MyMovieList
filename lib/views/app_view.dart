@@ -7,6 +7,7 @@ import 'package:mymovielist/app/router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mymovielist/services/social_service.dart';
+import 'package:mymovielist/data/movie_manager.dart';
 import 'dart:async';
 
 class AppView extends StatefulWidget {
@@ -19,13 +20,12 @@ class AppView extends StatefulWidget {
 
 class _AppViewState extends State<AppView> {
   StreamSubscription? _notificationSubscription;
-  // İlk açılışta eski bildirimleri basmasın diye zaman damgası tutuyoruz
-  DateTime _startTime = DateTime.now();
+  // Sayfa açıldığı anı milisaniye olarak alıyoruz
+  int _startTimestamp = DateTime.now().millisecondsSinceEpoch;
 
   @override
   void initState() {
     super.initState();
-    // Widget çizildikten hemen sonra dinlemeyi başlat
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startListeningForNotifications();
     });
@@ -39,167 +39,163 @@ class _AppViewState extends State<AppView> {
 
   void _startListeningForNotifications() {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      print("DEBUG: Kullanıcı oturum açmamış, bildirim dinlenemiyor.");
-      return;
-    }
+    if (user == null) return;
 
-    print("DEBUG: Bildirim dinleyicisi başlatılıyor... (User: ${user.uid})");
-
-    // SORGUSU: Sadece bana gelenler
-    // Hata riskini azaltmak için orderBy kaldırdık, Dart tarafında süzeriz.
-    final stream = FirebaseFirestore.instance
+    // Sadece bu oturum açıldıktan sonra gelen bildirimleri dinle
+    // 'timestamp' alanı Firestore'da ServerTimestamp olmalı.
+    _notificationSubscription = FirebaseFirestore.instance
         .collection('notifications')
         .where('recipient_id', isEqualTo: user.uid)
-        .snapshots();
+        .snapshots() // Tümünü dinle, client tarafında filtrele (Daha güvenilir anlık bildirim için)
+        .listen((snapshot) {
+          for (var change in snapshot.docChanges) {
+            // Sadece yeni eklenenler (Added)
+            if (change.type == DocumentChangeType.added) {
+              final data = change.doc.data() as Map<String, dynamic>;
+              final docId = change.doc.id;
 
-    _notificationSubscription = stream.listen(
-      (snapshot) {
-        print(
-          "DEBUG: Veritabanında hareket algılandı! Doküman sayısı: ${snapshot.docs.length}",
-        );
-
-        for (var change in snapshot.docChanges) {
-          // Sadece YENİ eklenenleri (Added) yakala
-          if (change.type == DocumentChangeType.added) {
-            final data = change.doc.data() as Map<String, dynamic>;
-            final docId = change.doc.id;
-
-            // Kontrol 1: Okunmuş mu?
-            bool isRead = data['is_read'] ?? false;
-            if (isRead) continue;
-
-            // Kontrol 2: Bu bildirim uygulama açıldıktan SONRA mı geldi?
-            // (Eski bildirimlerin hepsini birden ekrana basmamak için)
-
-            print("DEBUG: Yeni bildirim gösteriliyor: ${data['message']}");
-            _showInAppNotification(context, data, docId);
+              // Zaman kontrolü: Bildirim yeni mi?
+              // (Eğer timestamp alanı yoksa veya null ise eski kabul et)
+              Timestamp? ts = data['timestamp'];
+              if (ts != null) {
+                int msgTime = ts.millisecondsSinceEpoch;
+                // Eğer mesajın zamanı, bu ekranın açılış zamanından büyükse göster
+                if (msgTime > _startTimestamp) {
+                  final text =
+                      data['text'] ?? data['message'] ?? 'Yeni Bildirim';
+                  final type = data['type'] ?? 'general';
+                  if (mounted) {
+                    _showInAppNotification(text, type, docId);
+                  }
+                }
+              }
+            }
           }
-        }
-      },
-      onError: (error) {
-        print("KIRMIZI ALARM (HATA): Bildirim Stream Hatası: $error");
-        // Eğer bu hatayı görürsen Firebase Konsol'da indeks oluşturman gerekir.
-        // Konsoldaki linke tıklaman yeterli olur.
-      },
-    );
+        });
   }
 
-  void _showInAppNotification(
-    BuildContext context,
-    Map<String, dynamic> data,
-    String docId,
-  ) {
-    // Mesaj içeriği ve ikonu belirle
-    String message = data['message'] ?? 'Yeni bildirim';
-    String type = data['type'] ?? 'general';
+  void _showInAppNotification(String text, String type, String docId) {
+    // Tema Durumu
+    final isDark = MovieManager.instance.isDarkMode;
+    // Renkler
+    final Color bgColor = isDark ? const Color(0xFF1E202B) : Colors.white;
+    final Color textColor = isDark ? Colors.white : Colors.black87;
 
-    IconData icon = Icons.notifications;
-    Color iconColor = AppTheme.primaryBlue;
-
-    if (type == 'message') {
-      icon = Icons.mail;
-      iconColor = Colors.orange;
-    } else if (type == 'friend_request') {
-      icon = Icons.person_add;
-      iconColor = Colors.green;
-    } else if (type == 'like') {
-      icon = Icons.favorite;
-      iconColor = Colors.redAccent;
-    } else if (type == 'comment') {
-      icon = Icons.comment;
-      iconColor = Colors.purpleAccent;
-    }
-
-    // SnackBar Göster
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: AppTheme.surfaceDark,
-        behavior: SnackBarBehavior.floating, // Havada duran stil
-        margin: const EdgeInsets.all(16), // Kenar boşlukları
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        duration: const Duration(seconds: 5), // Ekranda kalma süresi
+        backgroundColor: bgColor,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(12),
+        elevation: 10, // Biraz daha gölge
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: AppTheme.primaryBlue.withValues(alpha: 0.5), // Mavi Çerçeve
+            width: 1.5,
+          ),
+        ),
         content: Row(
           children: [
-            // İkon
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.2),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: iconColor, size: 20),
-            ),
+            Icon(_getIconForType(type), color: AppTheme.primaryBlue, size: 28),
             const SizedBox(width: 12),
-            // Yazı
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    "Yeni Bildirim",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
-                  Text(
-                    message,
-                    style: const TextStyle(color: Colors.white70, fontSize: 13),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+              child: Text(
+                text,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
               ),
             ),
           ],
         ),
         action: SnackBarAction(
-          label: 'GİT',
+          label: 'GÖSTER',
           textColor: AppTheme.primaryBlue,
           onPressed: () {
-            // 1. Bildirimi okundu yap (Database)
             SocialService.instance.markNotificationAsRead(docId);
-
-            // 2. SnackBar'ı hemen kapat
             ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
-            // 3. İlgili sayfaya yönlendir
             _handleNavigation(type);
           },
         ),
+        duration: const Duration(seconds: 5),
       ),
     );
   }
 
+  IconData _getIconForType(String type) {
+    switch (type) {
+      case 'friend_request':
+        return Icons.person_add;
+      case 'message':
+        return Icons.mail;
+      case 'like':
+        return Icons.favorite;
+      case 'comment':
+        return Icons.comment;
+      default:
+        return Icons.notifications;
+    }
+  }
+
   void _handleNavigation(String type) {
     if (type == 'friend_request' || type == 'message') {
-      // Mesaj veya Arkadaşlık isteğiyse -> Arkadaşlar/Chat sayfasına
-      context.push(AppRouters.friends);
+      context.push(
+        AppRouters.friends,
+      ); // Veya Chat'e gitmesi daha mantıklı olabilir
     } else {
-      // Beğeni, Yorum vb. ise -> Bildirim merkezine
       context.push(AppRouters.notifications);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: widget.navigationShell,
-      bottomNavigationBar: NavigationBar(
-        backgroundColor: AppTheme.backgroundBlack,
-        indicatorColor: AppTheme.primaryBlue.withOpacity(0.2),
-        selectedIndex: widget.navigationShell.currentIndex,
-        onDestinationSelected: widget.navigationShell.goBranch,
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.list), label: 'Categories'),
-          NavigationDestination(icon: Icon(Icons.favorite), label: 'Favorites'),
-          NavigationDestination(icon: Icon(Icons.recommend), label: 'For You'),
-        ],
-      ),
+    return AnimatedBuilder(
+      animation: MovieManager.instance,
+      builder: (context, child) {
+        return Scaffold(
+          body: widget.navigationShell,
+          bottomNavigationBar: NavigationBar(
+            backgroundColor: AppTheme.backgroundBlack,
+            indicatorColor: AppTheme.primaryBlue.withValues(alpha: 0.2),
+            selectedIndex: widget.navigationShell.currentIndex,
+            onDestinationSelected: (index) {
+              widget.navigationShell.goBranch(
+                index,
+                initialLocation: index == widget.navigationShell.currentIndex,
+              );
+            },
+            destinations: [
+              NavigationDestination(
+                icon: const Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home, color: AppTheme.primaryBlue),
+                label: 'Home',
+              ),
+              NavigationDestination(
+                icon: const Icon(Icons.category_outlined),
+                selectedIcon: Icon(Icons.category, color: AppTheme.primaryBlue),
+                label: 'Categories',
+              ),
+              NavigationDestination(
+                icon: const Icon(Icons.favorite_outline),
+                selectedIcon: Icon(Icons.favorite, color: AppTheme.primaryBlue),
+                label: 'Favorites',
+              ),
+              NavigationDestination(
+                icon: const Icon(Icons.recommend_outlined),
+                selectedIcon: Icon(
+                  Icons.recommend,
+                  color: AppTheme.primaryBlue,
+                ),
+                label: 'For You',
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

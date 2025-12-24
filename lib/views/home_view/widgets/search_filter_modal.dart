@@ -1,9 +1,11 @@
+// Dosya: lib/views/home_view/widgets/search_filter_modal.dart
+
 import 'package:flutter/material.dart';
 import 'package:mymovielist/app/theme.dart';
 import 'package:mymovielist/data/movie_manager.dart';
 
 class SearchFilterModal extends StatefulWidget {
-  final VoidCallback onApply; // Uygula butonuna basılınca ne olacak?
+  final VoidCallback onApply;
 
   const SearchFilterModal({super.key, required this.onApply});
 
@@ -19,89 +21,111 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
     return Container(
       padding: const EdgeInsets.all(20),
       height: 600,
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceDark, // Arka plan
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Tutamaç Çubuğu
+          Center(child: Container(width: 40, height: 4, color: Colors.grey)),
+          const SizedBox(height: 20),
+
           Text(
-            "Arama Filtreleri",
+            "Filtrele",
             style: TextStyle(
-              color: AppTheme.primaryBlue,
-              fontSize: 20,
+              fontSize: 22,
               fontWeight: FontWeight.bold,
+              color: AppTheme.textColor, // Başlık Rengi
             ),
           ),
           const SizedBox(height: 20),
+
+          // --- ROL SEÇİMİ ---
           Text(
-            "Rol Seçimi",
-            style: TextStyle(color: AppTheme.primaryBlue, fontSize: 16),
+            "Kişiler",
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textColor,
+            ),
           ),
           const SizedBox(height: 10),
           Row(
             children: [
-              _buildFilterChip(
-                "Aktör",
-                manager.filterActor,
-                (val) => setState(() => manager.filterActor = val),
-              ),
+              _buildFilterChip("Aktör", manager.filterActor, (val) {
+                setState(() => manager.filterActor = val);
+              }),
               const SizedBox(width: 10),
-              _buildFilterChip(
-                "Yönetmen",
-                manager.filterDirector,
-                (val) => setState(() => manager.filterDirector = val),
-              ),
+              _buildFilterChip("Yönetmen", manager.filterDirector, (val) {
+                setState(() => manager.filterDirector = val);
+              }),
             ],
           ),
+
           const SizedBox(height: 20),
+
+          // --- TÜR SEÇİMİ ---
           Text(
-            "Film Türleri",
-            style: TextStyle(color: AppTheme.primaryBlue, fontSize: 16),
+            "Türler",
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textColor,
+            ),
           ),
           const SizedBox(height: 10),
           Expanded(
             child: SingleChildScrollView(
               child: Wrap(
                 spacing: 8,
-                children: manager.genreNameToId.entries.map((entry) {
+                runSpacing: 8,
+                children: manager.genreMap.entries.map((genre) {
                   final isSelected = manager.activeGenreFilters.contains(
-                    entry.value,
+                    genre.key,
                   );
                   return FilterChip(
-                    label: Text(entry.key),
+                    label: Text(genre.value),
+                    // Yazı Rengi: Seçiliyse Beyaz, Değilse Dinamik (Siyah/Beyaz)
+                    labelStyle: TextStyle(
+                      color: isSelected ? Colors.white : AppTheme.textColor,
+                      fontWeight: FontWeight.bold,
+                    ),
                     selected: isSelected,
-                    onSelected: (val) {
+                    selectedColor: AppTheme.primaryBlue,
+                    backgroundColor: AppTheme.backgroundBlack,
+                    checkmarkColor: Colors.white,
+                    onSelected: (bool selected) {
                       setState(() {
-                        if (val)
-                          manager.activeGenreFilters.add(entry.value);
-                        else
-                          manager.activeGenreFilters.remove(entry.value);
+                        if (selected) {
+                          manager.activeGenreFilters.add(genre.key);
+                        } else {
+                          manager.activeGenreFilters.remove(genre.key);
+                        }
                       });
                     },
-                    backgroundColor: AppTheme.surfaceDark,
-                    selectedColor: AppTheme.primaryBlue,
-                    labelStyle: TextStyle(
-                      color: isSelected ? Colors.black : AppTheme.primaryBlue,
-                    ),
                   );
                 }).toList(),
               ),
             ),
           ),
+
+          const SizedBox(height: 20),
+
+          // UYGULA BUTONU
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.primaryBlue,
+                padding: const EdgeInsets.symmetric(vertical: 15),
               ),
               onPressed: () {
                 Navigator.pop(context);
-                widget.onApply(); // HomeView'daki aramayı tetikle
+                widget.onApply();
               },
-              child: Text(
+              child: const Text(
                 "Uygula",
-                style: TextStyle(
-                  color: AppTheme.primaryBlue,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(color: Colors.white, fontSize: 16),
               ),
             ),
           ),
@@ -117,11 +141,16 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
   ) {
     return FilterChip(
       label: Text(label),
+      // Yazı Rengi Düzeltildi
+      labelStyle: TextStyle(
+        color: isSelected ? Colors.white : AppTheme.textColor,
+        fontWeight: FontWeight.bold,
+      ),
       selected: isSelected,
-      onSelected: onSelected,
-      backgroundColor: AppTheme.surfaceDark,
       selectedColor: AppTheme.primaryBlue,
-      labelStyle: TextStyle(color: isSelected ? Colors.black : Colors.white),
+      backgroundColor: AppTheme.backgroundBlack,
+      checkmarkColor: Colors.white,
+      onSelected: onSelected,
     );
   }
 }

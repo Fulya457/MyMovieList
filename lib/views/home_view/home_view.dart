@@ -120,7 +120,7 @@ class _HomeViewState extends State<HomeView> {
           decoration: InputDecoration(
             hintText: "Liste Adı (örn: İzlenecekler)",
             hintStyle: TextStyle(
-              color: AppTheme.textColor.withValues(alpha: 0.5),
+              color: AppTheme.textColor.withAlpha(128),
             ),
             filled: true,
             fillColor: Colors.black26,
@@ -183,12 +183,12 @@ class _HomeViewState extends State<HomeView> {
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 10),
-              Divider(color: AppTheme.textColor.withValues(alpha: 0.2)),
+              Divider(color: AppTheme.textColor.withAlpha(51)),
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppTheme.primaryBlue.withValues(alpha: 0.2),
+                    color: AppTheme.primaryBlue.withAlpha(51),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(Icons.add, color: AppTheme.primaryBlue),
@@ -222,7 +222,7 @@ class _HomeViewState extends State<HomeView> {
                         child: Text(
                           "Listeniz yok.",
                           style: TextStyle(
-                            color: AppTheme.textColor.withValues(alpha: 0.5),
+                            color: AppTheme.textColor.withAlpha(128),
                           ),
                         ),
                       );
@@ -250,7 +250,7 @@ class _HomeViewState extends State<HomeView> {
                           subtitle: Text(
                             "${items.length} film",
                             style: TextStyle(
-                              color: AppTheme.textColor.withValues(alpha: 0.6),
+                              color: AppTheme.textColor.withAlpha(153),
                             ),
                           ),
                           trailing: alreadyAdded
@@ -319,8 +319,8 @@ class _HomeViewState extends State<HomeView> {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        AppTheme.primaryBlue.withValues(
-                          alpha: isDark ? 0.3 : 0.15,
+                        AppTheme.primaryBlue.withAlpha(
+                          isDark ? 77 : 38,
                         ),
                         AppTheme.backgroundBlack,
                       ],
@@ -360,7 +360,7 @@ class _HomeViewState extends State<HomeView> {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: AppTheme.primaryBlue.withValues(alpha: 0.5),
+                            color: AppTheme.primaryBlue.withAlpha(128),
                             width: 2,
                           ),
                         ),
