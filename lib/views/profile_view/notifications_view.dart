@@ -24,6 +24,13 @@ class _NotificationsViewState extends State<NotificationsView>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+
+    // [YENİ]: Tab değişince AppBar'daki butonu güncellemek için dinleyici ekledik
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) {
+        setState(() {});
+      }
+    });
   }
 
   @override
@@ -32,21 +39,37 @@ class _NotificationsViewState extends State<NotificationsView>
     super.dispose();
   }
 
+  // Silme işlemini o anki sekmeye göre yapan fonksiyon
+  void _handleClearAction() {
+    if (_tabController.index == 0) {
+      // 0. İndeks: Bildirimler
+      SocialService.instance.clearAllNotifications();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Tüm bildirimler silindi.")));
+    } else {
+      // 1. İndeks: Hareket Dökümü
+      SocialService.instance
+          .clearAllActivities(); // SocialService'e eklediğin fonksiyon
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Hareket geçmişi temizlendi.")),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Tema değişince anlık güncellensin diye AnimatedBuilder
     return AnimatedBuilder(
       animation: MovieManager.instance,
       builder: (context, child) {
         return Scaffold(
-          backgroundColor: AppTheme.backgroundBlack, // Dinamik Arka Plan
+          backgroundColor: AppTheme.backgroundBlack,
           appBar: AppBar(
             title: Text(
               'İletişim Merkezi',
               style: TextStyle(color: AppTheme.primaryBlue),
             ),
             backgroundColor: AppTheme.backgroundBlack,
-            // İkonlar (Geri tuşu vs.) aydınlık modda görünsün diye:
             iconTheme: IconThemeData(color: AppTheme.textColor),
             bottom: TabBar(
               controller: _tabController,
@@ -61,10 +84,11 @@ class _NotificationsViewState extends State<NotificationsView>
             actions: [
               IconButton(
                 icon: const Icon(Icons.delete_sweep, color: Colors.redAccent),
-                tooltip: "Bildirimleri Temizle",
-                onPressed: () {
-                  SocialService.instance.clearAllNotifications();
-                },
+                // Tooltip o anki sekmeye göre değişir
+                tooltip: _tabController.index == 0
+                    ? "Bildirimleri Temizle"
+                    : "Geçmişi Temizle",
+                onPressed: _handleClearAction, // Dinamik fonksiyon
               ),
             ],
           ),
@@ -104,74 +128,79 @@ class _NotificationListTabState extends State<NotificationListTab>
       );
     }
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('notifications')
-          .where('recipient_id', isEqualTo: uid)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(
-            child: CircularProgressIndicator(color: AppTheme.primaryBlue),
-          );
-        }
+    return AnimatedBuilder(
+      animation: MovieManager.instance,
+      builder: (context, child) {
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('notifications')
+              .where('recipient_id', isEqualTo: uid)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(
+                child: CircularProgressIndicator(color: AppTheme.primaryBlue),
+              );
+            }
 
-        final docs = snapshot.data?.docs ?? [];
-        if (docs.isEmpty) {
-          return Center(
-            child: Text(
-              "Henüz bir bildirim yok.",
-              style: TextStyle(
-                color: AppTheme.textColor.withValues(alpha: 0.5),
-              ),
-            ),
-          );
-        }
-
-        // Tarihe göre sırala
-        docs.sort((a, b) {
-          Timestamp? t1 = a['timestamp'];
-          Timestamp? t2 = b['timestamp'];
-          if (t1 == null) return 1;
-          if (t2 == null) return -1;
-          return t2.compareTo(t1);
-        });
-
-        return ListView.builder(
-          itemCount: docs.length,
-          itemBuilder: (context, index) {
-            final doc = docs[index];
-            final data = doc.data() as Map<String, dynamic>;
-            bool isRead = data['is_read'] ?? false;
-
-            return Container(
-              color: isRead
-                  ? Colors.transparent
-                  : AppTheme.primaryBlue.withValues(alpha: 0.05),
-              child: ListTile(
-                leading: _buildIcon(data['type']),
-                title: Text(
-                  // Hem 'text' hem 'message' alanını kontrol et
-                  data['text'] ?? data['message'] ?? '',
+            final docs = snapshot.data?.docs ?? [];
+            if (docs.isEmpty) {
+              return Center(
+                child: Text(
+                  "Henüz bir bildirim yok.",
                   style: TextStyle(
-                    color: AppTheme.textColor, // MAVİ/KOYU YAZI (Düzeltildi)
-                    fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
+                    color: AppTheme.textColor.withValues(alpha: 0.5),
                   ),
                 ),
-                subtitle: Text(
-                  _formatDate(data['timestamp']),
-                  style: TextStyle(
-                    color: AppTheme.textColor.withValues(
-                      alpha: 0.6,
-                    ), // Okunaklı Gri/Mavi
-                    fontSize: 12,
+              );
+            }
+
+            docs.sort((a, b) {
+              Timestamp? t1 = a['timestamp'];
+              Timestamp? t2 = b['timestamp'];
+              if (t1 == null) return 1;
+              if (t2 == null) return -1;
+              return t2.compareTo(t1);
+            });
+
+            return ListView.builder(
+              itemCount: docs.length,
+              itemBuilder: (context, index) {
+                final doc = docs[index];
+                final data = doc.data() as Map<String, dynamic>;
+                bool isRead = data['is_read'] ?? false;
+
+                return Container(
+                  color: isRead
+                      ? Colors.transparent
+                      : AppTheme.primaryBlue.withValues(alpha: 0.05),
+                  child: ListTile(
+                    leading: _buildIcon(data['type']),
+                    title: Text(
+                      data['text'] ?? data['message'] ?? '',
+                      style: TextStyle(
+                        color: AppTheme.textColor,
+                        fontWeight: isRead
+                            ? FontWeight.normal
+                            : FontWeight.bold,
+                      ),
+                    ),
+                    subtitle: Text(
+                      _formatDate(data['timestamp']),
+                      style: TextStyle(
+                        color: AppTheme.textColor.withValues(alpha: 0.6),
+                        fontSize: 12,
+                      ),
+                    ),
+                    onTap: () async {
+                      await SocialService.instance.markNotificationAsRead(
+                        doc.id,
+                      );
+                      _navigateBasedOnType(context, data);
+                    },
                   ),
-                ),
-                onTap: () async {
-                  await SocialService.instance.markNotificationAsRead(doc.id);
-                  _navigateBasedOnType(context, data);
-                },
-              ),
+                );
+              },
             );
           },
         );
@@ -198,69 +227,72 @@ class _ActivityLogTabState extends State<ActivityLogTab>
     super.build(context);
     final uid = FirebaseAuth.instance.currentUser?.uid;
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('user_activities')
-          .where('user_id', isEqualTo: uid)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(
-            child: CircularProgressIndicator(color: AppTheme.primaryBlue),
-          );
-        }
+    return AnimatedBuilder(
+      animation: MovieManager.instance,
+      builder: (context, child) {
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('user_activities')
+              .where('user_id', isEqualTo: uid)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(
+                child: CircularProgressIndicator(color: AppTheme.primaryBlue),
+              );
+            }
 
-        final docs = snapshot.data?.docs ?? [];
-        if (docs.isEmpty) {
-          return Center(
-            child: Text(
-              "Henüz bir hareketiniz yok.",
-              style: TextStyle(
-                color: AppTheme.textColor.withValues(alpha: 0.5),
-              ),
-            ),
-          );
-        }
-
-        docs.sort((a, b) {
-          Timestamp? t1 = a['timestamp'];
-          Timestamp? t2 = b['timestamp'];
-          if (t1 == null) return 1;
-          if (t2 == null) return -1;
-          return t2.compareTo(t1);
-        });
-
-        return ListView.builder(
-          itemCount: docs.length,
-          itemBuilder: (context, index) {
-            final data = docs[index].data() as Map<String, dynamic>;
-
-            return ListTile(
-              leading: Icon(Icons.history, color: AppTheme.iconColor),
-              title: Text(
-                data['text'] ?? '',
-                style: TextStyle(
-                  color: AppTheme.textColor.withValues(
-                    alpha: 0.9,
-                  ), // MAVİ/KOYU YAZI (Düzeltildi)
+            final docs = snapshot.data?.docs ?? [];
+            if (docs.isEmpty) {
+              return Center(
+                child: Text(
+                  "Henüz bir hareketiniz yok.",
+                  style: TextStyle(
+                    color: AppTheme.textColor.withValues(alpha: 0.5),
+                  ),
                 ),
-              ),
-              subtitle: Text(
-                _formatDate(data['timestamp']),
-                style: TextStyle(
-                  color: AppTheme.textColor.withValues(alpha: 0.6), // Okunaklı
-                  fontSize: 11,
-                ),
-              ),
-              trailing: Icon(
-                Icons.arrow_forward_ios,
-                size: 14,
-                color: AppTheme.iconColor.withValues(alpha: 0.5),
-              ),
-              onTap: () {
-                if (data['movie_id'] != null && data['movie_id'] != 0) {
-                  _goToMovie(context, data['movie_id']);
-                }
+              );
+            }
+
+            docs.sort((a, b) {
+              Timestamp? t1 = a['timestamp'];
+              Timestamp? t2 = b['timestamp'];
+              if (t1 == null) return 1;
+              if (t2 == null) return -1;
+              return t2.compareTo(t1);
+            });
+
+            return ListView.builder(
+              itemCount: docs.length,
+              itemBuilder: (context, index) {
+                final data = docs[index].data() as Map<String, dynamic>;
+
+                return ListTile(
+                  leading: Icon(Icons.history, color: AppTheme.iconColor),
+                  title: Text(
+                    data['text'] ?? '',
+                    style: TextStyle(
+                      color: AppTheme.textColor.withValues(alpha: 0.9),
+                    ),
+                  ),
+                  subtitle: Text(
+                    _formatDate(data['timestamp']),
+                    style: TextStyle(
+                      color: AppTheme.textColor.withValues(alpha: 0.6),
+                      fontSize: 11,
+                    ),
+                  ),
+                  trailing: Icon(
+                    Icons.arrow_forward_ios,
+                    size: 14,
+                    color: AppTheme.iconColor.withValues(alpha: 0.5),
+                  ),
+                  onTap: () {
+                    if (data['movie_id'] != null && data['movie_id'] != 0) {
+                      _goToMovie(context, data['movie_id']);
+                    }
+                  },
+                );
               },
             );
           },

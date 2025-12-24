@@ -733,6 +733,23 @@ class SocialService {
     }
     await batch.commit();
   }
+  // ... Mevcut clearAllNotifications fonksiyonunun altına ekle ...
+
+  // Hareket Dökümünü (Activity Log) Temizle
+  Future<void> clearAllActivities() async {
+    if (currentUid == null) return;
+
+    final batch = _firestore.batch();
+    final snapshots = await _firestore
+        .collection('user_activities')
+        .where('user_id', isEqualTo: currentUid)
+        .get();
+
+    for (var doc in snapshots.docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
+  }
 
   // 4. Okunmamış bildirimleri dinle
   Stream<QuerySnapshot> getUnreadNotificationsStream() {
