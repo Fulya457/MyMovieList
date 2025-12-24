@@ -65,7 +65,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
     if (directorName == "Unknown" || directorName == "Loading...") return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Yönetmen profili aranıyor...")),
+      const SnackBar(content: Text("Director profile loading...")),
     );
 
     await MovieManager.instance.searchMovies(directorName);
@@ -81,7 +81,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
         context.push('/person-detail', extra: director as Person);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Yönetmen profili bulunamadı.")),
+          const SnackBar(content: Text("Director profile can not be found.")),
         );
       }
     }
@@ -96,7 +96,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceDark,
         title: Text(
-          "Yeni Liste Oluştur",
+          "Create New List",
           style: TextStyle(color: AppTheme.textColor),
         ),
         content: Column(
@@ -106,7 +106,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
               controller: nameController,
               style: TextStyle(color: AppTheme.textColor),
               decoration: InputDecoration(
-                hintText: "Liste Adı (örn: İzlenecekler)",
+                hintText: "List Name",
                 hintStyle: TextStyle(
                   color: AppTheme.textColor.withValues(alpha: 0.5),
                 ),
@@ -119,7 +119,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text("İptal"),
+            child: const Text("Cancel"),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -135,13 +135,13 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text("Liste başarıyla oluşturuldu!"),
+                      content: Text("List is created sucsessfully!"),
                     ),
                   );
                 }
               }
             },
-            child: const Text("Oluştur", style: TextStyle(color: Colors.white)),
+            child: const Text("Create", style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -163,7 +163,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "Listeye Ekle",
+                "Add to list",
                 style: TextStyle(
                   color: AppTheme.textColor,
                   fontSize: 18,
@@ -183,7 +183,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                   child: Icon(Icons.add, color: AppTheme.primaryBlue),
                 ),
                 title: Text(
-                  "Yeni Liste Oluştur",
+                  "Create New List",
                   style: TextStyle(
                     color: AppTheme.primaryBlue,
                     fontWeight: FontWeight.bold,
@@ -216,7 +216,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                     if (movieLists.isEmpty) {
                       return Center(
                         child: Text(
-                          "Mevcut listeniz yok.",
+                          "You have no list yet.",
                           style: TextStyle(
                             color: AppTheme.textColor.withValues(alpha: 0.5),
                           ),
@@ -241,7 +241,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                         return ListTile(
                           leading: Icon(Icons.list, color: AppTheme.iconColor),
                           title: Text(
-                            listData['name'] ?? 'İsimsiz',
+                            listData['name'] ?? 'Untitled',
                             style: TextStyle(color: AppTheme.textColor),
                           ),
                           subtitle: Text(
@@ -264,7 +264,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text(
-                                      "${widget.movie.title} eklendi!",
+                                      "${widget.movie.title} added!",
                                     ),
                                   ),
                                 );
@@ -593,9 +593,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                         children: widget.movie.genres
                             .map(
                               (genre) => InkWell(
-                                onTap: () => context.push(
-                                  '/list/${genre}',
-                                ),
+                                onTap: () => context.push('/list/${genre}'),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 10,

@@ -111,17 +111,15 @@ class _HomeViewState extends State<HomeView> {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceDark,
         title: Text(
-          "Yeni Liste Oluştur",
+          "Create New List",
           style: TextStyle(color: AppTheme.textColor),
         ),
         content: TextField(
           controller: nameController,
           style: TextStyle(color: AppTheme.textColor),
           decoration: InputDecoration(
-            hintText: "Liste Adı (örn: İzlenecekler)",
-            hintStyle: TextStyle(
-              color: AppTheme.textColor.withAlpha(128),
-            ),
+            hintText: "List Name (e.g. Watchlist)",
+            hintStyle: TextStyle(color: AppTheme.textColor.withAlpha(128)),
             filled: true,
             fillColor: Colors.black26,
           ),
@@ -129,7 +127,7 @@ class _HomeViewState extends State<HomeView> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text("İptal"),
+            child: const Text("Cancel"),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -144,14 +142,12 @@ class _HomeViewState extends State<HomeView> {
                 if (mounted) {
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Liste başarıyla oluşturuldu!"),
-                    ),
+                    const SnackBar(content: Text("List created carefully!")),
                   );
                 }
               }
             },
-            child: const Text("Oluştur", style: TextStyle(color: Colors.white)),
+            child: const Text("Create", style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -173,7 +169,7 @@ class _HomeViewState extends State<HomeView> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "Listeye Ekle: ${movie.title}",
+                "Add to List: ${movie.title}",
                 style: TextStyle(
                   color: AppTheme.textColor,
                   fontSize: 18,
@@ -194,7 +190,7 @@ class _HomeViewState extends State<HomeView> {
                   child: Icon(Icons.add, color: AppTheme.primaryBlue),
                 ),
                 title: Text(
-                  "Yeni Liste Oluştur",
+                  "Create New List",
                   style: TextStyle(
                     color: AppTheme.primaryBlue,
                     fontWeight: FontWeight.bold,
@@ -220,7 +216,7 @@ class _HomeViewState extends State<HomeView> {
                     if (snapshot.data!.docs.isEmpty) {
                       return Center(
                         child: Text(
-                          "Listeniz yok.",
+                          "You have no lists yet.",
                           style: TextStyle(
                             color: AppTheme.textColor.withAlpha(128),
                           ),
@@ -244,11 +240,11 @@ class _HomeViewState extends State<HomeView> {
                         return ListTile(
                           leading: Icon(Icons.list, color: AppTheme.iconColor),
                           title: Text(
-                            data['name'] ?? 'İsimsiz',
+                            data['name'] ?? 'Untitled',
                             style: TextStyle(color: AppTheme.textColor),
                           ),
                           subtitle: Text(
-                            "${items.length} film",
+                            "${items.length} movies",
                             style: TextStyle(
                               color: AppTheme.textColor.withAlpha(153),
                             ),
@@ -266,7 +262,7 @@ class _HomeViewState extends State<HomeView> {
                                 Navigator.pop(ctx);
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text("Listeye eklendi!"),
+                                    content: Text("Added to list!"),
                                   ),
                                 );
                               }
@@ -319,9 +315,7 @@ class _HomeViewState extends State<HomeView> {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        AppTheme.primaryBlue.withAlpha(
-                          isDark ? 77 : 38,
-                        ),
+                        AppTheme.primaryBlue.withAlpha(isDark ? 77 : 38),
                         AppTheme.backgroundBlack,
                       ],
                     ),
@@ -407,7 +401,7 @@ class _HomeViewState extends State<HomeView> {
                             controller: _searchController,
                             style: TextStyle(color: AppTheme.textColor),
                             decoration: InputDecoration(
-                              hintText: "Film, Oyuncu, Yönetmen...",
+                              hintText: "Movie, Actor, Director...",
                               hintStyle: TextStyle(
                                 color: AppTheme.textColor.withValues(
                                   alpha: 0.5,
@@ -484,7 +478,7 @@ class _HomeViewState extends State<HomeView> {
                       padding: const EdgeInsets.only(top: 50),
                       child: Center(
                         child: Text(
-                          "Sonuç bulunamadı.",
+                          "No results found.",
                           style: TextStyle(
                             color: AppTheme.textColor.withValues(alpha: 0.5),
                           ),
@@ -523,7 +517,7 @@ class _HomeViewState extends State<HomeView> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          "Trend Filmler",
+                          "Trending Movies",
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -626,7 +620,7 @@ class _HomeViewState extends State<HomeView> {
                         ),
                         const SizedBox(width: 10),
                         Text(
-                          "Popüler Filmler",
+                          "Popular Movies",
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,

@@ -62,7 +62,7 @@ class _AppViewState extends State<AppView> {
                 // Eğer mesajın zamanı, bu ekranın açılış zamanından büyükse göster
                 if (msgTime > _startTimestamp) {
                   final text =
-                      data['text'] ?? data['message'] ?? 'Yeni Bildirim';
+                      data['text'] ?? data['message'] ?? 'New Notification';
                   final type = data['type'] ?? 'general';
                   if (mounted) {
                     _showInAppNotification(text, type, docId);
@@ -113,7 +113,7 @@ class _AppViewState extends State<AppView> {
           ],
         ),
         action: SnackBarAction(
-          label: 'GÖSTER',
+          label: 'SHOW',
           textColor: AppTheme.primaryBlue,
           onPressed: () {
             SocialService.instance.markNotificationAsRead(docId);
