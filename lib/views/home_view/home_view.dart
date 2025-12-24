@@ -210,12 +210,13 @@ class _HomeViewState extends State<HomeView> {
                 child: StreamBuilder<QuerySnapshot>(
                   stream: MovieManager.instance.getUserListsStream(),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData)
+                    if (!snapshot.hasData) {
                       return Center(
                         child: CircularProgressIndicator(
                           color: AppTheme.primaryBlue,
                         ),
                       );
+                    }
                     if (snapshot.data!.docs.isEmpty) {
                       return Center(
                         child: Text(
@@ -233,8 +234,9 @@ class _HomeViewState extends State<HomeView> {
                         final data = doc.data() as Map<String, dynamic>;
                         if (data['type'] != null &&
                             data['type'] != 'movies' &&
-                            data['type'] != 'movie')
+                            data['type'] != 'movie') {
                           return const SizedBox.shrink();
+                        }
                         final items = data['items'] as List? ?? [];
                         final bool alreadyAdded = items.any(
                           (m) => m['id'] == movie.id,
@@ -285,30 +287,32 @@ class _HomeViewState extends State<HomeView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundBlack,
-      body: AnimatedBuilder(
-        animation: MovieManager.instance,
-        builder: (context, child) {
-          final manager = MovieManager.instance;
-          final isDark = manager.isDarkMode;
-          final isSearching =
-              _searchController.text.isNotEmpty ||
-              manager.activeGenreFilters.isNotEmpty ||
-              manager.filterActor ||
-              manager.filterDirector;
+    // [DÜZELTME]: AnimatedBuilder en dışta, Scaffold içinde.
+    return AnimatedBuilder(
+      animation: MovieManager.instance,
+      builder: (context, child) {
+        final manager = MovieManager.instance;
+        final isDark = manager.isDarkMode;
+        // Arama veya filtre aktif mi?
+        final isSearching =
+            _searchController.text.isNotEmpty ||
+            manager.activeGenreFilters.isNotEmpty ||
+            manager.filterActor ||
+            manager.filterDirector;
 
-          return CustomScrollView(
+        return Scaffold(
+          // Rengi buradan dinamik alıyoruz
+          backgroundColor: AppTheme.backgroundBlack,
+          body: CustomScrollView(
             controller: _scrollController,
             slivers: [
-              // --- 1. HEADER (DÜZELTİLDİ: BAŞLIK YERİNDE & GRADIENT VAR) ---
+              // 1. HEADER (SliverAppBar)
               SliverAppBar(
-                expandedHeight: 0, // Expanded kapatıldı, sadece bar kalsın
+                expandedHeight: 0,
                 pinned: true,
                 floating: true,
                 elevation: 0,
                 backgroundColor: AppTheme.backgroundBlack,
-                // Gradient Arka Plan
                 flexibleSpace: Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
@@ -316,14 +320,13 @@ class _HomeViewState extends State<HomeView> {
                       end: Alignment.bottomCenter,
                       colors: [
                         AppTheme.primaryBlue.withValues(
-                          alpha: isDark ? 0.3 : 0.2,
-                        ), // Üst taraf hafif mavi
-                        AppTheme.backgroundBlack, // Alt taraf tema rengi
+                          alpha: isDark ? 0.3 : 0.15,
+                        ),
+                        AppTheme.backgroundBlack,
                       ],
                     ),
                   ),
                 ),
-                // Başlık
                 title: GestureDetector(
                   onTap: _resetHome,
                   child: Row(
@@ -337,7 +340,7 @@ class _HomeViewState extends State<HomeView> {
                       Text(
                         "MyMovieList",
                         style: TextStyle(
-                          color: AppTheme.textColor, // Dinamik
+                          color: AppTheme.textColor,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1.0,
                           fontSize: 22,
@@ -381,7 +384,7 @@ class _HomeViewState extends State<HomeView> {
                 ],
               ),
 
-              // --- 2. ARAMA ÇUBUĞU ---
+              // 2. ARAMA ÇUBUĞU
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
@@ -404,7 +407,7 @@ class _HomeViewState extends State<HomeView> {
                             controller: _searchController,
                             style: TextStyle(color: AppTheme.textColor),
                             decoration: InputDecoration(
-                              hintText: "Search Movies, Actors...",
+                              hintText: "Film, Oyuncu, Yönetmen...",
                               hintStyle: TextStyle(
                                 color: AppTheme.textColor.withValues(
                                   alpha: 0.5,
@@ -434,7 +437,6 @@ class _HomeViewState extends State<HomeView> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      // Filtre Butonu
                       Container(
                         decoration: BoxDecoration(
                           color: AppTheme.surfaceDark,
@@ -474,7 +476,7 @@ class _HomeViewState extends State<HomeView> {
                 ),
               ),
 
-              // --- 3. İÇERİK ---
+              // 3. İÇERİK (Liste veya Arama Sonuçları)
               if (isSearching) ...[
                 if (manager.searchResults.isEmpty)
                   SliverToBoxAdapter(
@@ -543,6 +545,7 @@ class _HomeViewState extends State<HomeView> {
                         enlargeCenterPage: true,
                         viewportFraction: 0.65,
                         autoPlayInterval: const Duration(seconds: 6),
+                        enableInfiniteScroll: true,
                       ),
                       items: manager.trendingMovies.map((movie) {
                         return GestureDetector(
@@ -561,6 +564,7 @@ class _HomeViewState extends State<HomeView> {
                                   errorWidget: (c, u, e) =>
                                       Container(color: Colors.grey),
                                 ),
+                                // [DÜZELTME]: Siyah gölge yerine Tema Rengi
                                 Container(
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
@@ -568,9 +572,11 @@ class _HomeViewState extends State<HomeView> {
                                       end: Alignment.bottomCenter,
                                       colors: [
                                         Colors.transparent,
-                                        Colors.transparent,
+                                        AppTheme.backgroundBlack.withValues(
+                                          alpha: 1.0,
+                                        ),
                                       ],
-                                      stops: const [0.6, 1.0],
+                                      stops: const [0.5, 1.0],
                                     ),
                                   ),
                                 ),
@@ -581,7 +587,7 @@ class _HomeViewState extends State<HomeView> {
                                   child: Text(
                                     movie.title,
                                     style: TextStyle(
-                                      color: AppTheme.textColor, // Dinamik Renk
+                                      color: AppTheme.textColor,
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,
                                       shadows: [
@@ -634,154 +640,171 @@ class _HomeViewState extends State<HomeView> {
 
                 // POPULAR LIST (Dikey)
                 SliverList(
-                  delegate: SliverChildBuilderDelegate((context, index) {
-                    final movie = manager.allMovies[index];
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: GestureDetector(
-                        onTap: () =>
-                            context.push('/movie-detail', extra: movie),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: AppTheme.surfaceDark,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.03),
-                                blurRadius: 8,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          padding: const EdgeInsets.all(10),
-                          child: Row(
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Hero(
-                                  tag: 'movie_${movie.id}',
-                                  child: CachedNetworkImage(
-                                    imageUrl: movie.poster,
-                                    width: 80,
-                                    height: 120,
-                                    fit: BoxFit.cover,
-                                    memCacheWidth: 200,
-                                    placeholder: (c, u) => Container(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final movie = manager.allMovies[index];
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: GestureDetector(
+                          onTap: () =>
+                              context.push('/movie-detail', extra: movie),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: AppTheme.surfaceDark,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.05),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            padding: const EdgeInsets.all(10),
+                            child: Row(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Hero(
+                                    tag: 'movie_${movie.id}',
+                                    child: CachedNetworkImage(
+                                      imageUrl: movie.poster,
                                       width: 80,
                                       height: 120,
-                                      color: AppTheme.backgroundBlack,
-                                    ),
-                                    errorWidget: (c, u, e) => Container(
-                                      width: 80,
-                                      height: 120,
-                                      color: Colors.grey,
+                                      fit: BoxFit.cover,
+                                      memCacheWidth: 200,
+                                      placeholder: (c, u) => Container(
+                                        width: 80,
+                                        height: 120,
+                                        color: AppTheme.backgroundBlack,
+                                      ),
+                                      errorWidget: (c, u, e) => Container(
+                                        width: 80,
+                                        height: 120,
+                                        color: Colors.grey,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 15),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                const SizedBox(width: 15),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        movie.title,
+                                        style: TextStyle(
+                                          color: AppTheme.textColor,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.star,
+                                            color: Colors.amber,
+                                            size: 16,
+                                          ),
+                                          Text(
+                                            " ${movie.rating.toStringAsFixed(1)}",
+                                            style: TextStyle(
+                                              color: AppTheme.textColor
+                                                  .withValues(alpha: 0.7),
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      if (movie.genres.isNotEmpty)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: AppTheme.primaryBlue
+                                                .withValues(alpha: 0.1),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            movie.genres.first,
+                                            style: TextStyle(
+                                              color: AppTheme.primaryBlue,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                Column(
                                   children: [
-                                    Text(
-                                      movie.title,
-                                      style: TextStyle(
-                                        color: AppTheme.textColor,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
+                                    IconButton(
+                                      icon: Icon(
+                                        manager.isFavorite(movie)
+                                            ? Icons.favorite
+                                            : Icons.favorite_border,
+                                        color: manager.isFavorite(movie)
+                                            ? Colors.red
+                                            : AppTheme.iconColor.withValues(
+                                                alpha: 0.5,
+                                              ),
                                       ),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
+                                      onPressed: () =>
+                                          manager.toggleFavorite(movie),
                                     ),
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.star,
-                                          color: Colors.amber,
-                                          size: 16,
-                                        ),
-                                        Text(
-                                          " ${movie.rating.toStringAsFixed(1)}",
-                                          style: TextStyle(
-                                            color: AppTheme.textColor
-                                                .withValues(alpha: 0.7),
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-                                    if (movie.genres.isNotEmpty)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: AppTheme.primaryBlue
-                                              .withValues(alpha: 0.1),
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          movie.genres.first,
-                                          style: TextStyle(
-                                            color: AppTheme.primaryBlue,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                          ),
+                                    IconButton(
+                                      icon: Icon(
+                                        Icons.playlist_add,
+                                        color: AppTheme.iconColor.withValues(
+                                          alpha: 0.5,
                                         ),
                                       ),
+                                      onPressed: () =>
+                                          _showAddToListSheet(context, movie),
+                                    ),
                                   ],
                                 ),
-                              ),
-                              Column(
-                                children: [
-                                  IconButton(
-                                    icon: Icon(
-                                      manager.isFavorite(movie)
-                                          ? Icons.favorite
-                                          : Icons.favorite_border,
-                                      color: manager.isFavorite(movie)
-                                          ? Colors.red
-                                          : AppTheme.iconColor.withValues(
-                                              alpha: 0.5,
-                                            ),
-                                    ),
-                                    onPressed: () =>
-                                        manager.toggleFavorite(movie),
-                                  ),
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.playlist_add,
-                                      color: AppTheme.iconColor.withValues(
-                                        alpha: 0.5,
-                                      ),
-                                    ),
-                                    onPressed: () =>
-                                        _showAddToListSheet(context, movie),
-                                  ),
-                                ],
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    );
-                  }, childCount: manager.allMovies.length),
+                      );
+                    },
+                    childCount: manager.allMovies.length,
+                    addAutomaticKeepAlives: false,
+                    addRepaintBoundaries: true,
+                  ),
                 ),
+                if (manager.isFetching)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: AppTheme.primaryBlue,
+                        ),
+                      ),
+                    ),
+                  ),
                 const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
               ],
             ],
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }

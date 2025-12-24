@@ -56,24 +56,27 @@ class _PersonDetailViewState extends State<PersonDetailView> {
     }
   }
 
-  // --- YENİ EKLENEN: LİSTE OLUŞTURMA PENCERESİ ---
+  // --- LİSTE OLUŞTURMA PENCERESİ ---
   void _showCreateListDialog() {
     final nameController = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceDark,
-        title: const Text(
+        title: Text(
           "Yeni Kişi Listesi",
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: AppTheme.textColor), // Mavi/Beyaz Yazı
         ),
         content: TextField(
           controller: nameController,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
+          style: TextStyle(color: AppTheme.textColor), // Mavi/Beyaz Yazı
+          decoration: InputDecoration(
             hintText: "Liste Adı...",
+            hintStyle: TextStyle(
+              color: AppTheme.textColor.withValues(alpha: 0.5),
+            ),
             filled: true,
-            fillColor: Colors.black26,
+            fillColor: Colors.black12, // Hafif koyuluk
           ),
         ),
         actions: [
@@ -107,7 +110,7 @@ class _PersonDetailViewState extends State<PersonDetailView> {
     );
   }
 
-  // LİSTEYE EKLEME PENCERESİ (Sadece Kişi Listeleri)
+  // LİSTEYE EKLEME PENCERESİ
   void _showAddToListSheet() {
     showModalBottomSheet(
       context: context,
@@ -123,8 +126,8 @@ class _PersonDetailViewState extends State<PersonDetailView> {
             children: [
               Text(
                 "Listeye Ekle: ${widget.person.name}",
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: AppTheme.textColor, // Mavi/Beyaz Yazı
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
@@ -134,8 +137,9 @@ class _PersonDetailViewState extends State<PersonDetailView> {
                 child: StreamBuilder<QuerySnapshot>(
                   stream: MovieManager.instance.getUserListsStream(),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData)
+                    if (!snapshot.hasData) {
                       return const Center(child: CircularProgressIndicator());
+                    }
                     final docs = snapshot.data!.docs;
 
                     final personLists = docs.where((d) {
@@ -148,19 +152,20 @@ class _PersonDetailViewState extends State<PersonDetailView> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Text(
+                            Text(
                               "Hiç kişi listeniz yok.",
-                              style: TextStyle(color: Colors.grey),
+                              style: TextStyle(
+                                color: AppTheme.textColor.withValues(
+                                  alpha: 0.5,
+                                ),
+                              ),
                             ),
                             const SizedBox(height: 10),
-                            // YENİ EKLENEN BUTON
                             ElevatedButton(
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppTheme.primaryBlue,
                               ),
                               onPressed: () {
-                                // BottomSheet açık kalabilir, dialog üstüne açılır
-                                // Liste oluşunca Stream sayesinde burası otomatik güncellenir
                                 _showCreateListDialog();
                               },
                               child: const Text(
@@ -184,17 +189,19 @@ class _PersonDetailViewState extends State<PersonDetailView> {
                         );
 
                         return ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.person_add,
-                            color: Colors.white,
+                            color: AppTheme.iconColor,
                           ),
                           title: Text(
                             data['name'],
-                            style: const TextStyle(color: Colors.white),
+                            style: TextStyle(color: AppTheme.textColor),
                           ),
                           subtitle: Text(
                             "${items.length} kişi",
-                            style: const TextStyle(color: Colors.grey),
+                            style: TextStyle(
+                              color: AppTheme.textColor.withValues(alpha: 0.6),
+                            ),
                           ),
                           trailing: exists
                               ? const Icon(Icons.check, color: Colors.green)
@@ -228,172 +235,187 @@ class _PersonDetailViewState extends State<PersonDetailView> {
 
   @override
   Widget build(BuildContext context) {
-    final manager = MovieManager.instance;
-    final isFav = manager.isPersonFavorite(widget.person);
+    // AnimatedBuilder eklenerek tema değişimi dinleniyor
+    return AnimatedBuilder(
+      animation: MovieManager.instance,
+      builder: (context, child) {
+        final manager = MovieManager.instance;
+        final isFav = manager.isPersonFavorite(widget.person);
 
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundBlack,
-      body: CustomScrollView(
-        slivers: [
-          // 1. ÜST PROFİL RESMİ
-          SliverAppBar(
-            backgroundColor: AppTheme.backgroundBlack,
-            expandedHeight: 350,
-            pinned: true,
-            flexibleSpace: FlexibleSpaceBar(
-              background: CachedNetworkImage(
-                imageUrl: widget.person.profilePath,
-                fit: BoxFit.cover,
-                alignment: Alignment.topCenter,
-              ),
-            ),
-            leading: IconButton(
-              icon: const CircleAvatar(
-                backgroundColor: Colors.black54,
-                child: Icon(Icons.arrow_back, color: Colors.white),
-              ),
-              onPressed: () => context.pop(),
-            ),
-            actions: [
-              IconButton(
-                icon: const CircleAvatar(
-                  backgroundColor: Colors.black54,
-                  child: Icon(Icons.playlist_add, color: Colors.white),
-                ),
-                onPressed: _showAddToListSheet,
-              ),
-              IconButton(
-                icon: CircleAvatar(
-                  backgroundColor: Colors.black54,
-                  child: Icon(
-                    isFav ? Icons.favorite : Icons.favorite_border,
-                    color: isFav ? Colors.red : Colors.white,
+        return Scaffold(
+          backgroundColor: AppTheme.backgroundBlack, // Dinamik Arka Plan
+          body: CustomScrollView(
+            slivers: [
+              // 1. ÜST PROFİL RESMİ
+              SliverAppBar(
+                backgroundColor: AppTheme.backgroundBlack,
+                expandedHeight: 350,
+                pinned: true,
+                flexibleSpace: FlexibleSpaceBar(
+                  background: CachedNetworkImage(
+                    imageUrl: widget.person.profilePath,
+                    fit: BoxFit.cover,
+                    alignment: Alignment.topCenter,
                   ),
                 ),
-                onPressed: () => manager.togglePersonFavorite(widget.person),
-              ),
-            ],
-          ),
-
-          // 2. İSİM VE BİYOGRAFİ
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.person.name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
+                leading: IconButton(
+                  icon: const CircleAvatar(
+                    backgroundColor: Colors.black54,
+                    child: Icon(Icons.arrow_back, color: Colors.white),
+                  ),
+                  onPressed: () => context.pop(),
+                ),
+                actions: [
+                  IconButton(
+                    icon: const CircleAvatar(
+                      backgroundColor: Colors.black54,
+                      child: Icon(Icons.playlist_add, color: Colors.white),
                     ),
+                    onPressed: _showAddToListSheet,
                   ),
-                  const SizedBox(height: 5),
-                  Text(
-                    "Known for: ${widget.person.knownFor}",
-                    style: TextStyle(color: AppTheme.primaryBlue, fontSize: 16),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Biyografi
-                  const Text(
-                    "Biography",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    widget.person.biography.isNotEmpty
-                        ? widget.person.biography
-                        : "No biography available.",
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 15,
-                      height: 1.5,
-                    ),
-                    maxLines: 6,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-
-                  const SizedBox(height: 30),
-
-                  // --- FİLM ARAMA ALANI ---
-                  const Text(
-                    "Filmography",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: _searchController,
-                    style: const TextStyle(color: Colors.white),
-                    onChanged: _searchMovies,
-                    decoration: InputDecoration(
-                      hintText: "${widget.person.name} filmlerinde ara...",
-                      hintStyle: TextStyle(color: Colors.grey[600]),
-                      prefixIcon: Icon(
-                        Icons.search,
-                        color: AppTheme.primaryBlue,
-                      ),
-                      filled: true,
-                      fillColor: AppTheme.surfaceDark,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
+                  IconButton(
+                    icon: CircleAvatar(
+                      backgroundColor: Colors.black54,
+                      child: Icon(
+                        isFav ? Icons.favorite : Icons.favorite_border,
+                        color: isFav ? Colors.red : Colors.white,
                       ),
                     ),
+                    onPressed: () =>
+                        manager.togglePersonFavorite(widget.person),
                   ),
-                  const SizedBox(height: 10),
                 ],
               ),
-            ),
-          ),
 
-          // 3. FİLM IZGARASI (GRID)
-          if (_filteredMovies.isEmpty)
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.all(40),
-                child: Center(
-                  child: Text(
-                    "Film bulunamadı.",
-                    style: TextStyle(color: Colors.grey),
+              // 2. İSİM VE BİYOGRAFİ
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.person.name,
+                        style: TextStyle(
+                          color: AppTheme.textColor, // Mavi/Beyaz Yazı
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        "Known for: ${widget.person.knownFor}",
+                        style: TextStyle(
+                          color: AppTheme.primaryBlue,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Biyografi
+                      Text(
+                        "Biography",
+                        style: TextStyle(
+                          color: AppTheme.textColor, // Mavi/Beyaz Yazı
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        widget.person.biography.isNotEmpty
+                            ? widget.person.biography
+                            : "No biography available.",
+                        style: TextStyle(
+                          color: AppTheme.textColor.withValues(alpha: 0.8),
+                          fontSize: 15,
+                          height: 1.5,
+                        ),
+                        maxLines: 6,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+
+                      const SizedBox(height: 30),
+
+                      // --- FİLM ARAMA ALANI ---
+                      Text(
+                        "Filmography",
+                        style: TextStyle(
+                          color: AppTheme.textColor, // Mavi/Beyaz Yazı
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _searchController,
+                        style: TextStyle(color: AppTheme.textColor),
+                        onChanged: _searchMovies,
+                        decoration: InputDecoration(
+                          hintText: "${widget.person.name} filmlerinde ara...",
+                          hintStyle: TextStyle(
+                            color: AppTheme.textColor.withValues(alpha: 0.5),
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search,
+                            color: AppTheme.primaryBlue,
+                          ),
+                          filled: true,
+                          fillColor: AppTheme.surfaceDark,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
                   ),
                 ),
               ),
-            )
-          else
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              sliver: SliverGrid(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  childAspectRatio: 0.65,
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 10,
-                ),
-                delegate: SliverChildBuilderDelegate((context, index) {
-                  final movie = _filteredMovies[index];
-                  // MovieCard kullanıyoruz (Grid modunda)
-                  return MovieCard(movie: movie, isGrid: true);
-                }, childCount: _filteredMovies.length),
-              ),
-            ),
 
-          const SliverPadding(padding: EdgeInsets.only(bottom: 50)),
-        ],
-      ),
+              // 3. FİLM IZGARASI (GRID)
+              if (_filteredMovies.isEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(40),
+                    child: Center(
+                      child: Text(
+                        "Film bulunamadı.",
+                        style: TextStyle(
+                          color: AppTheme.textColor.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  sliver: SliverGrid(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          childAspectRatio: 0.65,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                        ),
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final movie = _filteredMovies[index];
+                      // MovieCard kullanıyoruz (Grid modunda)
+                      return MovieCard(movie: movie, isGrid: true);
+                    }, childCount: _filteredMovies.length),
+                  ),
+                ),
+
+              const SliverPadding(padding: EdgeInsets.only(bottom: 50)),
+            ],
+          ),
+        );
+      },
     );
   }
 }

@@ -1,7 +1,11 @@
+// Dosya: lib/views/recommended_view/recommended_view.dart
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mymovielist/app/theme.dart';
+import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/data/movie_manager.dart';
+import 'package:mymovielist/models/movie_model.dart';
 
 class RecommendedView extends StatefulWidget {
   const RecommendedView({super.key});
@@ -14,7 +18,6 @@ class _RecommendedViewState extends State<RecommendedView> {
   @override
   void initState() {
     super.initState();
-    // Sayfa açıldığında Firestore'dan Top Rated listesini çek
     MovieManager.instance.fetchAppTopRatedMovies();
   }
 
@@ -23,56 +26,100 @@ class _RecommendedViewState extends State<RecommendedView> {
     return ListenableBuilder(
       listenable: MovieManager.instance,
       builder: (context, child) {
-        // ARTIK TMDB DEĞİL, UYGULAMA İÇİ PUANLARI ALIYORUZ
         final appTopRated = MovieManager.instance.appTopRatedMovies;
         final recommendedByGenre = MovieManager.instance
             .recommendByFavoriteGenres();
+        final isDark = MovieManager.instance.isDarkMode;
 
         return Scaffold(
           backgroundColor: AppTheme.backgroundBlack,
-          appBar: AppBar(
-            title: Text(
-              'FOR YOU',
-              style: TextStyle(
-                color: AppTheme.primaryBlue,
-                fontWeight: FontWeight.bold,
+          body: CustomScrollView(
+            slivers: [
+              // --- GRADIENT HEADER ---
+              SliverAppBar(
+                expandedHeight: 120,
+                pinned: true,
+                backgroundColor: AppTheme.backgroundBlack,
+                // GERİ TUŞU EKLENDİ
+                leading: IconButton(
+                  icon: Icon(Icons.arrow_back, color: AppTheme.textColor),
+                  onPressed: () => context.go(AppRouters.home),
+                ),
+                flexibleSpace: FlexibleSpaceBar(
+                  background: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.orangeAccent.withValues(
+                            alpha: isDark ? 0.3 : 0.15,
+                          ),
+                          AppTheme.backgroundBlack,
+                        ],
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        'FOR YOU',
+                        style: TextStyle(
+                          color: AppTheme.textColor, // Mavi/Beyaz
+                          fontWeight: FontWeight.w900,
+                          fontSize: 26,
+                          letterSpacing: 2.0,
+                          shadows: [
+                            Shadow(
+                              color: Colors.orangeAccent.withValues(alpha: 0.5),
+                              blurRadius: 15,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
-            ),
-            backgroundColor: AppTheme.backgroundBlack,
-          ),
-          body: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
+
               // --- 1. KISIM: KULLANICI PUANLI FİLMLER ---
-              _buildSectionTitle(
-                context,
-                'Users\' Choice (App Rated > 6)',
-                Icons.stars,
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: _buildSectionTitle(
+                    context,
+                    'Users\' Choice (App Rated > 6)',
+                    Icons.stars,
+                  ),
+                ),
               ),
-              const SizedBox(height: 10),
-              // Eğer liste boşsa kullanıcıya bilgi ver
-              _buildMovieList(
+
+              _buildMovieListSliver(
                 context,
                 appTopRated,
                 'No ratings yet. Rate some movies to see them here!',
               ),
 
-              const SizedBox(height: 30),
+              SliverToBoxAdapter(child: const SizedBox(height: 30)),
 
               // --- 2. KISIM: FAVORİ TÜR ÖNERİLERİ ---
-              _buildSectionTitle(
-                context,
-                'Based on Your Favorites',
-                Icons.category,
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: _buildSectionTitle(
+                    context,
+                    'Based on Your Favorites',
+                    Icons.category,
+                  ),
+                ),
               ),
-              const SizedBox(height: 10),
-              _buildMovieList(
+              SliverToBoxAdapter(child: const SizedBox(height: 10)),
+
+              _buildMovieListSliver(
                 context,
                 recommendedByGenre,
                 'Add favorites to get genre recommendations.',
               ),
 
-              const SizedBox(height: 40),
+              const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
             ],
           ),
         );
@@ -85,49 +132,68 @@ class _RecommendedViewState extends State<RecommendedView> {
       children: [
         Icon(icon, color: AppTheme.primaryBlue, size: 24),
         const SizedBox(width: 8),
-        Text(
-          title,
-          style: TextStyle(
-            color: AppTheme.primaryBlue,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyle(
+              color: AppTheme.textColor, // Mavi/Beyaz
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildMovieList(
+  Widget _buildMovieListSliver(
     BuildContext context,
     List<Movie> movies,
     String emptyMessage,
   ) {
     if (movies.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 10),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppTheme.surfaceDark,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey.withOpacity(0.3)),
-          ),
-          child: Text(
-            emptyMessage,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.grey),
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceDark,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: AppTheme.textColor.withValues(alpha: 0.1),
+              ),
+            ),
+            child: Text(
+              emptyMessage,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppTheme.textColor.withValues(alpha: 0.5),
+              ),
+            ),
           ),
         ),
       );
     }
 
-    return Column(
-      children: movies.map((movie) {
+    return SliverList(
+      delegate: SliverChildBuilderDelegate((context, index) {
+        final movie = movies[index];
         final isFav = MovieManager.instance.isFavorite(movie);
         return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Card(
-            color: AppTheme.surfaceDark,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceDark,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 5,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
             child: ListTile(
               onTap: () => context.push('/movie-detail', extra: movie),
               leading: ClipRRect(
@@ -138,38 +204,50 @@ class _RecommendedViewState extends State<RecommendedView> {
                   height: 75,
                   fit: BoxFit.cover,
                   alignment: Alignment.topCenter,
+                  errorBuilder: (c, o, s) =>
+                      Container(width: 50, height: 75, color: Colors.grey),
                 ),
               ),
               title: Text(
                 movie.title,
-                style: TextStyle(color: AppTheme.primaryBlue),
+                style: TextStyle(
+                  color: AppTheme.textColor, // Mavi/Beyaz
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               subtitle: Row(
                 children: [
                   Text(
-                    '${movie.genres.isNotEmpty ? movie.genres.first : 'Movie'}',
+                    movie.genres.isNotEmpty ? movie.genres.first : 'Movie',
                     style: TextStyle(
-                      color: AppTheme.primaryBlue.withOpacity(0.8),
+                      color: AppTheme.textColor.withValues(alpha: 0.6),
+                      fontSize: 12,
                     ),
                   ),
                   if (movie.appRating != null && movie.appRating! > 0)
                     Text(
                       ' • ⭐ ${movie.appRating!.toStringAsFixed(1)} (App)',
-                      style: const TextStyle(color: Colors.amber, fontSize: 12),
+                      style: const TextStyle(
+                        color: Colors.amber,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                 ],
               ),
               trailing: IconButton(
                 icon: Icon(
                   isFav ? Icons.favorite : Icons.favorite_border,
-                  color: isFav ? AppTheme.primaryBlue : Colors.grey,
+                  color: isFav
+                      ? Colors.redAccent
+                      : AppTheme.iconColor.withValues(alpha: 0.5),
                 ),
                 onPressed: () => MovieManager.instance.toggleFavorite(movie),
               ),
             ),
           ),
         );
-      }).toList(),
+      }, childCount: movies.length),
     );
   }
 }

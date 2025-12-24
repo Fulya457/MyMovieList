@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 // View Importları
 import 'package:mymovielist/views/app_view.dart';
@@ -29,24 +30,24 @@ import 'package:mymovielist/views/profile_view/user_reviews_view.dart';
 // Modeller
 import 'package:mymovielist/models/movie_model.dart';
 import 'package:mymovielist/models/person_model.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 // --- 1. SABİT YOLLAR (CONSTANTS) ---
 class AppRouters {
   static const String login = '/login';
   static const String welcome = '/welcome';
   static const String home = '/home';
-  static const String list = '/list';
+  static const String categories =
+      '/categories'; // 'list' yerine daha açıklayıcı
   static const String favorites = '/favorites';
   static const String recommends = '/recommends';
-  static const String genreMovies = '/genre/:genre';
+  static const String genreMovies = 'genre-movies'; // İsim olarak kullanacağız
 
   // Detaylar
   static const String movieDetail = '/movie-detail';
   static const String personDetail = '/person-detail';
 
   // Profil ve Sosyal
-  static const String profile = '/profile'; // <-- İsim tanımlıydı
+  static const String profile = '/profile';
   static const String friends = '/friends';
   static const String notifications = '/notifications';
   static const String chat = '/chat';
@@ -58,7 +59,7 @@ class AppRouters {
 // --- 2. ROUTER AYARLARI ---
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorHome = GlobalKey<NavigatorState>(debugLabel: 'shellHome');
-final _shellNavigatorList = GlobalKey<NavigatorState>(debugLabel: 'shellList');
+final _shellNavigatorCat = GlobalKey<NavigatorState>(debugLabel: 'shellCat');
 final _shellNavigatorFav = GlobalKey<NavigatorState>(debugLabel: 'shellFav');
 final _shellNavigatorRec = GlobalKey<NavigatorState>(debugLabel: 'shellRec');
 
@@ -79,7 +80,7 @@ final router = GoRouter(
       },
     ),
 
-    // 2. Detay Sayfaları (Alt menüden bağımsız tam ekran açılırlar)
+    // 2. Detay Sayfaları (Alt menüden bağımsız tam ekran açılırlar - Root Navigator)
     GoRoute(
       path: AppRouters.movieDetail,
       parentNavigatorKey: _rootNavigatorKey,
@@ -104,25 +105,23 @@ final router = GoRouter(
         return PersonDetailView(person: state.extra as Person);
       },
     ),
+    // Tür Sayfası (Home'dan direkt çağrılırsa diye burada da var)
     GoRoute(
-      path: AppRouters.genreMovies,
+      path: '/genre/:genre',
+      name: AppRouters.genreMovies,
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) {
-        final genreName = state.pathParameters['genre']!;
+        final genreName = state.pathParameters['genre'] ?? 'Generic';
         return GenreMoviesView(genre: genreName);
       },
     ),
 
-    // --- SOSYAL SAYFALAR ---
-
-    // !!! İŞTE EKSİK OLAN PARÇA BURASIYDI: PROFİL SAYFASI !!!
+    // --- SOSYAL SAYFALAR (Profil Altındakiler) ---
     GoRoute(
       path: AppRouters.profile,
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => const ProfileView(),
     ),
-
-    // -------------------------------------------------------
     GoRoute(
       path: AppRouters.friends,
       parentNavigatorKey: _rootNavigatorKey,
@@ -164,15 +163,6 @@ final router = GoRouter(
         );
       },
     ),
-    GoRoute(
-      path: AppRouters.genreMovies, // '/genre/:genre'
-      parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) {
-        // Parametreyi al (örn: Action)
-        final genreName = state.pathParameters['genre'] ?? 'Generic';
-        return GenreMoviesView(genre: genreName);
-      },
-    ),
 
     // 3. ANA UYGULAMA (ALT MENÜLÜ YAPI)
     StatefulShellRoute.indexedStack(
@@ -189,19 +179,20 @@ final router = GoRouter(
             ),
           ],
         ),
-        // B. Categories Tab
-        // B. Categories Tab (GÜNCELLENMİŞ HALİ)
+
+        // B. Categories Tab (DÜZELTİLDİ: Alt Rota Eklendi)
         StatefulShellBranch(
-          navigatorKey: _shellNavigatorList,
+          navigatorKey: _shellNavigatorCat,
           routes: [
             GoRoute(
-              path: AppRouters.list,
+              path: AppRouters.categories,
               builder: (context, state) => const CategoriesView(),
-              // ↓↓↓ BU KISMI EKLİYORUZ ↓↓↓
               routes: [
+                // Kategoriler sayfasından bir türe tıklanınca buraya düşecek
+                // Böylece alt menü kaybolacak ve geri butonu çalışacak
                 GoRoute(
-                  path: ':genre', // Bu sayede '/list/Action' çalışacak
-                  parentNavigatorKey: _rootNavigatorKey, // Alt menüyü gizle
+                  path: ':genre', // Örn: /categories/Action
+                  parentNavigatorKey: _rootNavigatorKey,
                   builder: (context, state) {
                     final genreName =
                         state.pathParameters['genre'] ?? 'Generic';
@@ -209,10 +200,10 @@ final router = GoRouter(
                   },
                 ),
               ],
-              // ↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑
             ),
           ],
         ),
+
         // C. Favorites Tab
         StatefulShellBranch(
           navigatorKey: _shellNavigatorFav,
@@ -223,6 +214,7 @@ final router = GoRouter(
             ),
           ],
         ),
+
         // D. Recommended (For You) Tab
         StatefulShellBranch(
           navigatorKey: _shellNavigatorRec,

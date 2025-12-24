@@ -34,48 +34,51 @@ class _NotificationsViewState extends State<NotificationsView>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundBlack,
-      appBar: AppBar(
-        title: Text(
-          'İletişim Merkezi',
-          style: TextStyle(color: AppTheme.primaryBlue),
-        ),
-        backgroundColor: AppTheme.backgroundBlack,
-        iconTheme: const IconThemeData(color: Colors.white),
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: AppTheme.primaryBlue,
-          labelColor: AppTheme.primaryBlue,
-          unselectedLabelColor: Colors.grey,
-          tabs: const [
-            Tab(text: "Bildirimler"),
-            Tab(text: "Hareket Dökümü"),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_sweep, color: Colors.redAccent),
-            tooltip: "Bildirimleri Temizle",
-            onPressed: () {
-              SocialService.instance.clearAllNotifications();
-            },
+    // TEMA DİNLEYİCİSİ EKLENDİ
+    return AnimatedBuilder(
+      animation: MovieManager.instance,
+      builder: (context, child) {
+        return Scaffold(
+          backgroundColor: AppTheme.backgroundBlack, // Dinamik Arka Plan
+          appBar: AppBar(
+            title: Text(
+              'İletişim Merkezi',
+              style: TextStyle(color: AppTheme.primaryBlue),
+            ),
+            backgroundColor: AppTheme.backgroundBlack,
+            // İkonlar aydınlık modda görünsün diye textColor kullanıldı
+            iconTheme: IconThemeData(color: AppTheme.textColor),
+            bottom: TabBar(
+              controller: _tabController,
+              indicatorColor: AppTheme.primaryBlue,
+              labelColor: AppTheme.primaryBlue,
+              unselectedLabelColor: Colors.grey,
+              tabs: const [
+                Tab(text: "Bildirimler"),
+                Tab(text: "Hareket Dökümü"),
+              ],
+            ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.delete_sweep, color: Colors.redAccent),
+                tooltip: "Bildirimleri Temizle",
+                onPressed: () {
+                  SocialService.instance.clearAllNotifications();
+                },
+              ),
+            ],
           ),
-        ],
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: const [
-          // Sayfaları ayrı widgetlara böldük ve KeepAlive ekledik
-          NotificationListTab(),
-          ActivityLogTab(),
-        ],
-      ),
+          body: TabBarView(
+            controller: _tabController,
+            children: const [NotificationListTab(), ActivityLogTab()],
+          ),
+        );
+      },
     );
   }
 }
 
-// --- 1. BİLDİRİMLER SEKMESİ (KeepAlive Ekli) ---
+// --- 1. BİLDİRİMLER SEKMESİ ---
 class NotificationListTab extends StatefulWidget {
   const NotificationListTab({super.key});
 
@@ -86,13 +89,20 @@ class NotificationListTab extends StatefulWidget {
 class _NotificationListTabState extends State<NotificationListTab>
     with AutomaticKeepAliveClientMixin {
   @override
-  bool get wantKeepAlive => true; // Sayfayı canlı tut
+  bool get wantKeepAlive => true;
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return const Center(child: Text("Giriş yapın."));
+    if (uid == null) {
+      return Center(
+        child: Text(
+          "Giriş yapın.",
+          style: TextStyle(color: AppTheme.textColor),
+        ),
+      );
+    }
 
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -108,10 +118,12 @@ class _NotificationListTabState extends State<NotificationListTab>
 
         final docs = snapshot.data?.docs ?? [];
         if (docs.isEmpty) {
-          return const Center(
+          return Center(
             child: Text(
               "Henüz bir bildirim yok.",
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(
+                color: AppTheme.textColor.withValues(alpha: 0.5),
+              ),
             ),
           );
         }
@@ -134,19 +146,22 @@ class _NotificationListTabState extends State<NotificationListTab>
             return Container(
               color: isRead
                   ? Colors.transparent
-                  : AppTheme.primaryBlue.withOpacity(0.05),
+                  : AppTheme.primaryBlue.withValues(alpha: 0.05),
               child: ListTile(
                 leading: _buildIcon(data['type']),
                 title: Text(
                   data['message'] ?? '',
                   style: TextStyle(
-                    color: AppTheme.primaryBlue,
+                    color: AppTheme.textColor, // OKUNAKLI RENK
                     fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
                   ),
                 ),
                 subtitle: Text(
                   _formatDate(data['timestamp']),
-                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  style: TextStyle(
+                    color: AppTheme.textColor.withValues(alpha: 0.6),
+                    fontSize: 12,
+                  ),
                 ),
                 onTap: () async {
                   await SocialService.instance.markNotificationAsRead(doc.id);
@@ -161,7 +176,7 @@ class _NotificationListTabState extends State<NotificationListTab>
   }
 }
 
-// --- 2. HAREKET DÖKÜMÜ SEKMESİ (KeepAlive Ekli) ---
+// --- 2. HAREKET DÖKÜMÜ SEKMESİ ---
 class ActivityLogTab extends StatefulWidget {
   const ActivityLogTab({super.key});
 
@@ -172,7 +187,7 @@ class ActivityLogTab extends StatefulWidget {
 class _ActivityLogTabState extends State<ActivityLogTab>
     with AutomaticKeepAliveClientMixin {
   @override
-  bool get wantKeepAlive => true; // Sayfayı canlı tut (Yanıp sönmeyi engeller)
+  bool get wantKeepAlive => true;
 
   @override
   Widget build(BuildContext context) {
@@ -193,10 +208,12 @@ class _ActivityLogTabState extends State<ActivityLogTab>
 
         final docs = snapshot.data?.docs ?? [];
         if (docs.isEmpty) {
-          return const Center(
+          return Center(
             child: Text(
               "Henüz bir hareketiniz yok.",
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(
+                color: AppTheme.textColor.withValues(alpha: 0.5),
+              ),
             ),
           );
         }
@@ -215,19 +232,24 @@ class _ActivityLogTabState extends State<ActivityLogTab>
             final data = docs[index].data() as Map<String, dynamic>;
 
             return ListTile(
-              leading: const Icon(Icons.history, color: Colors.grey),
+              leading: Icon(Icons.history, color: AppTheme.iconColor),
               title: Text(
                 data['text'] ?? '',
-                style: const TextStyle(color: Colors.white70),
+                style: TextStyle(
+                  color: AppTheme.textColor.withValues(alpha: 0.9), // OKUNAKLI
+                ),
               ),
               subtitle: Text(
                 _formatDate(data['timestamp']),
-                style: const TextStyle(color: Colors.grey, fontSize: 11),
+                style: TextStyle(
+                  color: AppTheme.textColor.withValues(alpha: 0.6),
+                  fontSize: 11,
+                ),
               ),
-              trailing: const Icon(
+              trailing: Icon(
                 Icons.arrow_forward_ios,
                 size: 14,
-                color: Colors.grey,
+                color: AppTheme.iconColor.withValues(alpha: 0.5),
               ),
               onTap: () {
                 if (data['movie_id'] != null && data['movie_id'] != 0) {
