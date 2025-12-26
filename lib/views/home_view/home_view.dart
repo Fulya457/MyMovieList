@@ -344,6 +344,17 @@ class _HomeViewState extends State<HomeView> {
                   ),
                 ),
                 actions: [
+                  IconButton(
+                    onPressed: () => context.push(AppRouters.groups),
+                    icon: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.surfaceDark.withValues(alpha: 0.5),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.groups, color: AppTheme.primaryBlue),
+                    ),
+                  ),
                   Padding(
                     padding: const EdgeInsets.only(right: 16.0),
                     child: InkWell(

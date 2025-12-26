@@ -26,6 +26,8 @@ import 'package:mymovielist/views/profile_view/chat_view.dart';
 import 'package:mymovielist/views/profile_view/user_lists_view.dart';
 import 'package:mymovielist/views/profile_view/user_list_detail_view.dart';
 import 'package:mymovielist/views/profile_view/user_reviews_view.dart';
+import 'package:mymovielist/app/groups_view.dart';
+import 'package:mymovielist/app/group_chat_view.dart';
 
 // Modeller
 import 'package:mymovielist/models/movie_model.dart';
@@ -54,6 +56,8 @@ class AppRouters {
   static const String userLists = '/user-lists';
   static const String userListDetail = '/user-list-detail';
   static const String userReviews = '/user-reviews';
+  static const String groups = '/groups';
+  static const String groupChat = '/group-chat';
 }
 
 // --- 2. ROUTER AYARLARI ---
@@ -160,6 +164,24 @@ final router = GoRouter(
           listName: data['listName'],
           items: data['items'],
           type: data['type'],
+        );
+      },
+    ),
+    // --- GRUP ROTALARI ---
+    GoRoute(
+      path: AppRouters.groups,
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const GroupsView(),
+    ),
+    GoRoute(
+      path: AppRouters.groupChat,
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) {
+        final data = state.extra as Map<String, dynamic>;
+        return GroupChatView(
+          groupId: data['groupId'],
+          groupName: data['groupName'],
+          isCreator: data['isCreator'] ?? false,
         );
       },
     ),

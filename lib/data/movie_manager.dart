@@ -506,4 +506,74 @@ class MovieManager extends ChangeNotifier {
       await _socialService.renameList(listId, newName);
 
   Map<String, String> getActorDetails(String n) => {"bio": "...", "photo": ""};
+
+  // --- GRUP ÖZELLİKLERİ (YENİ) ---
+
+  // 1. Grup Oluştur
+  Future<void> createGroup(String name, String description) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    await FirebaseFirestore.instance.collection('groups').add({
+      'name': name,
+      'description': description,
+      'created_at': FieldValue.serverTimestamp(),
+      'creator_id': user.uid,
+      'members': [user.uid], // Kurucu direkt üye
+      'pending_requests': [], // Katılmak isteyenler
+    });
+  }
+
+  // 2. Grupları Getir (Stream)
+  Stream<QuerySnapshot> getGroupsStream() {
+    return FirebaseFirestore.instance
+        .collection('groups')
+        .orderBy('created_at', descending: true)
+        .snapshots();
+  }
+
+  // 3. Gruba Katılma İsteği Gönder
+  Future<void> requestJoinGroup(String groupId) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    await FirebaseFirestore.instance.collection('groups').doc(groupId).update({
+      'pending_requests': FieldValue.arrayUnion([uid]),
+    });
+  }
+
+  // 4. Üye İsteğini Onayla (Sadece Kurucu/Admin)
+  Future<void> approveGroupMember(String groupId, String memberId) async {
+    await FirebaseFirestore.instance.collection('groups').doc(groupId).update({
+      'pending_requests': FieldValue.arrayRemove([memberId]),
+      'members': FieldValue.arrayUnion([memberId]),
+    });
+  }
+
+  // 5. Grup Mesajı Gönder
+  Future<void> sendGroupMessage(String groupId, String text) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    await FirebaseFirestore.instance
+        .collection('groups')
+        .doc(groupId)
+        .collection('messages')
+        .add({
+          'sender_id': user.uid,
+          'sender_email': user.email,
+          'text': text,
+          'created_at': FieldValue.serverTimestamp(),
+        });
+  }
+
+  // 6. Grup Mesajlarını Dinle
+  Stream<QuerySnapshot> getGroupMessagesStream(String groupId) {
+    return FirebaseFirestore.instance
+        .collection('groups')
+        .doc(groupId)
+        .collection('messages')
+        .orderBy('created_at', descending: true)
+        .snapshots();
+  }
 }
