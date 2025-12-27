@@ -1,3 +1,5 @@
+// Dosya: lib/views/home_view/groups_view.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -16,75 +18,148 @@ class GroupsView extends StatefulWidget {
 class _GroupsViewState extends State<GroupsView> {
   final TextEditingController _searchController = TextEditingController();
   String _searchText = "";
+  int _selectedIconIndex = 0; // Grup ikonu seçimi için
 
   void _showCreateGroupDialog() {
     final nameController = TextEditingController();
     final descController = TextEditingController();
+    // Her açılışta ikonu sıfırla
+    _selectedIconIndex = 0;
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.surfaceDark,
-        title: Text(
-          "Yeni Grup Kur",
-          style: TextStyle(color: AppTheme.textColor),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            backgroundColor: AppTheme.surfaceDark,
+            title: Text(
+              "Yeni Grup Kur",
               style: TextStyle(color: AppTheme.textColor),
-              decoration: InputDecoration(
-                hintText: "Grup Adı",
-                hintStyle: TextStyle(
-                  color: AppTheme.textColor.withValues(alpha: 0.5),
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // İkon Seçici Başlık
+                    const Text(
+                      "Grup İkonu Seç",
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                    const SizedBox(height: 10),
+
+                    // İkon Seçici Liste
+                    SizedBox(
+                      height: 60,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        // [GÜNCELLENDİ] Artık grup ikonları listesini kullanıyoruz
+                        itemCount: MovieManager.instance.groupIcons.length,
+                        itemBuilder: (context, index) {
+                          final isSelected = _selectedIconIndex == index;
+                          return GestureDetector(
+                            onTap: () {
+                              setStateDialog(() {
+                                _selectedIconIndex = index;
+                              });
+                            },
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 5),
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: isSelected
+                                    ? Border.all(
+                                        color: AppTheme.primaryBlue,
+                                        width: 2,
+                                      )
+                                    : null,
+                              ),
+                              child: CircleAvatar(
+                                radius: 24,
+                                backgroundColor: Colors.white10,
+                                // [GÜNCELLENDİ] Grup ikonları listesi
+                                backgroundImage: NetworkImage(
+                                  MovieManager.instance.groupIcons[index],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    TextField(
+                      controller: nameController,
+                      style: TextStyle(color: AppTheme.textColor),
+                      decoration: InputDecoration(
+                        hintText: "Grup Adı",
+                        hintStyle: TextStyle(
+                          color: AppTheme.textColor.withValues(alpha: 0.5),
+                        ),
+                        filled: true,
+                        fillColor: Colors.black12,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: descController,
+                      style: TextStyle(color: AppTheme.textColor),
+                      decoration: InputDecoration(
+                        hintText: "Açıklama (Örn: Korku filmi severler)",
+                        hintStyle: TextStyle(
+                          color: AppTheme.textColor.withValues(alpha: 0.5),
+                        ),
+                        filled: true,
+                        fillColor: Colors.black12,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                filled: true,
-                fillColor: Colors.black12,
               ),
             ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: descController,
-              style: TextStyle(color: AppTheme.textColor),
-              decoration: InputDecoration(
-                hintText: "Açıklama (Örn: Korku filmi severler)",
-                hintStyle: TextStyle(
-                  color: AppTheme.textColor.withValues(alpha: 0.5),
-                ),
-                filled: true,
-                fillColor: Colors.black12,
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("İptal"),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("İptal"),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryBlue,
-            ),
-            onPressed: () async {
-              if (nameController.text.trim().isNotEmpty) {
-                await MovieManager.instance.createGroup(
-                  nameController.text.trim(),
-                  descController.text.trim(),
-                );
-                if (mounted) {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Grup oluşturuldu!")),
-                  );
-                }
-              }
-            },
-            child: const Text("Oluştur", style: TextStyle(color: Colors.white)),
-          ),
-        ],
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryBlue,
+                ),
+                onPressed: () async {
+                  if (nameController.text.trim().isNotEmpty) {
+                    await MovieManager.instance.createGroup(
+                      nameController.text.trim(),
+                      descController.text.trim(),
+                      _selectedIconIndex, // Seçilen ikon
+                    );
+                    if (mounted) {
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Grup oluşturuldu!")),
+                      );
+                    }
+                  }
+                },
+                child: const Text(
+                  "Oluştur",
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -97,7 +172,10 @@ class _GroupsViewState extends State<GroupsView> {
       backgroundColor: AppTheme.backgroundBlack,
       appBar: AppBar(
         backgroundColor: AppTheme.backgroundBlack,
-        title: const Text("Film Toplulukları"),
+        title: Text(
+          "Film Toplulukları",
+          style: TextStyle(color: AppTheme.textColor),
+        ),
         leading: IconButton(
           icon: Icon(Icons.arrow_back, color: AppTheme.textColor),
           onPressed: () => context.pop(),
@@ -161,30 +239,48 @@ class _GroupsViewState extends State<GroupsView> {
                     final isPending = pending.contains(myUid);
                     final isCreator = data['creator_id'] == myUid;
 
+                    // [GÜNCELLENDİ] Grup İkonunu Belirle
+                    final iconIdx = data['group_icon_id'] ?? 0;
+                    final iconUrl =
+                        (iconIdx >= 0 &&
+                            iconIdx < MovieManager.instance.groupIcons.length)
+                        ? MovieManager.instance.groupIcons[iconIdx]
+                        : MovieManager
+                              .instance
+                              .groupIcons[0]; // Hata olursa ilk ikon
+
                     return Card(
                       margin: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 8,
                       ),
                       color: AppTheme.surfaceDark,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       child: ListTile(
+                        contentPadding: const EdgeInsets.all(12),
                         leading: CircleAvatar(
-                          backgroundColor: AppTheme.primaryBlue.withValues(
-                            alpha: 0.2,
-                          ),
-                          child: Icon(Icons.group, color: AppTheme.primaryBlue),
+                          radius: 28,
+                          backgroundColor: Colors.transparent,
+                          backgroundImage: NetworkImage(iconUrl),
                         ),
                         title: Text(
                           data['name'],
                           style: TextStyle(
                             color: AppTheme.textColor,
                             fontWeight: FontWeight.bold,
+                            fontSize: 18,
                           ),
                         ),
-                        subtitle: Text(
-                          "${data['description']}\n${members.length} Üye",
-                          style: TextStyle(
-                            color: AppTheme.textColor.withValues(alpha: 0.6),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 6.0),
+                          child: Text(
+                            "${data['description']}\n${members.length} Üye",
+                            style: TextStyle(
+                              color: AppTheme.textColor.withValues(alpha: 0.6),
+                              height: 1.4,
+                            ),
                           ),
                         ),
                         isThreeLine: true,
@@ -203,6 +299,8 @@ class _GroupsViewState extends State<GroupsView> {
                                       'groupId': doc.id,
                                       'groupName': data['name'],
                                       'isCreator': isCreator,
+                                      'groupIconUrl':
+                                          iconUrl, // İkonu sohbete taşıyoruz
                                     },
                                   );
                                 },

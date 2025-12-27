@@ -155,6 +155,18 @@ class MovieManager extends ChangeNotifier {
     "https://api.dicebear.com/7.x/micah/png?seed=Cool",
   ];
 
+  // [YENİ] GRUP İKONLARI
+  final List<String> groupIcons = [
+    "https://api.dicebear.com/7.x/shapes/png?seed=Group1",
+    "https://api.dicebear.com/7.x/shapes/png?seed=Group2",
+    "https://api.dicebear.com/7.x/shapes/png?seed=Group3",
+    "https://api.dicebear.com/7.x/icons/png?seed=Movie",
+    "https://api.dicebear.com/7.x/icons/png?seed=Popcorn",
+    "https://api.dicebear.com/7.x/identicon/png?seed=Team",
+    "https://api.dicebear.com/7.x/initials/png?seed=FC", // Film Club
+    "https://api.dicebear.com/7.x/initials/png?seed=MV", // Movies
+  ];
+
   final List<Movie> _allMovies = [];
   List<dynamic> _searchResults = [];
   final List<Movie> _trendingMovies = [];
@@ -532,7 +544,11 @@ class MovieManager extends ChangeNotifier {
   // --- GRUP ÖZELLİKLERİ ---
 
   // 1. Grup Oluştur
-  Future<void> createGroup(String name, String description) async {
+  Future<void> createGroup(
+    String name,
+    String description,
+    int iconIndex,
+  ) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -541,6 +557,7 @@ class MovieManager extends ChangeNotifier {
       'description': description,
       'created_at': FieldValue.serverTimestamp(),
       'creator_id': user.uid,
+      'group_icon_id': iconIndex,
       'members': [user.uid], // Kurucu direkt üye
       'pending_requests': [], // Katılmak isteyenler
     });
@@ -572,21 +589,104 @@ class MovieManager extends ChangeNotifier {
     });
   }
 
-  // 5. Grup Mesajı Gönder
-  Future<void> sendGroupMessage(String groupId, String text) async {
+  // 5. [GÜNCELLENDİ] Grup Mesajı Gönder (Medya, Reply)
+  Future<void> sendGroupMessage(
+    String groupId,
+    String text, {
+    Map<String, dynamic>? sharedMovie,
+    Map<String, dynamic>? sharedList,
+    Map<String, dynamic>? replyTo,
+  }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
+
+    Map<String, dynamic> data = {
+      'sender_id': user.uid,
+      'sender_email': user.email,
+      'text': text,
+      'created_at': FieldValue.serverTimestamp(),
+      'likes': [], // Beğeni listesi
+      'seen_by': [], // Görüldü listesi
+    };
+
+    // Film paylaşımı varsa
+    if (sharedMovie != null) {
+      data['movie_id'] = sharedMovie['id'];
+      data['movie_title'] = sharedMovie['title'];
+      data['poster_path'] = sharedMovie['poster_path'];
+    }
+
+    // Liste paylaşımı varsa
+    if (sharedList != null) {
+      data['list_id'] = sharedList['id'];
+      data['list_name'] = sharedList['name'];
+      data['list_count'] = sharedList['count'];
+      data['list_type'] = sharedList['type'];
+    }
+
+    // Cevaplama (Reply)
+    if (replyTo != null) {
+      data['reply_to'] = replyTo;
+    }
 
     await FirebaseFirestore.instance
         .collection('groups')
         .doc(groupId)
         .collection('messages')
-        .add({
-          'sender_id': user.uid,
-          'sender_email': user.email,
-          'text': text,
-          'created_at': FieldValue.serverTimestamp(),
-        });
+        .add(data);
+  }
+
+  // [YENİ] Mesajı Beğen
+  Future<void> toggleGroupMessageLike(String groupId, String msgId) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final docRef = FirebaseFirestore.instance
+        .collection('groups')
+        .doc(groupId)
+        .collection('messages')
+        .doc(msgId);
+
+    final snapshot = await docRef.get();
+    if (snapshot.exists) {
+      final likes = List<String>.from(snapshot.data()?['likes'] ?? []);
+      if (likes.contains(uid)) {
+        likes.remove(uid);
+      } else {
+        likes.add(uid);
+      }
+      await docRef.update({'likes': likes});
+    }
+  }
+
+  // [YENİ] Mesajı Görüldü İşaretle
+  Future<void> markGroupMessageAsSeen(
+    String groupId,
+    String msgId,
+    String userName,
+  ) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final docRef = FirebaseFirestore.instance
+        .collection('groups')
+        .doc(groupId)
+        .collection('messages')
+        .doc(msgId);
+
+    // ArrayUnion kullanarak sadece yeni ise ekler
+    await docRef.update({
+      'seen_by': FieldValue.arrayUnion([
+        {'uid': uid, 'name': userName},
+      ]),
+    });
+  }
+
+  Future<void> updateGroupIcon(String groupId, int iconIndex) async {
+    await FirebaseFirestore.instance.collection('groups').doc(groupId).update({
+      'group_icon_id': iconIndex,
+    });
+    notifyListeners();
   }
 
   // 6. Grup Mesajlarını Dinle
@@ -597,5 +697,24 @@ class MovieManager extends ChangeNotifier {
         .collection('messages')
         .orderBy('created_at', descending: true)
         .snapshots();
+  }
+
+  Future<void> deleteGroup(String groupId) async {
+    await FirebaseFirestore.instance.collection('groups').doc(groupId).delete();
+    // Mesajlar alt koleksiyonu kalabilir ama UI'dan erişilemez olur.
+    notifyListeners();
+  }
+
+  // [YENİ] Grup Bilgilerini Güncelle (İsim ve Açıklama)
+  Future<void> updateGroupInfo(
+    String groupId,
+    String newName,
+    String newDesc,
+  ) async {
+    await FirebaseFirestore.instance.collection('groups').doc(groupId).update({
+      'name': newName,
+      'description': newDesc,
+    });
+    notifyListeners();
   }
 }

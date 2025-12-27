@@ -285,6 +285,8 @@ class _MovieDetailViewState extends State<MovieDetailView> {
   }
 
   void _showShareBottomSheet(BuildContext context) {
+    final myUid = FirebaseAuth.instance.currentUser?.uid; // Mevcut ID'yi al
+
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.backgroundBlack,
@@ -293,71 +295,185 @@ class _MovieDetailViewState extends State<MovieDetailView> {
       ),
       builder: (ctx) {
         return Container(
+          height: 500,
           padding: const EdgeInsets.all(16),
-          height: 400,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "Arkadaşına Öner",
+                "Paylaş",
                 style: TextStyle(
                   color: AppTheme.textColor,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 15),
               Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: MovieManager.instance.getFriendsStream(),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    final docs = snapshot.data!.docs;
-                    if (docs.isEmpty) {
-                      return Center(
-                        child: Text(
-                          "Arkadaş listesi boş.",
-                          style: TextStyle(
-                            color: AppTheme.textColor.withValues(alpha: 0.5),
-                          ),
-                        ),
-                      );
-                    }
+                child: DefaultTabController(
+                  length: 2,
+                  child: Column(
+                    children: [
+                      TabBar(
+                        labelColor: AppTheme.primaryBlue,
+                        unselectedLabelColor: Colors.grey,
+                        indicatorColor: AppTheme.primaryBlue,
+                        tabs: const [
+                          Tab(text: "Arkadaşlar"),
+                          Tab(text: "Gruplar"),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: TabBarView(
+                          children: [
+                            // 1. SEKME: ARKADAŞLAR
+                            StreamBuilder<QuerySnapshot>(
+                              stream: MovieManager.instance.getFriendsStream(),
+                              builder: (context, snapshot) {
+                                if (!snapshot.hasData)
+                                  return const Center(
+                                    child: CircularProgressIndicator(),
+                                  );
+                                final docs = snapshot.data!.docs;
+                                if (docs.isEmpty)
+                                  return const Center(
+                                    child: Text(
+                                      "Arkadaş bulunamadı.",
+                                      style: TextStyle(color: Colors.grey),
+                                    ),
+                                  );
 
-                    return ListView.builder(
-                      itemCount: docs.length,
-                      itemBuilder: (context, index) {
-                        final data = docs[index].data() as Map<String, dynamic>;
-                        final email = data['email'] ?? 'Unknown';
-                        return ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: AppTheme.primaryBlue,
-                            child: Text(
-                              email.isNotEmpty ? email[0].toUpperCase() : '?',
-                              style: const TextStyle(color: Colors.white),
+                                return ListView.builder(
+                                  itemCount: docs.length,
+                                  itemBuilder: (context, index) {
+                                    final friendData =
+                                        docs[index].data()
+                                            as Map<String, dynamic>;
+                                    return ListTile(
+                                      leading: const CircleAvatar(
+                                        backgroundColor: Colors.white10,
+                                        child: Icon(
+                                          Icons.person,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      title: Text(
+                                        friendData['email'] ?? 'Unknown',
+                                        style: TextStyle(
+                                          color: AppTheme.textColor,
+                                        ),
+                                      ),
+                                      trailing: const Icon(
+                                        Icons.send,
+                                        color: Colors.blue,
+                                      ),
+                                      onTap: () {
+                                        Navigator.pop(ctx);
+                                        context.push(
+                                          AppRouters.chat,
+                                          extra: {
+                                            'targetUid': docs[index].id,
+                                            'targetEmail': friendData['email'],
+                                            'sharedMovie': widget.movie,
+                                          },
+                                        );
+                                      },
+                                    );
+                                  },
+                                );
+                              },
                             ),
-                          ),
-                          title: Text(
-                            email,
-                            style: TextStyle(color: AppTheme.textColor),
-                          ),
-                          onTap: () {
-                            Navigator.pop(ctx);
-                            MovieManager.instance.sendMessage(
-                              receiverUid: data['uid'],
-                              text: "Sana bir film önerdim!",
-                              sharedMovie: widget.movie,
-                            );
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text("Film önerildi!")),
-                            );
-                          },
-                        );
-                      },
-                    );
-                  },
+
+                            // 2. SEKME: GRUPLAR (FİLTRELİ)
+                            StreamBuilder<QuerySnapshot>(
+                              stream: MovieManager.instance.getGroupsStream(),
+                              builder: (context, snapshot) {
+                                if (!snapshot.hasData)
+                                  return const Center(
+                                    child: CircularProgressIndicator(),
+                                  );
+                                final docs = snapshot.data!.docs;
+
+                                // [YENİ] Sadece "members" listesinde benim UID'min olduğu grupları filtrele
+                                final myGroups = docs.where((doc) {
+                                  final data =
+                                      doc.data() as Map<String, dynamic>;
+                                  final members = List<String>.from(
+                                    data['members'] ?? [],
+                                  );
+                                  return members.contains(myUid);
+                                }).toList();
+
+                                if (myGroups.isEmpty) {
+                                  return const Center(
+                                    child: Text(
+                                      "Üye olduğunuz grup yok.",
+                                      style: TextStyle(color: Colors.grey),
+                                    ),
+                                  );
+                                }
+
+                                return ListView.builder(
+                                  itemCount: myGroups.length,
+                                  itemBuilder: (context, index) {
+                                    final groupDoc = myGroups[index];
+                                    final groupData =
+                                        groupDoc.data() as Map<String, dynamic>;
+
+                                    // İkon tutarlılığı için aynı listeyi kullan
+                                    final iconIdx =
+                                        groupData['group_icon_id'] ?? 0;
+                                    final iconUrl =
+                                        (iconIdx >= 0 &&
+                                            iconIdx <
+                                                MovieManager
+                                                    .instance
+                                                    .groupIcons
+                                                    .length)
+                                        ? MovieManager
+                                              .instance
+                                              .groupIcons[iconIdx]
+                                        : MovieManager.instance.groupIcons[0];
+
+                                    return ListTile(
+                                      leading: CircleAvatar(
+                                        backgroundColor: Colors.transparent,
+                                        backgroundImage: NetworkImage(iconUrl),
+                                      ),
+                                      title: Text(
+                                        groupData['name'],
+                                        style: TextStyle(
+                                          color: AppTheme.textColor,
+                                        ),
+                                      ),
+                                      trailing: const Icon(
+                                        Icons.send,
+                                        color: Colors.green,
+                                      ),
+                                      onTap: () {
+                                        Navigator.pop(ctx);
+                                        context.push(
+                                          AppRouters.groupChat,
+                                          extra: {
+                                            'groupId': groupDoc.id,
+                                            'groupName': groupData['name'],
+                                            'isCreator':
+                                                false, // Önemli değil, chat içinde kontrol ediliyor
+                                            'groupIconUrl': iconUrl,
+                                            'sharedMovie': widget.movie,
+                                          },
+                                        );
+                                      },
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
