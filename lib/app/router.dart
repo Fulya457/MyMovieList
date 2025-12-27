@@ -178,10 +178,13 @@ final router = GoRouter(
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) {
         final data = state.extra as Map<String, dynamic>;
+        // [GÜNCELLENDİ] sharedMovie ve groupIconUrl parametreleri eklendi
         return GroupChatView(
           groupId: data['groupId'],
           groupName: data['groupName'],
           isCreator: data['isCreator'] ?? false,
+          groupIconUrl: data['groupIconUrl'],
+          sharedMovie: data['sharedMovie'],
         );
       },
     ),

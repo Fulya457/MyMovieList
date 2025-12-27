@@ -1,17 +1,19 @@
 // Dosya: lib/views/profile_view/chat_view.dart
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/app/theme.dart';
 import 'package:mymovielist/data/movie_manager.dart';
 import 'package:mymovielist/models/movie_model.dart';
 import 'package:mymovielist/services/social_service.dart';
 
 class ChatView extends StatefulWidget {
-  final Map<String, dynamic> extras; // {targetUid, targetEmail, sharedList?}
+  final Map<String, dynamic>
+  extras; // {targetUid, targetEmail, sharedList?, sharedMovie?}
   const ChatView({super.key, required this.extras});
 
   @override
@@ -23,58 +25,156 @@ class _ChatViewState extends State<ChatView> {
   final ScrollController _scrollController = ScrollController();
 
   Map<String, dynamic>? _attachedList;
+  Movie? _attachedMovie;
+  Map<String, dynamic>? _replyToMessage;
+
+  late String chatId;
+  late String myUid;
+  late String targetUid;
 
   @override
   void initState() {
     super.initState();
+    myUid = FirebaseAuth.instance.currentUser!.uid;
+    targetUid = widget.extras['targetUid'] ?? widget.extras['uid'];
+
+    // Chat ID Oluşturma (Alfabetik Sıraya Göre - Tutarlılık İçin)
+    final List<String> ids = [myUid, targetUid];
+    ids.sort();
+    chatId = ids.join("_");
+
+    // Dışarıdan gelen paylaşımları kontrol et
     if (widget.extras.containsKey('sharedList')) {
       _attachedList = widget.extras['sharedList'];
     }
+    if (widget.extras.containsKey('sharedMovie')) {
+      _attachedMovie = widget.extras['sharedMovie'] as Movie;
+    }
 
-    // [DÜZELTME 1]: Sohbet partnerini kaydet (Bildirim engellemek için)
-    final targetUid = widget.extras['targetUid'] ?? widget.extras['uid'];
     MovieManager.instance.enterChat(targetUid);
   }
 
   @override
   void dispose() {
-    // [DÜZELTME 2]: Sohbetten çıkış yapıldığını bildir
     MovieManager.instance.exitChat();
     _msgController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
-  // İsim Formatlayıcı (ahmet@gmail.com -> AHMET)
-  String _formatName(String email) {
-    if (email.contains('@')) {
-      return email.split('@')[0].toUpperCase();
-    }
-    return email.toUpperCase();
-  }
+  // --- MESAJ GÖNDERME İŞLEMLERİ (MANUEL VE GÜVENLİ) ---
 
+  // 1. Standart Mesaj / Film Paylaşımı
   void _sendMessage() async {
     final text = _msgController.text.trim();
-    if (text.isEmpty && _attachedList == null) return;
 
-    final targetUid = widget.extras['targetUid'] ?? widget.extras['uid'];
+    // Eğer boşsa ve ekli dosya yoksa gönderme
+    if (text.isEmpty && _attachedList == null && _attachedMovie == null) return;
 
     _msgController.clear();
 
-    await MovieManager.instance.sendMessage(
-      receiverUid: targetUid,
-      text: text.isEmpty
-          ? (_attachedList != null
-                ? "Bir liste paylaştı"
-                : "Bir içerik paylaştı")
-          : text,
-      sharedList: _attachedList,
-    );
+    // Film Verisi Hazırlığı
+    Map<String, dynamic>? movieData;
+    if (_attachedMovie != null) {
+      movieData = {
+        'id': _attachedMovie!.id,
+        'title': _attachedMovie!.title,
+        'poster_path': _attachedMovie!.poster,
+        'overview': _attachedMovie!.plot,
+        'release_date': _attachedMovie!.releaseDate,
+        'vote_average': _attachedMovie!.rating,
+      };
+    }
 
+    // Liste Verisi Hazırlığı (Buradan geliyorsa)
+    Map<String, dynamic>? listData = _attachedList;
+
+    // Reply Verisi
+    final replyData = _replyToMessage;
+
+    // UI Temizliği
     setState(() {
       _attachedList = null;
+      _attachedMovie = null;
+      _replyToMessage = null;
     });
 
+    // Firestore'a Yazma (Doğrudan Chat ID ile)
+    final msgData = {
+      'sender_id': myUid,
+      'text': text,
+      'timestamp': FieldValue.serverTimestamp(),
+      'seen': false,
+    };
+
+    if (movieData != null) {
+      msgData['movie_id'] = movieData['id'];
+      msgData['movie_title'] = movieData['title'];
+      msgData['poster_path'] = movieData['poster_path'];
+    }
+
+    if (listData != null) {
+      _sendListMessage(listData, text.isEmpty ? "Bir liste paylaştı" : text);
+      return; // Liste fonksiyonu kendi kaydeder
+    }
+
+    if (replyData != null) {
+      msgData['reply_to'] = replyData;
+    }
+
+    await FirebaseFirestore.instance
+        .collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .add(msgData);
+
+    // Son Mesajı Güncelle
+    _updateLastMessage(text.isNotEmpty ? text : "Medya");
+    _scrollDown();
+  }
+
+  // 2. Liste / Favori Paylaşımı (Veri Kaybı Olmadan)
+  Future<void> _sendListMessage(
+    Map<String, dynamic> listData, [
+    String? text,
+  ]) async {
+    final msgData = {
+      'sender_id': myUid,
+      'text': text ?? "Bir liste paylaştı",
+      'timestamp': FieldValue.serverTimestamp(),
+      'seen': false,
+      'list_id': listData['id'],
+      'list_name': listData['list_name'] ?? listData['name'],
+      'list_count': listData['count'],
+      'list_type': listData['type'] ?? 'movies',
+    };
+
+    // [KRİTİK] Liste içeriğini mesajın içine gömüyoruz
+    if (listData.containsKey('items')) {
+      msgData['list_items'] = listData['items'];
+    } else if (listData.containsKey('list_items')) {
+      msgData['list_items'] = listData['list_items'];
+    }
+
+    await FirebaseFirestore.instance
+        .collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .add(msgData);
+
+    _updateLastMessage("Bir liste paylaştı");
+    _scrollDown();
+  }
+
+  Future<void> _updateLastMessage(String text) async {
+    await FirebaseFirestore.instance.collection('chats').doc(chatId).set({
+      'users': [myUid, targetUid],
+      'last_message': text,
+      'last_message_time': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  void _scrollDown() {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
         0,
@@ -84,10 +184,45 @@ class _ChatViewState extends State<ChatView> {
     }
   }
 
+  // --- FAVORİ PAYLAŞMA MANTIĞI ---
+  void _shareFavorites() {
+    final favMovies = MovieManager.instance.favoriteMovies;
+    if (favMovies.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Favori listeniz boş.")));
+      return;
+    }
+
+    // [ÖNEMLİ] Filmleri Map'e çeviriyoruz
+    final itemsMap = favMovies
+        .map(
+          (m) => {
+            'id': m.id,
+            'title': m.title,
+            'poster_path': m.poster,
+            'overview': m.plot,
+            'vote_average': m.rating,
+            'release_date': m.releaseDate,
+          },
+        )
+        .toList();
+
+    // Listeyi Gönder
+    _sendListMessage({
+      'id': 'favorites', // Özel ID
+      'name': 'Favorilerim',
+      'count': favMovies.length,
+      'type': 'movies',
+      'items': itemsMap, // Veri burada
+    });
+  }
+
   void _importList(
     Map<String, dynamic> listData,
     String originalOwnerId,
   ) async {
+    // Import mantığı aynı kalıyor...
     try {
       ScaffoldMessenger.of(
         context,
@@ -96,25 +231,21 @@ class _ChatViewState extends State<ChatView> {
         originalOwnerId,
         listData['list_id'],
       );
-
       if (items.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Bu liste boş veya silinmiş.")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Liste boş.")));
         return;
       }
-
       await SocialService.instance.importListFromUser(
         listData['list_name'],
         items,
         listData['type'] ?? 'movies',
       );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Liste başarıyla kaydedildi!")),
-        );
-      }
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Kaydedildi!")));
     } catch (e) {
       if (mounted)
         ScaffoldMessenger.of(
@@ -123,379 +254,518 @@ class _ChatViewState extends State<ChatView> {
     }
   }
 
+  // --- UI ---
   @override
   Widget build(BuildContext context) {
-    final targetUid = widget.extras['targetUid'] ?? widget.extras['uid'];
-    final myUid = FirebaseAuth.instance.currentUser?.uid;
-
-    // Tema dinleyicisi
-    return AnimatedBuilder(
-      animation: MovieManager.instance,
-      builder: (context, child) {
-        return Scaffold(
-          backgroundColor: AppTheme.backgroundBlack,
-          appBar: AppBar(
-            backgroundColor: AppTheme.surfaceDark,
-            iconTheme: IconThemeData(color: AppTheme.textColor),
-            titleSpacing: 0,
-            title: StreamBuilder<DocumentSnapshot>(
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundBlack,
+      appBar: AppBar(
+        backgroundColor: AppTheme.surfaceDark,
+        titleSpacing: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: AppTheme.textColor),
+          onPressed: () => context.pop(),
+        ),
+        title: StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('users')
+              .doc(targetUid)
+              .snapshots(),
+          builder: (context, snapshot) {
+            String displayName = "Kullanıcı";
+            String? iconUrl;
+            if (snapshot.hasData && snapshot.data!.exists) {
+              final data = snapshot.data!.data() as Map<String, dynamic>;
+              displayName = (data['email'] ?? '')
+                  .toString()
+                  .split('@')[0]
+                  .toUpperCase();
+              final idx = data['profile_icon_id'] ?? 0;
+              if (idx < MovieManager.instance.profileIcons.length)
+                iconUrl = MovieManager.instance.profileIcons[idx];
+            } else {
+              displayName = (widget.extras['targetEmail'] ?? '')
+                  .toString()
+                  .split('@')[0]
+                  .toUpperCase();
+            }
+            return Row(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundImage: iconUrl != null
+                      ? NetworkImage(iconUrl)
+                      : null,
+                  child: iconUrl == null ? const Icon(Icons.person) : null,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  displayName,
+                  style: TextStyle(fontSize: 16, color: AppTheme.textColor),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(targetUid)
+                  .collection('chats')
+                  .doc(chatId)
+                  .collection('messages')
+                  .orderBy('timestamp', descending: true)
                   .snapshots(),
               builder: (context, snapshot) {
-                String displayName = "Kullanıcı";
-                String? iconUrl;
-
-                if (snapshot.hasData && snapshot.data!.exists) {
-                  final data = snapshot.data!.data() as Map<String, dynamic>;
-                  final email = data['email'] ?? '';
-                  displayName = _formatName(email);
-
-                  final iconIndex = data['profile_icon_id'] ?? 0;
-                  if (iconIndex >= 0 &&
-                      iconIndex < MovieManager.instance.profileIcons.length) {
-                    iconUrl = MovieManager.instance.profileIcons[iconIndex];
-                  }
-                } else {
-                  final email =
-                      widget.extras['targetEmail'] ??
-                      widget.extras['email'] ??
-                      '';
-                  displayName = _formatName(email);
-                }
-
-                return Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 18,
-                      backgroundColor: Colors.grey,
-                      backgroundImage: iconUrl != null
-                          ? NetworkImage(iconUrl)
-                          : null,
-                      child: iconUrl == null
-                          ? const Icon(Icons.person, size: 20)
-                          : null,
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      displayName,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textColor,
-                      ),
-                    ),
-                  ],
+                if (!snapshot.hasData)
+                  return const Center(child: CircularProgressIndicator());
+                final docs = snapshot.data!.docs;
+                return ListView.builder(
+                  controller: _scrollController,
+                  reverse: true,
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    final msg = docs[index].data() as Map<String, dynamic>;
+                    return _buildMessageBubble(
+                      docs[index].id,
+                      msg,
+                      msg['sender_id'] == myUid,
+                    );
+                  },
                 );
               },
             ),
           ),
-          body: Column(
-            children: [
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: MovieManager.instance.getMessagesStream(targetUid),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData)
-                      return const Center(child: CircularProgressIndicator());
-                    final docs = snapshot.data!.docs;
 
-                    return ListView.builder(
-                      controller: _scrollController,
-                      reverse: true,
-                      itemCount: docs.length,
-                      itemBuilder: (context, index) {
-                        final msg = docs[index].data() as Map<String, dynamic>;
-                        final isMe = msg['sender_id'] == myUid;
-
-                        return _buildMessageBubble(msg, isMe);
-                      },
-                    );
-                  },
-                ),
-              ),
-
-              if (_attachedList != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  color: AppTheme.surfaceDark,
-                  child: Row(
-                    children: [
-                      Icon(Icons.attachment, color: AppTheme.primaryBlue),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Liste Eklendi:",
-                              style: TextStyle(
-                                color: AppTheme.textColor.withValues(
-                                  alpha: 0.6,
-                                ),
-                                fontSize: 10,
-                              ),
-                            ),
-                            Text(
-                              _attachedList!['name'],
-                              style: TextStyle(
-                                color: AppTheme.textColor,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close, color: Colors.redAccent),
-                        onPressed: () => setState(() => _attachedList = null),
-                      ),
-                    ],
-                  ),
-                ),
-
-              Container(
-                padding: const EdgeInsets.all(10),
-                color: AppTheme.backgroundBlack,
-                child: Row(
-                  children: [
+          if (_replyToMessage != null ||
+              _attachedMovie != null ||
+              _attachedList != null)
+            Container(
+              padding: const EdgeInsets.all(8),
+              color: AppTheme.surfaceDark,
+              child: Row(
+                children: [
+                  if (_replyToMessage != null)
                     Expanded(
-                      child: TextField(
-                        controller: _msgController,
-                        style: TextStyle(color: AppTheme.textColor),
-                        decoration: InputDecoration(
-                          hintText: "Mesaj yaz...",
-                          hintStyle: TextStyle(
-                            color: AppTheme.textColor.withValues(alpha: 0.5),
-                          ),
-                          filled: true,
-                          fillColor: AppTheme.surfaceDark,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(30),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 10,
-                          ),
-                        ),
+                      child: Text(
+                        "Yanıt: ${_replyToMessage!['text']}",
+                        style: const TextStyle(color: Colors.grey),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    CircleAvatar(
-                      backgroundColor: AppTheme.primaryBlue,
-                      child: IconButton(
-                        icon: const Icon(Icons.send, color: Colors.white),
-                        onPressed: _sendMessage,
+                  if (_attachedMovie != null)
+                    Expanded(
+                      child: Text(
+                        "Ekli: ${_attachedMovie!.title}",
+                        style: const TextStyle(color: Colors.grey),
                       ),
                     ),
-                  ],
-                ),
+                  if (_attachedList != null)
+                    Expanded(
+                      child: Text(
+                        "Ekli: ${_attachedList!['name']}",
+                        style: const TextStyle(color: Colors.grey),
+                      ),
+                    ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.red),
+                    onPressed: () => setState(() {
+                      _replyToMessage = null;
+                      _attachedMovie = null;
+                      _attachedList = null;
+                    }),
+                  ),
+                ],
               ),
-            ],
+            ),
+
+          Container(
+            padding: const EdgeInsets.all(10),
+            color: AppTheme.backgroundBlack,
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.attach_file, color: Colors.grey),
+                  onPressed: _showAttachmentMenu,
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: _msgController,
+                    style: TextStyle(color: AppTheme.textColor),
+                    decoration: InputDecoration(
+                      hintText: "Mesaj...",
+                      filled: true,
+                      fillColor: AppTheme.surfaceDark,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(30),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.send, color: Colors.blue),
+                  onPressed: _sendMessage,
+                ),
+              ],
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 
-  Widget _buildMessageBubble(Map<String, dynamic> msg, bool isMe) {
-    // [DÜZELTME 3]: Mesaj renklerini garantiye alıyoruz
+  // --- MESAJ BALONCUĞU ---
+  Widget _buildMessageBubble(
+    String docId,
+    Map<String, dynamic> msg,
+    bool isMe,
+  ) {
     final Color textColor = isMe ? Colors.white : AppTheme.textColor;
     final Color bubbleColor = isMe
         ? AppTheme.primaryBlue
         : AppTheme.surfaceDark;
+    final replyTo = msg['reply_to'] as Map<String, dynamic>?;
 
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: bubbleColor,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(12),
-            topRight: const Radius.circular(12),
-            bottomLeft: isMe ? const Radius.circular(12) : Radius.zero,
-            bottomRight: isMe ? Radius.zero : const Radius.circular(12),
+    return GestureDetector(
+      onLongPress: () => setState(
+        () => _replyToMessage = {
+          'id': docId,
+          'text': msg['text'] ?? 'Medya',
+          'sender': isMe ? 'Ben' : 'Kullanıcı',
+        },
+      ),
+      child: Align(
+        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: bubbleColor,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.75,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (replyTo != null)
+                Container(
+                  padding: const EdgeInsets.all(5),
+                  margin: const EdgeInsets.only(bottom: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.black12,
+                    border: const Border(
+                      left: BorderSide(color: Colors.orange, width: 3),
+                    ),
+                  ),
+                  child: Text(
+                    replyTo['text'] ?? '',
+                    style: const TextStyle(color: Colors.grey, fontSize: 10),
+                    maxLines: 1,
+                  ),
+                ),
+              if (msg['list_id'] != null)
+                _buildClickableListCard(msg, isMe, textColor),
+              if (msg['movie_id'] != null)
+                _buildClickableMovieCard(msg, isMe, textColor),
+              if (msg['text'] != null && msg['text'].toString().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    msg['text'],
+                    style: TextStyle(color: textColor, fontSize: 16),
+                  ),
+                ),
+            ],
           ),
         ),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.75,
+      ),
+    );
+  }
+
+  // --- KARTLAR VE GÜVENLİ AÇMA ---
+  Widget _buildClickableListCard(
+    Map<String, dynamic> msg,
+    bool isMe,
+    Color textColor,
+  ) {
+    final bool isFavorites = msg['list_id'] == 'favorites';
+    return GestureDetector(
+      onTap: () {
+        // [ÇÖZÜM BURADA] Liste içeriği mesajda varsa GÜVENLİ EKRANI aç
+        if (msg.containsKey('list_items') && msg['list_items'] != null) {
+          final items = List<Map<String, dynamic>>.from(msg['list_items']);
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => SharedListDisplayView(
+                title: msg['list_name'] ?? 'Liste',
+                items: items,
+              ),
+            ),
+          );
+        } else if (!isFavorites) {
+          // Eski normal listeler veritabanından açılır
+          context.push(
+            AppRouters.userListDetail,
+            extra: {
+              'listId': msg['list_id'],
+              'listName': msg['list_name'],
+              'items': [],
+              'type': msg['list_type'] ?? 'movies',
+            },
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Bu eski bir paylaşım, görüntülenemiyor."),
+            ),
+          );
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.black26,
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. LİSTE PAYLAŞIMI
-            if (msg.containsKey('list_id') && msg['list_id'] != null)
-              _buildSharedListCard(msg, isMe, textColor),
-
-            // 2. FİLM PAYLAŞIMI
-            if (msg.containsKey('movie_id') &&
-                msg['movie_id'] != null &&
-                msg['movie_id'] != 0)
-              _buildSharedMovieCard(msg, isMe, textColor),
-
-            // 3. MESAJ METNİ
-            if (msg['text'] != null && msg['text'].toString().isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4.0),
-                child: Text(
-                  msg['text'],
-                  style: TextStyle(color: textColor, fontSize: 16),
+            Row(
+              children: [
+                Icon(Icons.list_alt, color: textColor, size: 16),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    msg['list_name'] ?? 'Liste',
+                    style: TextStyle(
+                      color: textColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Text(
+              "${msg['list_count'] ?? 0} Öğe",
+              style: TextStyle(color: textColor.withOpacity(0.7), fontSize: 12),
+            ),
+            if (!isMe && !isFavorites) ...[
+              const SizedBox(height: 5),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryBlue,
+                  minimumSize: const Size.fromHeight(30),
+                ),
+                onPressed: () => _importList(msg, msg['sender_id']),
+                child: const Text(
+                  "Kaydet",
+                  style: TextStyle(fontSize: 12, color: Colors.white),
                 ),
               ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSharedListCard(
-    Map<String, dynamic> msg,
-    bool isMe,
-    Color textColor,
-  ) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: isMe
-            ? Colors.black26
-            : Colors.black.withValues(alpha: 0.05), // Hafif koyu zemin
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: textColor.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.list_alt, color: textColor, size: 16),
-              const SizedBox(width: 5),
-              Expanded(
-                child: Text(
-                  msg['list_name'] ?? 'Liste',
-                  style: TextStyle(
-                    color: textColor,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            "${msg['list_count'] ?? 0} Öğe",
-            style: TextStyle(
-              color: textColor.withValues(alpha: 0.7),
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 8),
-          if (!isMe)
-            SizedBox(
-              width: double.infinity,
-              height: 30,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryBlue,
-                  padding: EdgeInsets.zero,
-                ),
-                onPressed: () => _importList(msg, msg['sender_id']),
-                child: const Text(
-                  "Listelerime Kaydet",
-                  style: TextStyle(color: Colors.white, fontSize: 12),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSharedMovieCard(
+  Widget _buildClickableMovieCard(
     Map<String, dynamic> msg,
     bool isMe,
     Color textColor,
   ) {
     return GestureDetector(
       onTap: () {
-        final movieMap = {
+        final m = Movie.fromMap({
           'id': msg['movie_id'],
-          'title': msg['movie_title'] ?? 'Unknown',
+          'title': msg['movie_title'],
           'poster_path': msg['poster_path'],
           'overview': '',
           'release_date': '',
           'vote_average': 0.0,
           'genre_ids': [],
-        };
-        final movie = Movie.fromMap(movieMap);
-        context.push('/movie-detail', extra: movie);
+        });
+        context.push('/movie-detail', extra: m);
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        width: 150,
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: isMe ? Colors.black26 : Colors.black.withValues(alpha: 0.05),
+          color: Colors.black26,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: textColor.withValues(alpha: 0.2)),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(8),
-              ),
-              child: msg['poster_path'] != null
-                  ? CachedNetworkImage(
-                      imageUrl: msg['poster_path'],
-                      height: 100,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      placeholder: (c, u) => Container(color: Colors.grey),
-                    )
-                  : Container(
-                      height: 100,
-                      color: Colors.grey,
-                      child: const Icon(Icons.movie),
-                    ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    msg['movie_title'] ?? 'Film',
-                    style: TextStyle(
-                      color: textColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    "Film Önerisi",
-                    style: TextStyle(
-                      color: textColor.withValues(alpha: 0.7),
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
+            const Icon(Icons.movie, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                msg['movie_title'] ?? 'Film',
+                style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  // --- MENÜLER ---
+  void _showAttachmentMenu() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surfaceDark,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(20),
+        height: 150,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _iconBtn(Icons.movie, "Film", Colors.blue, () {
+              Navigator.pop(ctx);
+              _showMovieSearchDialog();
+            }),
+            _iconBtn(Icons.list, "Liste", Colors.orange, () {
+              Navigator.pop(ctx);
+              _showMyListsDialog();
+            }),
+            _iconBtn(Icons.favorite, "Fav", Colors.red, () {
+              Navigator.pop(ctx);
+              _shareFavorites();
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _iconBtn(IconData i, String l, Color c, VoidCallback t) =>
+      GestureDetector(
+        onTap: t,
+        child: Column(
+          children: [
+            CircleAvatar(
+              backgroundColor: c.withOpacity(0.2),
+              child: Icon(i, color: c),
+            ),
+            Text(l, style: TextStyle(color: AppTheme.textColor)),
+          ],
+        ),
+      );
+  void _showMovieSearchDialog() {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("Yakında eklenecek")));
+  }
+
+  void _showMyListsDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceDark,
+        title: Text("Liste Seç", style: TextStyle(color: AppTheme.textColor)),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 300,
+          child: StreamBuilder<QuerySnapshot>(
+            stream: MovieManager.instance.getUserListsStream(),
+            builder: (c, s) {
+              if (!s.hasData) return const CircularProgressIndicator();
+              final d = s.data!.docs;
+              return ListView.builder(
+                itemCount: d.length,
+                itemBuilder: (c, i) {
+                  final data = d[i].data() as Map<String, dynamic>;
+                  return ListTile(
+                    title: Text(
+                      data['name'],
+                      style: TextStyle(color: AppTheme.textColor),
+                    ),
+                    onTap: () {
+                      _sendListMessage({
+                        'id': d[i].id,
+                        'name': data['name'],
+                        'count': (data['items'] as List).length,
+                        'type': data['type'],
+                      });
+                      Navigator.pop(ctx);
+                    },
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// [GÜVENLİ LİSTE GÖRÜNTÜLEME EKRANI]
+class SharedListDisplayView extends StatelessWidget {
+  final String title;
+  final List<Map<String, dynamic>> items;
+  const SharedListDisplayView({
+    super.key,
+    required this.title,
+    required this.items,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundBlack,
+      appBar: AppBar(
+        backgroundColor: AppTheme.surfaceDark,
+        title: Text(title, style: TextStyle(color: AppTheme.textColor)),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: AppTheme.textColor),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: items.isEmpty
+          ? const Center(
+              child: Text("Liste boş", style: TextStyle(color: Colors.grey)),
+            )
+          : ListView.builder(
+              itemCount: items.length,
+              padding: const EdgeInsets.all(16),
+              itemBuilder: (context, index) {
+                final item = items[index];
+                final posterPath = item['poster_path'];
+                return Card(
+                  color: AppTheme.surfaceDark,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.all(8),
+                    leading: posterPath != null
+                        ? CachedNetworkImage(
+                            imageUrl: posterPath.startsWith('http')
+                                ? posterPath
+                                : 'https://image.tmdb.org/t/p/w200$posterPath',
+                            width: 50,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, __, ___) =>
+                                const Icon(Icons.movie, color: Colors.grey),
+                          )
+                        : const Icon(Icons.movie, color: Colors.grey, size: 40),
+                    title: Text(
+                      item['title'] ?? 'Film',
+                      style: TextStyle(
+                        color: AppTheme.textColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    onTap: () {
+                      final m = Movie.fromMap(item);
+                      context.push('/movie-detail', extra: m);
+                    },
+                  ),
+                );
+              },
+            ),
     );
   }
 }

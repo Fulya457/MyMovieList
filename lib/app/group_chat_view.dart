@@ -49,12 +49,10 @@ class _GroupChatViewState extends State<GroupChatView> {
 
   void _sendMessage() async {
     final text = _msgController.text.trim();
-    // Eğer hem yazı yok hem de film taslağı yoksa gönderme
     if (text.isEmpty && _draftMovie == null) return;
 
     _msgController.clear();
 
-    // Film verisi hazırlığı
     final movieToSend = _draftMovie != null
         ? {
             'id': _draftMovie!.id,
@@ -65,13 +63,20 @@ class _GroupChatViewState extends State<GroupChatView> {
 
     final replyData = _replyToMessage;
 
-    // Gönderimden sonra UI temizliği
     setState(() {
       _draftMovie = null;
       _replyToMessage = null;
     });
 
-    // Manager üzerinden gönder
+    // [GÜNCELLENDİ] Liste paylaşımı yapılırken 'items' verisi de gidiyor mu kontrol et
+    // MovieManager.sendGroupMessage içinde bu mantık olmalı.
+    // Eğer MovieManager'ı güncellemediysen, burada manuel map oluşturup göndermek daha güvenli.
+
+    // Şimdilik MovieManager'ın güncel olduğunu varsayıyoruz.
+    // Değilse MovieManager.dart dosyasındaki sendGroupMessage fonksiyonuna
+    // "if (sharedList.containsKey('items')) data['list_items'] = sharedList['items'];"
+    // satırını eklemeyi unutma!
+
     await MovieManager.instance.sendGroupMessage(
       widget.groupId,
       text,
@@ -313,15 +318,13 @@ class _GroupChatViewState extends State<GroupChatView> {
     );
   }
 
+  // [GÜNCELLENDİ] Normal Liste Paylaşımı
   void _showMyListsDialog() {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceDark,
-        title: Text(
-          "Listeni Paylaş",
-          style: TextStyle(color: AppTheme.textColor),
-        ),
+        title: Text("Liste Seç", style: TextStyle(color: AppTheme.textColor)),
         content: SizedBox(
           width: double.maxFinite,
           height: 300,
@@ -349,23 +352,16 @@ class _GroupChatViewState extends State<GroupChatView> {
                       data['name'],
                       style: TextStyle(color: AppTheme.textColor),
                     ),
-                    subtitle: Text(
-                      "${(data['items'] as List).length} Öğe",
-                      style: TextStyle(color: Colors.grey),
-                    ),
                     onTap: () {
-                      MovieManager.instance.sendGroupMessage(
-                        widget.groupId,
-                        "Bir liste paylaştı",
-                        sharedList: {
-                          'id': docs[index].id,
-                          'name': data['name'],
-                          'count': (data['items'] as List).length,
-                          'type': data['type'] ?? 'movies',
-                        },
-                      );
+                      // [DÜZELTME] Yerel fonksiyon ile gönderiyoruz
+                      _sendListMessage({
+                        'id': docs[index].id,
+                        'name': data['name'],
+                        'count': (data['items'] as List).length,
+                        'type': data['type'] ?? 'movies',
+                        'items': data['items'], // İçeriği eklemeyi unutmuyoruz
+                      });
                       Navigator.pop(ctx);
-                      _scrollDown();
                     },
                   );
                 },
@@ -377,25 +373,39 @@ class _GroupChatViewState extends State<GroupChatView> {
     );
   }
 
+  // [GÜNCELLENDİ] Favori Paylaşımı
   void _shareFavorites() {
-    final favCount = MovieManager.instance.favoriteMovies.length;
-    if (favCount == 0) {
+    final favMovies = MovieManager.instance.favoriteMovies;
+    if (favMovies.isEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("Favori listeniz boş.")));
       return;
     }
-    MovieManager.instance.sendGroupMessage(
-      widget.groupId,
-      "Favorilerini paylaştı",
-      sharedList: {
-        'id': 'favorites',
-        'name': 'Favorilerim',
-        'count': favCount,
-        'type': 'movies',
-      },
-    );
-    _scrollDown();
+
+    // Filmleri Map formatına çevir
+    final itemsMap = favMovies
+        .map(
+          (m) => {
+            'id': m.id,
+            'title': m.title,
+            'poster_path': m.poster,
+            'overview': m.plot,
+            'vote_average': m.rating,
+            'release_date': m.releaseDate,
+            'genre_ids': m.genres,
+          },
+        )
+        .toList();
+
+    // [DÜZELTME] Artık yerel fonksiyonu kullanıyoruz
+    _sendListMessage({
+      'id': 'favorites',
+      'name': 'Favorilerim',
+      'count': favMovies.length,
+      'type': 'movies',
+      'items': itemsMap, // Veriler burada
+    });
   }
 
   void _showGroupInfo() {
@@ -1209,19 +1219,31 @@ class _GroupChatViewState extends State<GroupChatView> {
     );
   }
 
-  // [YENİ] Tıklanabilir Liste Kartı
+  // [GÜNCELLENMİŞ] Tıklanabilir Liste Kartı
   Widget _buildClickableListCard(Map<String, dynamic> msg) {
     return GestureDetector(
       onTap: () {
-        context.push(
-          AppRouters.userListDetail,
-          extra: {
-            'listId': msg['list_id'],
-            'listName': msg['list_name'],
-            'items': [], // Boş gönderiyoruz, detay sayfası çekecek
-            'type': msg['list_type'] ?? 'movies',
-          },
-        );
+        // Liste içeriği mesajın içinde var mı?
+        if (msg.containsKey('list_items') && msg['list_items'] != null) {
+          final items = List<Map<String, dynamic>>.from(msg['list_items']);
+
+          // GÜVENLİ EKRANI AÇ
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => SharedListDisplayView(
+                title: msg['list_name'] ?? 'Liste',
+                items: items,
+              ),
+            ),
+          );
+        } else {
+          // Eski mesajlar veya veri yoksa
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Bu liste görüntülenemiyor (Eski mesaj)."),
+            ),
+          );
+        }
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 5),
@@ -1356,6 +1378,124 @@ class _GroupChatViewState extends State<GroupChatView> {
           ],
         ),
       ),
+    );
+  }
+
+  // [YENİ] Listeyi ve İçeriğini Garantili Kaydetme Fonksiyonu
+  Future<void> _sendListMessage(Map<String, dynamic> listData) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final msgData = {
+      'sender_id': user.uid,
+      'sender_email': user.email,
+      'text': "Bir liste paylaştı",
+      'created_at': FieldValue.serverTimestamp(),
+      'likes': [],
+      'seen_by': [],
+      'list_id': listData['id'],
+      'list_name': listData['name'],
+      'list_count': listData['count'],
+      'list_type': listData['type'] ?? 'movies',
+    };
+
+    // [KRİTİK] Liste içeriğini mesajın içine gömüyoruz
+    if (listData.containsKey('items')) {
+      msgData['list_items'] = listData['items'];
+    }
+
+    await FirebaseFirestore.instance
+        .collection('groups')
+        .doc(widget.groupId)
+        .collection('messages')
+        .add(msgData);
+
+    _scrollDown();
+  }
+}
+// BU KODU DOSYANIN EN ALTINA YAPIŞTIR
+
+class SharedListDisplayView extends StatelessWidget {
+  final String title;
+  final List<Map<String, dynamic>> items;
+
+  const SharedListDisplayView({
+    super.key,
+    required this.title,
+    required this.items,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundBlack,
+      appBar: AppBar(
+        backgroundColor: AppTheme.surfaceDark,
+        title: Text(title, style: TextStyle(color: AppTheme.textColor)),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: AppTheme.textColor),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: items.isEmpty
+          ? const Center(
+              child: Text("Liste boş", style: TextStyle(color: Colors.grey)),
+            )
+          : ListView.builder(
+              itemCount: items.length,
+              padding: const EdgeInsets.all(16),
+              itemBuilder: (context, index) {
+                final item = items[index];
+                final posterPath = item['poster_path'];
+
+                return Card(
+                  color: AppTheme.surfaceDark,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.all(8),
+                    leading: posterPath != null
+                        ? CachedNetworkImage(
+                            imageUrl: posterPath.startsWith('http')
+                                ? posterPath
+                                : 'https://image.tmdb.org/t/p/w200$posterPath',
+                            width: 50,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, __, ___) =>
+                                const Icon(Icons.movie, color: Colors.grey),
+                          )
+                        : const Icon(Icons.movie, color: Colors.grey, size: 40),
+                    title: Text(
+                      item['title'] ?? 'Bilinmeyen Film',
+                      style: TextStyle(
+                        color: AppTheme.textColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    subtitle: item['vote_average'] != null
+                        ? Row(
+                            children: [
+                              const Icon(
+                                Icons.star,
+                                color: Colors.amber,
+                                size: 14,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                item['vote_average'].toString(),
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            ],
+                          )
+                        : null,
+                    onTap: () {
+                      // Film detayına gitmek için:
+                      // final m = Movie.fromMap(item);
+                      // context.push('/movie-detail', extra: m);
+                    },
+                  ),
+                );
+              },
+            ),
     );
   }
 }
