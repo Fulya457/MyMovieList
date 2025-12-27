@@ -20,12 +20,12 @@ class AppView extends StatefulWidget {
 
 class _AppViewState extends State<AppView> {
   StreamSubscription? _notificationSubscription;
-  // Sayfa açıldığı anı milisaniye olarak alıyoruz
-  int _startTimestamp = DateTime.now().millisecondsSinceEpoch;
+  late DateTime _appOpenTime;
 
   @override
   void initState() {
     super.initState();
+    _appOpenTime = DateTime.now();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startListeningForNotifications();
     });
@@ -41,32 +41,41 @@ class _AppViewState extends State<AppView> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    // Sadece bu oturum açıldıktan sonra gelen bildirimleri dinle
-    // 'timestamp' alanı Firestore'da ServerTimestamp olmalı.
     _notificationSubscription = FirebaseFirestore.instance
         .collection('notifications')
         .where('recipient_id', isEqualTo: user.uid)
-        .snapshots() // Tümünü dinle, client tarafında filtrele (Daha güvenilir anlık bildirim için)
+        .limit(10)
+        .snapshots()
         .listen((snapshot) {
           for (var change in snapshot.docChanges) {
-            // Sadece yeni eklenenler (Added)
             if (change.type == DocumentChangeType.added) {
               final data = change.doc.data() as Map<String, dynamic>;
               final docId = change.doc.id;
 
-              // Zaman kontrolü: Bildirim yeni mi?
-              // (Eğer timestamp alanı yoksa veya null ise eski kabul et)
               Timestamp? ts = data['timestamp'];
-              if (ts != null) {
-                int msgTime = ts.millisecondsSinceEpoch;
-                // Eğer mesajın zamanı, bu ekranın açılış zamanından büyükse göster
-                if (msgTime > _startTimestamp) {
-                  final text =
-                      data['text'] ?? data['message'] ?? 'New Notification';
-                  final type = data['type'] ?? 'general';
-                  if (mounted) {
-                    _showInAppNotification(text, type, docId);
+              if (ts == null) continue;
+
+              DateTime msgTime = ts.toDate();
+              if (msgTime.isAfter(_appOpenTime)) {
+                final text =
+                    data['text'] ?? data['message'] ?? 'New Notification';
+                final type = data['type'] ?? 'general';
+
+                final manager = MovieManager.instance;
+
+                if (!manager.areNotificationsEnabled) return;
+
+                if (type == 'message') {
+                  final senderId = data['sender_id'];
+                  if (senderId != null &&
+                      senderId == manager.currentChatPartnerId) {
+                    SocialService.instance.markNotificationAsRead(docId);
+                    return;
                   }
+                }
+
+                if (mounted) {
+                  _showInAppNotification(text, type, docId);
                 }
               }
             }
@@ -75,9 +84,7 @@ class _AppViewState extends State<AppView> {
   }
 
   void _showInAppNotification(String text, String type, String docId) {
-    // Tema Durumu
     final isDark = MovieManager.instance.isDarkMode;
-    // Renkler
     final Color bgColor = isDark ? const Color(0xFF1E202B) : Colors.white;
     final Color textColor = isDark ? Colors.white : Colors.black87;
 
@@ -86,11 +93,15 @@ class _AppViewState extends State<AppView> {
         backgroundColor: bgColor,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(12),
-        elevation: 10, // Biraz daha gölge
+        elevation: 10,
+
+        // [YENİ EKLENEN ÖZELLİK]: Sağa veya Sola kaydırarak kapatma
+        dismissDirection: DismissDirection.horizontal,
+
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
           side: BorderSide(
-            color: AppTheme.primaryBlue.withValues(alpha: 0.5), // Mavi Çerçeve
+            color: AppTheme.primaryBlue.withValues(alpha: 0.5),
             width: 1.5,
           ),
         ),
@@ -121,7 +132,8 @@ class _AppViewState extends State<AppView> {
             _handleNavigation(type);
           },
         ),
-        duration: const Duration(seconds: 5),
+        // Süreyi biraz uzattık (6sn), kullanıcı isterse kaydırıp hemen kapatabilir
+        duration: const Duration(seconds: 6),
       ),
     );
   }
@@ -143,9 +155,7 @@ class _AppViewState extends State<AppView> {
 
   void _handleNavigation(String type) {
     if (type == 'friend_request' || type == 'message') {
-      context.push(
-        AppRouters.friends,
-      ); // Veya Chat'e gitmesi daha mantıklı olabilir
+      context.push(AppRouters.friends);
     } else {
       context.push(AppRouters.notifications);
     }

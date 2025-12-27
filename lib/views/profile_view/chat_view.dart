@@ -30,6 +30,19 @@ class _ChatViewState extends State<ChatView> {
     if (widget.extras.containsKey('sharedList')) {
       _attachedList = widget.extras['sharedList'];
     }
+
+    // [DÜZELTME 1]: Sohbet partnerini kaydet (Bildirim engellemek için)
+    final targetUid = widget.extras['targetUid'] ?? widget.extras['uid'];
+    MovieManager.instance.enterChat(targetUid);
+  }
+
+  @override
+  void dispose() {
+    // [DÜZELTME 2]: Sohbetten çıkış yapıldığını bildir
+    MovieManager.instance.exitChat();
+    _msgController.dispose();
+    _scrollController.dispose();
+    super.dispose();
   }
 
   // İsim Formatlayıcı (ahmet@gmail.com -> AHMET)
@@ -115,7 +128,7 @@ class _ChatViewState extends State<ChatView> {
     final targetUid = widget.extras['targetUid'] ?? widget.extras['uid'];
     final myUid = FirebaseAuth.instance.currentUser?.uid;
 
-    // [DÜZELTME 1]: Tema değişimini dinlemek için AnimatedBuilder eklendi
+    // Tema dinleyicisi
     return AnimatedBuilder(
       animation: MovieManager.instance,
       builder: (context, child) {
@@ -123,9 +136,7 @@ class _ChatViewState extends State<ChatView> {
           backgroundColor: AppTheme.backgroundBlack,
           appBar: AppBar(
             backgroundColor: AppTheme.surfaceDark,
-            iconTheme: IconThemeData(
-              color: AppTheme.textColor,
-            ), // İkon rengi düzeltildi
+            iconTheme: IconThemeData(color: AppTheme.textColor),
             titleSpacing: 0,
             title: StreamBuilder<DocumentSnapshot>(
               stream: FirebaseFirestore.instance
@@ -172,8 +183,7 @@ class _ChatViewState extends State<ChatView> {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color:
-                            AppTheme.textColor, // Başlık rengi dinamik yapıldı
+                        color: AppTheme.textColor,
                       ),
                     ),
                   ],
@@ -199,7 +209,6 @@ class _ChatViewState extends State<ChatView> {
                         final msg = docs[index].data() as Map<String, dynamic>;
                         final isMe = msg['sender_id'] == myUid;
 
-                        // [DÜZELTME 2]: Mesaj baloncuğunu ayrı metoda taşıdık veya burada düzelttik
                         return _buildMessageBubble(msg, isMe);
                       },
                     );
@@ -257,9 +266,7 @@ class _ChatViewState extends State<ChatView> {
                     Expanded(
                       child: TextField(
                         controller: _msgController,
-                        style: TextStyle(
-                          color: AppTheme.textColor,
-                        ), // Yazılan yazı rengi
+                        style: TextStyle(color: AppTheme.textColor),
                         decoration: InputDecoration(
                           hintText: "Mesaj yaz...",
                           hintStyle: TextStyle(
@@ -296,12 +303,12 @@ class _ChatViewState extends State<ChatView> {
     );
   }
 
-  // YENİ METOD: Mesaj Baloncuğu Oluşturucu
   Widget _buildMessageBubble(Map<String, dynamic> msg, bool isMe) {
-    // [DÜZELTME 3]: Yazı rengi mantığı
-    // Eğer benim mesajımsa (Mavi zemin) -> Beyaz yazı
-    // Eğer arkadaşın mesajıysa (Yüzey rengi zemin) -> Tema yazı rengi (Aydınlıkta Siyah, Karanlıkta Beyaz)
+    // [DÜZELTME 3]: Mesaj renklerini garantiye alıyoruz
     final Color textColor = isMe ? Colors.white : AppTheme.textColor;
+    final Color bubbleColor = isMe
+        ? AppTheme.primaryBlue
+        : AppTheme.surfaceDark;
 
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -309,7 +316,7 @@ class _ChatViewState extends State<ChatView> {
         margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isMe ? AppTheme.primaryBlue : AppTheme.surfaceDark,
+          color: bubbleColor,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(12),
             topRight: const Radius.circular(12),
@@ -339,10 +346,7 @@ class _ChatViewState extends State<ChatView> {
                 padding: const EdgeInsets.only(top: 4.0),
                 child: Text(
                   msg['text'],
-                  style: TextStyle(
-                    color: textColor, // Düzeltilen renk
-                    fontSize: 16,
-                  ),
+                  style: TextStyle(color: textColor, fontSize: 16),
                 ),
               ),
           ],
@@ -360,10 +364,9 @@ class _ChatViewState extends State<ChatView> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        // İçerik kartı rengini hafif farklılaştırıyoruz
         color: isMe
             ? Colors.black26
-            : AppTheme.backgroundBlack.withValues(alpha: 0.5),
+            : Colors.black.withValues(alpha: 0.05), // Hafif koyu zemin
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: textColor.withValues(alpha: 0.2)),
       ),
@@ -401,8 +404,7 @@ class _ChatViewState extends State<ChatView> {
               height: 30,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      AppTheme.primaryBlue, // Buton rengi belirgin olsun
+                  backgroundColor: AppTheme.primaryBlue,
                   padding: EdgeInsets.zero,
                 ),
                 onPressed: () => _importList(msg, msg['sender_id']),
@@ -440,9 +442,7 @@ class _ChatViewState extends State<ChatView> {
         margin: const EdgeInsets.only(bottom: 8),
         width: 150,
         decoration: BoxDecoration(
-          color: isMe
-              ? Colors.black26
-              : AppTheme.backgroundBlack.withValues(alpha: 0.5),
+          color: isMe ? Colors.black26 : Colors.black.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: textColor.withValues(alpha: 0.2)),
         ),
@@ -475,7 +475,7 @@ class _ChatViewState extends State<ChatView> {
                   Text(
                     msg['movie_title'] ?? 'Film',
                     style: TextStyle(
-                      color: textColor, // Düzeltilen renk
+                      color: textColor,
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),

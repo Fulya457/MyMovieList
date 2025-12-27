@@ -12,7 +12,7 @@ class ProfileView extends StatelessWidget {
   const ProfileView({super.key});
 
   String _getMemberName() {
-    final email = FirebaseAuth.instance.currentUser?.email ?? 'Kullanıcı';
+    final email = FirebaseAuth.instance.currentUser?.email ?? 'User';
     if (email.contains('@')) {
       return email.substring(0, email.indexOf('@')).toUpperCase();
     }
@@ -33,9 +33,9 @@ class ProfileView extends StatelessWidget {
           child: Column(
             children: [
               Text(
-                "Profil Avatarını Seç",
+                "Choose Profile Avatar",
                 style: TextStyle(
-                  color: AppTheme.textColor, // DÜZELTİLDİ
+                  color: AppTheme.textColor,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
@@ -56,7 +56,7 @@ class ProfileView extends StatelessWidget {
                         Navigator.pop(ctx);
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text("Profil fotoğrafı güncellendi!"),
+                            content: Text("Profile avatar updated!"),
                           ),
                         );
                       },
@@ -86,29 +86,29 @@ class ProfileView extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceDark,
         title: Text(
-          "Şifre Değiştir",
+          "Change Password",
           style: TextStyle(color: AppTheme.textColor),
-        ), // DÜZELTİLDİ
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              "Güvenliğiniz için önce mevcut şifrenizi girin.",
+              "Please enter your current password first.",
               style: TextStyle(
                 color: AppTheme.textColor.withValues(alpha: 0.7),
                 fontSize: 12,
-              ), // DÜZELTİLDİ
+              ),
             ),
             const SizedBox(height: 15),
             TextField(
               controller: currentPassController,
               obscureText: true,
-              style: TextStyle(color: AppTheme.textColor), // DÜZELTİLDİ
+              style: TextStyle(color: AppTheme.textColor),
               decoration: InputDecoration(
-                hintText: "Mevcut Şifre",
+                hintText: "Current Password",
                 hintStyle: TextStyle(
                   color: AppTheme.textColor.withValues(alpha: 0.5),
-                ), // DÜZELTİLDİ
+                ),
                 prefixIcon: const Icon(Icons.lock_outline, color: Colors.grey),
                 filled: true,
                 fillColor: MovieManager.instance.isDarkMode
@@ -124,12 +124,12 @@ class ProfileView extends StatelessWidget {
             TextField(
               controller: newPassController,
               obscureText: true,
-              style: TextStyle(color: AppTheme.textColor), // DÜZELTİLDİ
+              style: TextStyle(color: AppTheme.textColor),
               decoration: InputDecoration(
-                hintText: "Yeni Şifre",
+                hintText: "New Password",
                 hintStyle: TextStyle(
                   color: AppTheme.textColor.withValues(alpha: 0.5),
-                ), // DÜZELTİLDİ
+                ),
                 prefixIcon: Icon(Icons.vpn_key, color: AppTheme.primaryBlue),
                 filled: true,
                 fillColor: MovieManager.instance.isDarkMode
@@ -146,7 +146,7 @@ class ProfileView extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text("İptal"),
+            child: const Text("Cancel"),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -165,7 +165,7 @@ class ProfileView extends StatelessWidget {
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text("Şifre başarıyla değiştirildi."),
+                      content: Text("Password changed successfully."),
                       backgroundColor: Colors.green,
                     ),
                   );
@@ -181,7 +181,7 @@ class ProfileView extends StatelessWidget {
                 }
               }
             },
-            child: const Text("Kaydet", style: TextStyle(color: Colors.white)),
+            child: const Text("Save", style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -216,7 +216,7 @@ class ProfileView extends StatelessWidget {
                         colors: [
                           AppTheme.primaryBlue.withValues(
                             alpha: isDark ? 0.3 : 0.1,
-                          ), // Aydınlıkta hafif
+                          ),
                           AppTheme.backgroundBlack,
                         ],
                       ),
@@ -279,7 +279,7 @@ class ProfileView extends StatelessWidget {
                         Text(
                           userName,
                           style: TextStyle(
-                            color: AppTheme.textColor, // DÜZELTİLDİ: İsim rengi
+                            color: AppTheme.textColor,
                             fontSize: 26,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 1,
@@ -290,7 +290,7 @@ class ProfileView extends StatelessWidget {
                           style: TextStyle(
                             color: AppTheme.textColor.withValues(alpha: 0.7),
                             fontSize: 14,
-                          ), // DÜZELTİLDİ: Email rengi
+                          ),
                         ),
                       ],
                     ),
@@ -310,7 +310,7 @@ class ProfileView extends StatelessWidget {
                     children: [
                       _buildStatCard(
                         context: context,
-                        label: "Favoriler",
+                        label: "Favorites",
                         count: favCount.toString(),
                         icon: Icons.favorite,
                         onTap: () => context.go(AppRouters.favorites),
@@ -323,7 +323,7 @@ class ProfileView extends StatelessWidget {
                               : 0;
                           return _buildStatCard(
                             context: context,
-                            label: "Listeler",
+                            label: "Lists",
                             count: count.toString(),
                             icon: Icons.list,
                             onTap: () => context.push(AppRouters.userLists),
@@ -345,7 +345,7 @@ class ProfileView extends StatelessWidget {
                               : 0;
                           return _buildStatCard(
                             context: context,
-                            label: "Yorumlar",
+                            label: "Reviews",
                             count: count.toString(),
                             icon: Icons.comment,
                             onTap: () => context.push(AppRouters.userReviews),
@@ -363,12 +363,12 @@ class ProfileView extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
                     child: Text(
-                      "Son Favorilerim",
+                      "Latest Favorites",
                       style: TextStyle(
                         color: AppTheme.textColor,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                      ), // DÜZELTİLDİ
+                      ),
                     ),
                   ),
                 ),
@@ -413,7 +413,7 @@ class ProfileView extends StatelessWidget {
                                       alpha: 0.8,
                                     ),
                                     fontSize: 12,
-                                  ), // DÜZELTİLDİ
+                                  ),
                                 ),
                               ],
                             ),
@@ -432,34 +432,74 @@ class ProfileView extends StatelessWidget {
                   delegate: SliverChildListDelegate([
                     const SizedBox(height: 10),
                     Text(
-                      "Hesap Ayarları",
+                      "Account Settings",
                       style: TextStyle(
                         color: AppTheme.textColor.withValues(alpha: 0.6),
                         fontWeight: FontWeight.bold,
                       ),
-                    ), // DÜZELTİLDİ
+                    ),
                     const SizedBox(height: 10),
+
+                    // Bildirim Ayarı
+                    Container(
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.surfaceDark,
+                        borderRadius: BorderRadius.circular(15),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.03),
+                            blurRadius: 5,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: SwitchListTile(
+                        title: Text(
+                          "Notifications",
+                          style: TextStyle(
+                            color: AppTheme.textColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        secondary: Icon(
+                          MovieManager.instance.areNotificationsEnabled
+                              ? Icons.notifications_active
+                              : Icons.notifications_off,
+                          color: Colors.orangeAccent,
+                        ),
+                        value: MovieManager.instance.areNotificationsEnabled,
+                        activeColor: AppTheme.primaryBlue,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        onChanged: (val) {
+                          MovieManager.instance.toggleNotifications(val);
+                        },
+                      ),
+                    ),
+
                     _buildMenuItem(
                       icon: Icons.people,
-                      text: "Arkadaşlarım",
+                      text: "Friends",
                       color: Colors.purpleAccent,
                       onTap: () => context.push(AppRouters.friends),
                     ),
                     _buildMenuItem(
                       icon: Icons.notifications,
-                      text: "Bildirimler",
+                      text: "Communication Center",
                       color: Colors.orangeAccent,
                       onTap: () => context.push(AppRouters.notifications),
                     ),
                     _buildMenuItem(
                       icon: Icons.rate_review,
-                      text: "Değerlendirmelerim",
+                      text: "My Reviews",
                       color: Colors.blueAccent,
                       onTap: () => context.push(AppRouters.userReviews),
                     ),
                     _buildMenuItem(
                       icon: Icons.lock_reset,
-                      text: "Şifre Değiştir",
+                      text: "Change Password",
                       color: Colors.greenAccent,
                       onTap: () => _showChangePasswordDialog(context),
                     ),
@@ -467,7 +507,7 @@ class ProfileView extends StatelessWidget {
                     // --- TEMA DEĞİŞTİR BUTONU ---
                     _buildMenuItem(
                       icon: isDark ? Icons.light_mode : Icons.dark_mode,
-                      text: isDark ? "Aydınlık Tema" : "Karanlık Tema",
+                      text: isDark ? "Light Mode" : "Dark Mode",
                       color: isDark ? Colors.amber : Colors.indigo,
                       onTap: () {
                         MovieManager.instance.toggleTheme();
@@ -475,8 +515,8 @@ class ProfileView extends StatelessWidget {
                           SnackBar(
                             content: Text(
                               isDark
-                                  ? "Aydınlık moda geçildi!"
-                                  : "Karanlık moda geçildi!",
+                                  ? "Switched to Light Mode!"
+                                  : "Switched to Dark Mode!",
                             ),
                             duration: const Duration(milliseconds: 800),
                           ),
@@ -496,7 +536,7 @@ class ProfileView extends StatelessWidget {
                       ),
                       icon: const Icon(Icons.logout, color: Colors.white),
                       label: const Text(
-                        "Çıkış Yap",
+                        "Logout",
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,
@@ -533,9 +573,7 @@ class ProfileView extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppTheme.surfaceDark,
           borderRadius: BorderRadius.circular(15),
-          border: Border.all(
-            color: AppTheme.textColor.withValues(alpha: 0.1),
-          ), // DÜZELTİLDİ: Kenarlık rengi
+          border: Border.all(color: AppTheme.textColor.withValues(alpha: 0.1)),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.05),
@@ -554,14 +592,14 @@ class ProfileView extends StatelessWidget {
                 color: AppTheme.textColor,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-              ), // DÜZELTİLDİ
+              ),
             ),
             Text(
               label,
               style: TextStyle(
                 color: AppTheme.textColor.withValues(alpha: 0.6),
                 fontSize: 12,
-              ), // DÜZELTİLDİ
+              ),
             ),
           ],
         ),
@@ -603,12 +641,12 @@ class ProfileView extends StatelessWidget {
             color: AppTheme.textColor,
             fontWeight: FontWeight.w500,
           ),
-        ), // DÜZELTİLDİ
+        ),
         trailing: Icon(
           Icons.arrow_forward_ios,
           size: 14,
           color: AppTheme.textColor.withValues(alpha: 0.4),
-        ), // DÜZELTİLDİ
+        ),
         onTap: onTap,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       ),

@@ -25,6 +25,28 @@ class MovieManager extends ChangeNotifier {
   bool isDarkMode = true; // Varsayılan: Karanlık
   int currentBgColor = 0xFF12141C;
 
+  // --- [YENİ] BİLDİRİM AYARLARI ---
+  bool areNotificationsEnabled = true; // Genel bildirim anahtarı
+  String? currentChatPartnerId; // O an mesajlaşılan kişinin ID'si
+
+  // Bildirimleri aç/kapat
+  void toggleNotifications(bool value) {
+    areNotificationsEnabled = value;
+    notifyListeners();
+  }
+
+  // Sohbete girince (Bildirim gelmesin diye)
+  void enterChat(String partnerId) {
+    currentChatPartnerId = partnerId;
+    // notifyListeners(); // Arka plan mantığı için gerekirse açılabilir
+  }
+
+  // Sohbetten çıkınca
+  void exitChat() {
+    currentChatPartnerId = null;
+  }
+  // ---------------------------------
+
   // 1. TEMAYI DEĞİŞTİR VE KAYDET
   Future<void> toggleTheme() async {
     isDarkMode = !isDarkMode;
@@ -507,7 +529,7 @@ class MovieManager extends ChangeNotifier {
 
   Map<String, String> getActorDetails(String n) => {"bio": "...", "photo": ""};
 
-  // --- GRUP ÖZELLİKLERİ (YENİ) ---
+  // --- GRUP ÖZELLİKLERİ ---
 
   // 1. Grup Oluştur
   Future<void> createGroup(String name, String description) async {
