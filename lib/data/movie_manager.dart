@@ -25,9 +25,9 @@ class MovieManager extends ChangeNotifier {
   bool isDarkMode = true; // Varsayılan: Karanlık
   int currentBgColor = 0xFF12141C;
 
-  // --- [YENİ] BİLDİRİM AYARLARI ---
+  // --- BİLDİRİM AYARLARI (Eski Sistem) ---
   bool areNotificationsEnabled = true; // Genel bildirim anahtarı
-  String? currentChatPartnerId; // O an mesajlaşılan kişinin ID'si
+  String? currentChatPartnerId; // O an mesajlaşılan kişinin ID'si (Filtre için)
 
   // Bildirimleri aç/kapat
   void toggleNotifications(bool value) {
@@ -35,13 +35,12 @@ class MovieManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Sohbete girince (Bildirim gelmesin diye)
+  // Sohbete girince (Bildirim gelmesin diye ID kaydet)
   void enterChat(String partnerId) {
     currentChatPartnerId = partnerId;
-    // notifyListeners(); // Arka plan mantığı için gerekirse açılabilir
   }
 
-  // Sohbetten çıkınca
+  // Sohbetten çıkınca (Sıfırla)
   void exitChat() {
     currentChatPartnerId = null;
   }
@@ -69,7 +68,7 @@ class MovieManager extends ChangeNotifier {
     }
   }
 
-  // 2. KULLANICI GİRİŞ YAPINCA TEMAYI ÇEK (Login'de çağıracağız)
+  // 2. KULLANICI GİRİŞ YAPINCA TEMAYI ÇEK
   Future<void> loadUserTheme() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -82,11 +81,8 @@ class MovieManager extends ChangeNotifier {
       if (doc.exists && doc.data() != null) {
         final data = doc.data() as Map<String, dynamic>;
 
-        // Veritabanındaki tercihi al
         if (data.containsKey('is_dark_mode')) {
           isDarkMode = data['is_dark_mode'];
-
-          // Rengi güncelle
           if (isDarkMode) {
             currentBgColor = 0xFF12141C;
           } else {
@@ -100,7 +96,7 @@ class MovieManager extends ChangeNotifier {
     }
   }
 
-  // 3. YENİ KULLANICI OLUŞTURURKEN VARSAYILAN TEMA EKLE
+  // 3. YENİ KULLANICI KONTROLÜ
   Future<void> ensureUserExistsInFirestore() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -111,21 +107,18 @@ class MovieManager extends ChangeNotifier {
     final snapshot = await userDoc.get();
 
     if (!snapshot.exists) {
-      // Yeni kullanıcı oluştur
       await userDoc.set({
         'uid': user.uid,
         'email': user.email,
         'created_at': FieldValue.serverTimestamp(),
         'profile_icon_id': 0,
-        'is_dark_mode': true, // Varsayılan Karanlık Mod
+        'is_dark_mode': true,
       });
     } else {
-      // Kullanıcı zaten varsa, temasını yükle
       await loadUserTheme();
     }
   }
 
-  // Sadece Arka Planı Değiştirme (Manuel Seçim)
   void changeBackgroundColor(int colorValue) {
     currentBgColor = colorValue;
     notifyListeners();
@@ -155,7 +148,6 @@ class MovieManager extends ChangeNotifier {
     "https://api.dicebear.com/7.x/micah/png?seed=Cool",
   ];
 
-  // [YENİ] GRUP İKONLARI
   final List<String> groupIcons = [
     "https://api.dicebear.com/7.x/shapes/png?seed=Group1",
     "https://api.dicebear.com/7.x/shapes/png?seed=Group2",
@@ -163,8 +155,8 @@ class MovieManager extends ChangeNotifier {
     "https://api.dicebear.com/7.x/icons/png?seed=Movie",
     "https://api.dicebear.com/7.x/icons/png?seed=Popcorn",
     "https://api.dicebear.com/7.x/identicon/png?seed=Team",
-    "https://api.dicebear.com/7.x/initials/png?seed=FC", // Film Club
-    "https://api.dicebear.com/7.x/initials/png?seed=MV", // Movies
+    "https://api.dicebear.com/7.x/initials/png?seed=FC",
+    "https://api.dicebear.com/7.x/initials/png?seed=MV",
   ];
 
   final List<Movie> _allMovies = [];
@@ -393,31 +385,25 @@ class MovieManager extends ChangeNotifier {
   }
 
   // --- LİSTE YÖNETİMİ ---
-  // Listeleri Dinle
   Stream<QuerySnapshot> getUserListsStream() =>
       _socialService.getUserListsStream();
 
-  // Yeni Liste Oluştur
   Future<void> createCustomList(String name, String type) async =>
       await _socialService.createList(name, type);
 
-  // Listeye Film Ekle
   Future<void> addMovieToCustomList(String listId, Movie movie) async =>
       await _socialService.addToList(listId, movie.toMap());
 
-  // Listeye Genel Öğe Ekle
   Future<void> addItemToCustomList(
     String listId,
     Map<String, dynamic> item,
   ) async => await _socialService.addToList(listId, item);
 
-  // Listeden Film/Öğe Çıkar
   Future<void> removeMovieFromCustomList(
     String listId,
     Map<String, dynamic> item,
   ) async => await _socialService.removeFromList(listId, item);
 
-  // Listeyi Sil
   Future<void> deleteCustomList(String listId) async =>
       await _socialService.deleteList(listId);
 
@@ -443,7 +429,7 @@ class MovieManager extends ChangeNotifier {
     await _socialService.changePassword(currentPassword, newPassword);
   }
 
-  // --- ARKADAŞLIK & CHAT ---
+  // --- ARKADAŞLIK ---
   Stream<QuerySnapshot> getFriendsStream() => _socialService.getFriendsStream();
   Stream<QuerySnapshot> getFriendRequestsStream() =>
       _socialService.getFriendRequestsStream();
@@ -465,6 +451,8 @@ class MovieManager extends ChangeNotifier {
     });
   }
 
+  // --- CHAT (BİREYSEL) ---
+  // Bireysel mesajda SocialService zaten 'notifications' tablosuna yazıyor.
   Future<void> sendMessage({
     required String receiverUid,
     required String text,
@@ -543,7 +531,6 @@ class MovieManager extends ChangeNotifier {
 
   // --- GRUP ÖZELLİKLERİ ---
 
-  // 1. Grup Oluştur
   Future<void> createGroup(
     String name,
     String description,
@@ -558,12 +545,11 @@ class MovieManager extends ChangeNotifier {
       'created_at': FieldValue.serverTimestamp(),
       'creator_id': user.uid,
       'group_icon_id': iconIndex,
-      'members': [user.uid], // Kurucu direkt üye
-      'pending_requests': [], // Katılmak isteyenler
+      'members': [user.uid],
+      'pending_requests': [],
     });
   }
 
-  // 2. Grupları Getir (Stream)
   Stream<QuerySnapshot> getGroupsStream() {
     return FirebaseFirestore.instance
         .collection('groups')
@@ -571,7 +557,6 @@ class MovieManager extends ChangeNotifier {
         .snapshots();
   }
 
-  // 3. Gruba Katılma İsteği Gönder
   Future<void> requestJoinGroup(String groupId) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -581,7 +566,6 @@ class MovieManager extends ChangeNotifier {
     });
   }
 
-  // 4. Üye İsteğini Onayla (Sadece Kurucu/Admin)
   Future<void> approveGroupMember(String groupId, String memberId) async {
     await FirebaseFirestore.instance.collection('groups').doc(groupId).update({
       'pending_requests': FieldValue.arrayRemove([memberId]),
@@ -589,7 +573,7 @@ class MovieManager extends ChangeNotifier {
     });
   }
 
-  // 5. [GÜNCELLENDİ] Grup Mesajı Gönder (Medya, Reply)
+  // 5. [GÜNCELLENDİ] Grup Mesajı Gönder (BİLDİRİM EKLENDİ)
   Future<void> sendGroupMessage(
     String groupId,
     String text, {
@@ -605,38 +589,63 @@ class MovieManager extends ChangeNotifier {
       'sender_email': user.email,
       'text': text,
       'created_at': FieldValue.serverTimestamp(),
-      'likes': [], // Beğeni listesi
-      'seen_by': [], // Görüldü listesi
+      'likes': [],
+      'seen_by': [],
     };
 
-    // Film paylaşımı varsa
     if (sharedMovie != null) {
       data['movie_id'] = sharedMovie['id'];
       data['movie_title'] = sharedMovie['title'];
       data['poster_path'] = sharedMovie['poster_path'];
     }
 
-    // Liste paylaşımı varsa
     if (sharedList != null) {
       data['list_id'] = sharedList['id'];
       data['list_name'] = sharedList['name'];
       data['list_count'] = sharedList['count'];
       data['list_type'] = sharedList['type'];
+      // List içeriğini kaydet (Önemli fix)
+      if (sharedList.containsKey('items')) {
+        data['list_items'] = sharedList['items'];
+      }
     }
 
-    // Cevaplama (Reply)
     if (replyTo != null) {
       data['reply_to'] = replyTo;
     }
 
+    // 1. Mesajı Chat'e yaz
     await FirebaseFirestore.instance
         .collection('groups')
         .doc(groupId)
         .collection('messages')
         .add(data);
+
+    // 2. [KRİTİK] Grup Üyelerine Bildirim Gönder (In-App Sistemi İçin)
+    try {
+      final groupDoc = await FirebaseFirestore.instance
+          .collection('groups')
+          .doc(groupId)
+          .get();
+      final members = List<String>.from(groupDoc.data()?['members'] ?? []);
+      final groupName = groupDoc.data()?['name'] ?? "Grup";
+
+      // Her üye için bildirim oluştur (Gönderen hariç)
+      for (var memberId in members) {
+        if (memberId == user.uid) continue;
+
+        await _socialService.createNotification(
+          memberId,
+          "Grup mesajı ($groupName): ${text.isEmpty ? 'Bir içerik paylaşıldı' : text}",
+          sharedMovie != null ? sharedMovie['id'] : 0,
+          'message', // 'group_message' da yapılabilir ama AppView 'message' dinliyor
+        );
+      }
+    } catch (e) {
+      print("Grup bildirim hatası: $e");
+    }
   }
 
-  // [YENİ] Mesajı Beğen
   Future<void> toggleGroupMessageLike(String groupId, String msgId) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -659,7 +668,6 @@ class MovieManager extends ChangeNotifier {
     }
   }
 
-  // [YENİ] Mesajı Görüldü İşaretle
   Future<void> markGroupMessageAsSeen(
     String groupId,
     String msgId,
@@ -674,7 +682,6 @@ class MovieManager extends ChangeNotifier {
         .collection('messages')
         .doc(msgId);
 
-    // ArrayUnion kullanarak sadece yeni ise ekler
     await docRef.update({
       'seen_by': FieldValue.arrayUnion([
         {'uid': uid, 'name': userName},
@@ -689,7 +696,6 @@ class MovieManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  // 6. Grup Mesajlarını Dinle
   Stream<QuerySnapshot> getGroupMessagesStream(String groupId) {
     return FirebaseFirestore.instance
         .collection('groups')
@@ -701,11 +707,9 @@ class MovieManager extends ChangeNotifier {
 
   Future<void> deleteGroup(String groupId) async {
     await FirebaseFirestore.instance.collection('groups').doc(groupId).delete();
-    // Mesajlar alt koleksiyonu kalabilir ama UI'dan erişilemez olur.
     notifyListeners();
   }
 
-  // [YENİ] Grup Bilgilerini Güncelle (İsim ve Açıklama)
   Future<void> updateGroupInfo(
     String groupId,
     String newName,
