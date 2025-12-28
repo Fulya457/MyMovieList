@@ -94,14 +94,11 @@ class _AppViewState extends State<AppView> {
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(12),
         elevation: 10,
-
-        // [YENİ EKLENEN ÖZELLİK]: Sağa veya Sola kaydırarak kapatma
         dismissDirection: DismissDirection.horizontal,
-
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
           side: BorderSide(
-            color: AppTheme.primaryBlue.withValues(alpha: 0.5),
+            color: AppTheme.primaryBlue.withOpacity(0.5), // DÜZELTME
             width: 1.5,
           ),
         ),
@@ -132,7 +129,6 @@ class _AppViewState extends State<AppView> {
             _handleNavigation(type);
           },
         ),
-        // Süreyi biraz uzattık (6sn), kullanıcı isterse kaydırıp hemen kapatabilir
         duration: const Duration(seconds: 6),
       ),
     );
@@ -154,10 +150,17 @@ class _AppViewState extends State<AppView> {
   }
 
   void _handleNavigation(String type) {
-    if (type == 'friend_request' || type == 'message') {
-      context.push(AppRouters.friends);
-    } else {
-      context.push(AppRouters.notifications);
+    // DÜZELTME: Doğru sayfalara yönlendirme
+    switch (type) {
+      case 'friend_request':
+        context.push(AppRouters.friends);
+        break;
+      case 'message':
+        context.push(AppRouters.friends); // Mesajlar için de arkadaşlar sayfasına yönlendirebiliriz.
+        break;
+      default:
+        context.push(AppRouters.notifications);
+        break;
     }
   }
 
@@ -170,7 +173,7 @@ class _AppViewState extends State<AppView> {
           body: widget.navigationShell,
           bottomNavigationBar: NavigationBar(
             backgroundColor: AppTheme.backgroundBlack,
-            indicatorColor: AppTheme.primaryBlue.withValues(alpha: 0.2),
+            indicatorColor: AppTheme.primaryBlue.withOpacity(0.2), // DÜZELTME
             selectedIndex: widget.navigationShell.currentIndex,
             onDestinationSelected: (index) {
               widget.navigationShell.goBranch(
