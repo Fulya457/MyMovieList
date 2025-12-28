@@ -15,6 +15,13 @@ class UserListsView extends StatefulWidget {
 }
 
 class _UserListsViewState extends State<UserListsView> {
+  // Helper: Mevcut tema durumunu al
+  bool get isDark => MovieManager.instance.isDarkMode;
+  Color get dialogBg => isDark ? AppTheme.surfaceDark : Colors.white;
+  Color get dialogText => isDark ? Colors.white : Colors.black;
+  Color get hintColor => isDark ? Colors.grey : Colors.black54;
+  Color get inputFill => isDark ? Colors.black26 : Colors.grey.shade200;
+
   // --- YENİ LİSTE OLUŞTURMA ---
   void _showCreateListDialog() {
     final nameController = TextEditingController();
@@ -26,43 +33,57 @@ class _UserListsViewState extends State<UserListsView> {
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
-              backgroundColor: AppTheme.surfaceDark,
-              title: const Text(
+              backgroundColor: dialogBg,
+              title: Text(
                 "Yeni Liste Oluştur",
-                style: TextStyle(color: Colors.white),
+                style: TextStyle(color: dialogText),
               ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextField(
                     controller: nameController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
+                    style: TextStyle(color: dialogText),
+                    decoration: InputDecoration(
                       hintText: "Liste Adı...",
-                      hintStyle: TextStyle(color: Colors.grey),
+                      hintStyle: TextStyle(color: hintColor),
                       filled: true,
-                      fillColor: Colors.black26,
+                      fillColor: inputFill,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 20),
                   DropdownButtonFormField<String>(
                     value: selectedType,
-                    dropdownColor: AppTheme.surfaceDark,
-                    style: const TextStyle(color: Colors.white),
+                    dropdownColor: dialogBg,
+                    style: TextStyle(color: dialogText),
                     decoration: InputDecoration(
                       labelText: "Liste Türü",
                       labelStyle: TextStyle(color: AppTheme.primaryBlue),
                       filled: true,
-                      fillColor: Colors.black26,
+                      fillColor: inputFill,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
                     ),
-                    items: const [
+                    items: [
                       DropdownMenuItem(
                         value: 'movies',
-                        child: Text("Film Listesi"),
+                        child: Text(
+                          "Film Listesi",
+                          style: TextStyle(color: dialogText),
+                        ),
                       ),
                       DropdownMenuItem(
                         value: 'actor',
-                        child: Text("Kişi Listesi"),
+                        child: Text(
+                          "Kişi Listesi",
+                          style: TextStyle(color: dialogText),
+                        ),
                       ),
                     ],
                     onChanged: (value) => setState(() => selectedType = value!),
@@ -106,15 +127,24 @@ class _UserListsViewState extends State<UserListsView> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.surfaceDark,
-        title: const Text(
+        backgroundColor: dialogBg,
+        title: Text(
           "Listeyi Yeniden Adlandır",
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: dialogText),
         ),
         content: TextField(
           controller: controller,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(hintText: "Yeni isim..."),
+          style: TextStyle(color: dialogText),
+          decoration: InputDecoration(
+            hintText: "Yeni isim...",
+            hintStyle: TextStyle(color: hintColor),
+            filled: true,
+            fillColor: inputFill,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide.none,
+            ),
+          ),
         ),
         actions: [
           TextButton(
@@ -145,7 +175,7 @@ class _UserListsViewState extends State<UserListsView> {
   void _showShareSheet(Map<String, dynamic> listData, String listId) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppTheme.backgroundBlack,
+      backgroundColor: isDark ? AppTheme.backgroundBlack : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -156,10 +186,10 @@ class _UserListsViewState extends State<UserListsView> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 "Listeyi Paylaş",
                 style: TextStyle(
-                  color: Colors.white,
+                  color: dialogText,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
@@ -172,10 +202,10 @@ class _UserListsViewState extends State<UserListsView> {
                     if (!snapshot.hasData)
                       return const Center(child: CircularProgressIndicator());
                     if (snapshot.data!.docs.isEmpty)
-                      return const Center(
+                      return Center(
                         child: Text(
                           "Arkadaşın yok.",
-                          style: TextStyle(color: Colors.grey),
+                          style: TextStyle(color: hintColor),
                         ),
                       );
 
@@ -187,15 +217,19 @@ class _UserListsViewState extends State<UserListsView> {
                                 as Map<String, dynamic>;
                         return ListTile(
                           leading: CircleAvatar(
-                            backgroundColor: AppTheme.surfaceDark,
+                            backgroundColor: isDark
+                                ? AppTheme.surfaceDark
+                                : Colors.grey.shade200,
                             child: Text(
                               (data['email'] ?? 'U')[0].toUpperCase(),
-                              style: const TextStyle(color: Colors.white),
+                              style: TextStyle(
+                                color: isDark ? Colors.white : Colors.black,
+                              ),
                             ),
                           ),
                           title: Text(
                             data['email'] ?? '',
-                            style: const TextStyle(color: Colors.white),
+                            style: TextStyle(color: dialogText),
                           ),
                           trailing: Icon(
                             Icons.send,
@@ -209,6 +243,7 @@ class _UserListsViewState extends State<UserListsView> {
                               'name': listData['name'],
                               'count': items.length,
                               'type': listData['type'] ?? 'movies',
+                              'items': items,
                             };
                             context.push(
                               AppRouters.chat,
@@ -232,19 +267,16 @@ class _UserListsViewState extends State<UserListsView> {
     );
   }
 
-  // --- SİLME (ANINDA GÜNCELLEME İÇİN DÜZENLENDİ) ---
+  // --- SİLME ---
   void _confirmDelete(String listId) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.surfaceDark,
-        title: const Text(
-          "Listeyi Sil?",
-          style: TextStyle(color: Colors.white),
-        ),
-        content: const Text(
+        backgroundColor: dialogBg,
+        title: Text("Listeyi Sil?", style: TextStyle(color: dialogText)),
+        content: Text(
           "Bu işlem geri alınamaz.",
-          style: TextStyle(color: Colors.grey),
+          style: TextStyle(color: hintColor),
         ),
         actions: [
           TextButton(
@@ -253,13 +285,8 @@ class _UserListsViewState extends State<UserListsView> {
           ),
           TextButton(
             onPressed: () async {
-              // 1. Önce Dialog'u kapat (Hata olmaması için)
               Navigator.pop(ctx);
-
-              // 2. Silme işlemini başlat
-              // StreamBuilder Firestore'u dinlediği için silindiği an UI otomatik güncellenecek
               await MovieManager.instance.deleteCustomList(listId);
-
               if (mounted) {
                 ScaffoldMessenger.of(
                   context,
@@ -275,150 +302,178 @@ class _UserListsViewState extends State<UserListsView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundBlack,
-      appBar: AppBar(
-        backgroundColor: AppTheme.backgroundBlack,
-        title: const Text('Listelerim', style: TextStyle(color: Colors.white)),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => context.pop(),
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppTheme.primaryBlue,
-        child: const Icon(Icons.add, color: Colors.white),
-        onPressed: _showCreateListDialog,
-      ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: MovieManager.instance.getUserListsStream(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(
-              child: CircularProgressIndicator(color: AppTheme.primaryBlue),
-            );
-          }
+    // [ÖNEMLİ] Temayı dinamik dinlemek için AnimatedBuilder
+    return AnimatedBuilder(
+      animation: MovieManager.instance,
+      builder: (context, child) {
+        // Dinamik Renkler
+        final bool isDark = MovieManager.instance.isDarkMode;
+        final Color bgColor = isDark
+            ? AppTheme.backgroundBlack
+            : const Color(0xFFF2F2F7);
+        final Color surfaceColor = isDark ? AppTheme.surfaceDark : Colors.white;
+        final Color textColor = isDark ? Colors.white : Colors.black;
+        final Color subTextColor = isDark ? Colors.grey : Colors.grey.shade600;
+        final Color iconColor = isDark ? Colors.white : Colors.black54;
 
-          final docs = snapshot.data?.docs ?? [];
-
-          if (docs.isEmpty) {
-            return const Center(
-              child: Text(
-                "Henüz bir listen yok. + butonuna bas.",
-                style: TextStyle(color: Colors.grey),
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: docs.length,
-            itemBuilder: (context, index) {
-              final doc = docs[index];
-              final data = doc.data() as Map<String, dynamic>;
-              final items =
-                  data['items'] as List? ?? data['movies'] as List? ?? [];
-              final type = data['type'] ?? 'movies';
-
-              IconData listIcon = type == 'actor' ? Icons.person : Icons.movie;
-
-              String? coverImage;
-              if (items.isNotEmpty) {
-                if (items[0]['poster_path'] != null) {
-                  coverImage = items[0]['poster_path'];
-                } else if (items[0]['profile_path'] != null) {
-                  coverImage = items[0]['profile_path'];
-                }
+        return Scaffold(
+          backgroundColor: bgColor,
+          appBar: AppBar(
+            backgroundColor: isDark ? AppTheme.backgroundBlack : Colors.white,
+            elevation: isDark ? 0 : 1,
+            title: Text('Listelerim', style: TextStyle(color: textColor)),
+            leading: IconButton(
+              icon: Icon(Icons.arrow_back, color: iconColor),
+              onPressed: () => context.pop(),
+            ),
+          ),
+          floatingActionButton: FloatingActionButton(
+            backgroundColor: AppTheme.primaryBlue,
+            child: const Icon(Icons.add, color: Colors.white),
+            onPressed: _showCreateListDialog,
+          ),
+          body: StreamBuilder<QuerySnapshot>(
+            stream: MovieManager.instance.getUserListsStream(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Center(
+                  child: CircularProgressIndicator(color: AppTheme.primaryBlue),
+                );
               }
 
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceDark,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white10),
-                ),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.all(12),
-                  leading: Container(
-                    width: 60,
-                    height: 80,
+              final docs = snapshot.data?.docs ?? [];
+
+              if (docs.isEmpty) {
+                return Center(
+                  child: Text(
+                    "Henüz bir listen yok. + butonuna bas.",
+                    style: TextStyle(color: subTextColor),
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: docs.length,
+                itemBuilder: (context, index) {
+                  final doc = docs[index];
+                  final data = doc.data() as Map<String, dynamic>;
+                  final items =
+                      data['items'] as List? ?? data['movies'] as List? ?? [];
+                  final type = data['type'] ?? 'movies';
+
+                  IconData listIcon = type == 'actor'
+                      ? Icons.person
+                      : Icons.movie;
+
+                  String? coverImage;
+                  if (items.isNotEmpty) {
+                    if (items[0]['poster_path'] != null) {
+                      coverImage = items[0]['poster_path'];
+                    } else if (items[0]['profile_path'] != null) {
+                      coverImage = items[0]['profile_path'];
+                    }
+                  }
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(
-                      color: Colors.black26,
-                      borderRadius: BorderRadius.circular(8),
-                      image: coverImage != null
-                          ? DecorationImage(
-                              image: NetworkImage(coverImage),
-                              fit: BoxFit.cover,
-                            )
-                          : null,
+                      color: surfaceColor,
+                      borderRadius: BorderRadius.circular(12),
+                      border: isDark ? Border.all(color: Colors.white10) : null,
+                      boxShadow: isDark
+                          ? []
+                          : [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 5,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                     ),
-                    child: coverImage == null
-                        ? Icon(listIcon, color: Colors.grey)
-                        : null,
-                  ),
-                  title: Text(
-                    data['name'] ?? 'İsimsiz',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  subtitle: Text(
-                    "${items.length} Öğe • ${type == 'actor' ? 'Kişi' : 'Film'}",
-                    style: const TextStyle(color: Colors.grey, fontSize: 13),
-                  ),
-                  trailing: PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert, color: Colors.white),
-                    color: AppTheme.surfaceDark,
-                    onSelected: (value) {
-                      if (value == 'share') _showShareSheet(data, doc.id);
-                      if (value == 'rename')
-                        _showRenameDialog(doc.id, data['name']);
-                      if (value == 'delete') _confirmDelete(doc.id);
-                    },
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'share',
-                        child: Text(
-                          "Paylaş",
-                          style: TextStyle(color: Colors.white),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.all(12),
+                      leading: Container(
+                        width: 60,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.black26 : Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(8),
+                          image: coverImage != null
+                              ? DecorationImage(
+                                  image: NetworkImage(coverImage),
+                                  fit: BoxFit.cover,
+                                )
+                              : null,
+                        ),
+                        child: coverImage == null
+                            ? Icon(listIcon, color: Colors.grey)
+                            : null,
+                      ),
+                      title: Text(
+                        data['name'] ?? 'İsimsiz',
+                        style: TextStyle(
+                          color: textColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
                         ),
                       ),
-                      const PopupMenuItem(
-                        value: 'rename',
-                        child: Text(
-                          "Adını Değiştir",
-                          style: TextStyle(color: Colors.white),
-                        ),
+                      subtitle: Text(
+                        "${items.length} Öğe • ${type == 'actor' ? 'Kişi' : 'Film'}",
+                        style: TextStyle(color: subTextColor, fontSize: 13),
                       ),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Text(
-                          "Sil",
-                          style: TextStyle(color: Colors.redAccent),
-                        ),
+                      trailing: PopupMenuButton<String>(
+                        icon: Icon(Icons.more_vert, color: iconColor),
+                        color: surfaceColor,
+                        onSelected: (value) {
+                          if (value == 'share') _showShareSheet(data, doc.id);
+                          if (value == 'rename')
+                            _showRenameDialog(doc.id, data['name']);
+                          if (value == 'delete') _confirmDelete(doc.id);
+                        },
+                        itemBuilder: (context) => [
+                          PopupMenuItem(
+                            value: 'share',
+                            child: Text(
+                              "Paylaş",
+                              style: TextStyle(color: textColor),
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'rename',
+                            child: Text(
+                              "Adını Değiştir",
+                              style: TextStyle(color: textColor),
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Text(
+                              "Sil",
+                              style: TextStyle(color: Colors.redAccent),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  onTap: () {
-                    context.push(
-                      AppRouters.userListDetail,
-                      extra: {
-                        'listId': doc.id,
-                        'listName': data['name'],
-                        'items': items,
-                        'type': type,
+                      onTap: () {
+                        context.push(
+                          AppRouters.userListDetail,
+                          extra: {
+                            'listId': doc.id,
+                            'listName': data['name'],
+                            'items': items,
+                            'type': type,
+                          },
+                        );
                       },
-                    );
-                  },
-                ),
+                    ),
+                  );
+                },
               );
             },
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }

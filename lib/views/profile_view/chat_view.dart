@@ -416,16 +416,28 @@ class _ChatViewState extends State<ChatView> {
     );
   }
 
-  // --- MESAJ BALONCUĞU ---
   Widget _buildMessageBubble(
     String docId,
     Map<String, dynamic> msg,
     bool isMe,
   ) {
-    final Color textColor = isMe ? Colors.white : AppTheme.textColor;
+    final bool isDark = MovieManager.instance.isDarkMode;
+
+    // --- RENK AYARLARI ---
+    // Balon Rengi:
+    // Ben (Karanlık): Koyu Mavi | Ben (Aydınlık): Normal Mavi
+    // O (Karanlık): Koyu Gri    | O (Aydınlık): Açık Gri
     final Color bubbleColor = isMe
-        ? AppTheme.primaryBlue
-        : AppTheme.surfaceDark;
+        ? (isDark ? const Color(0xFF1565C0) : AppTheme.primaryBlue)
+        : (isDark ? AppTheme.surfaceDark : Colors.grey.shade300);
+
+    // Yazı Rengi:
+    // Ben: Hep Beyaz
+    // O (Karanlık): Beyaz | O (Aydınlık): Siyah
+    final Color textColor = isMe
+        ? Colors.white
+        : (isDark ? AppTheme.textColor : Colors.black87);
+
     final replyTo = msg['reply_to'] as Map<String, dynamic>?;
 
     return GestureDetector(
@@ -451,26 +463,34 @@ class _ChatViewState extends State<ChatView> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Yanıtlanan Mesaj Alanı
               if (replyTo != null)
                 Container(
                   padding: const EdgeInsets.all(5),
                   margin: const EdgeInsets.only(bottom: 5),
                   decoration: BoxDecoration(
-                    color: Colors.black12,
+                    color: Colors.black.withOpacity(0.1), // Hafif karartma
                     border: const Border(
                       left: BorderSide(color: Colors.orange, width: 3),
                     ),
                   ),
                   child: Text(
                     replyTo['text'] ?? '',
-                    style: const TextStyle(color: Colors.grey, fontSize: 10),
+                    style: TextStyle(
+                      color: textColor.withOpacity(0.7), // Yazı rengine uyumlu
+                      fontSize: 10,
+                    ),
                     maxLines: 1,
                   ),
                 ),
+
+              // Kartlar (Renk parametresini gönderiyoruz)
               if (msg['list_id'] != null)
                 _buildClickableListCard(msg, isMe, textColor),
               if (msg['movie_id'] != null)
                 _buildClickableMovieCard(msg, isMe, textColor),
+
+              // Mesaj Metni
               if (msg['text'] != null && msg['text'].toString().isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),

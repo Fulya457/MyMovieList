@@ -650,39 +650,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                           ),
                         ),
                       ),
-                      // Play butonu (Trailer varsa)
-                      if (widget.movie.trailerId.isNotEmpty)
-                        Center(
-                          child: IconButton(
-                            icon: const Icon(
-                              Icons.play_circle_fill,
-                              color: Colors.white70,
-                              size: 70,
-                            ),
-                            onPressed: () {
-                              showDialog(
-                                context: context,
-                                builder: (ctx) => AlertDialog(
-                                  backgroundColor: Colors.black,
-                                  contentPadding: EdgeInsets.zero,
-                                  content: _controller.value.isReady
-                                      ? YoutubePlayer(
-                                          controller: _controller,
-                                          showVideoProgressIndicator: true,
-                                        )
-                                      : const SizedBox(
-                                          height: 200,
-                                          child: Center(
-                                            child: Text(
-                                              "Fragman yükleniyor...",
-                                            ),
-                                          ),
-                                        ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
                     ],
                   ),
                 ),

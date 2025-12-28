@@ -1048,7 +1048,6 @@ class _GroupChatViewState extends State<GroupChatView> {
     );
   }
 
-  // [GÜNCELLENDİ] Mesaj Baloncuğu (Basılı Tut: Reply, Tıkla: Menü)
   Widget _buildGroupMessageBubble(
     String docId,
     Map<String, dynamic> msg,
@@ -1059,8 +1058,28 @@ class _GroupChatViewState extends State<GroupChatView> {
     final likes = List<String>.from(msg['likes'] ?? []);
     final replyTo = msg['reply_to'] as Map<String, dynamic>?;
 
+    // [YENİ] Tema Kontrolü
+    final bool isDark = MovieManager.instance.isDarkMode;
+
+    // --- RENK AYARLARI ---
+    // Balon Rengi:
+    // Ben (Karanlık): Koyu/Tok Mavi | Ben (Aydınlık): Normal Parlak Mavi
+    // O (Karanlık): Koyu Gri        | O (Aydınlık): Açık Gri
+    final Color bubbleColor = isMe
+        ? (isDark ? const Color(0xFF1565C0) : AppTheme.primaryBlue)
+        : (isDark ? AppTheme.surfaceDark : Colors.grey.shade300);
+
+    // Yazı Rengi:
+    // Ben: Hep Beyaz
+    // O (Karanlık): Beyaz | O (Aydınlık): Siyah
+    final Color textColor = isMe
+        ? Colors.white
+        : (isDark ? AppTheme.textColor : Colors.black87);
+
+    // İsim Rengi (Karşı taraf için)
+    final Color nameColor = isDark ? Colors.orange : Colors.deepOrange;
+
     return GestureDetector(
-      // 1. BASILI TUTUNCA -> REPLY (Yanıtla)
       onLongPress: () {
         setState(() {
           _replyToMessage = {
@@ -1076,7 +1095,6 @@ class _GroupChatViewState extends State<GroupChatView> {
           ),
         );
       },
-      // 2. TIKLAYINCA -> SEÇENEKLER MENÜSÜ (Görenler, Beğen, Yanıtla)
       onTap: () {
         _showMessageOptions(docId, msg, seenBy);
       },
@@ -1097,8 +1115,8 @@ class _GroupChatViewState extends State<GroupChatView> {
                   padding: const EdgeInsets.only(left: 8, bottom: 2),
                   child: Text(
                     senderName,
-                    style: const TextStyle(
-                      color: Colors.orange,
+                    style: TextStyle(
+                      color: nameColor,
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
                     ),
@@ -1109,23 +1127,23 @@ class _GroupChatViewState extends State<GroupChatView> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: isMe ? AppTheme.primaryBlue : AppTheme.surfaceDark,
+                  color: bubbleColor,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppTheme.textColor.withValues(alpha: 0.1),
-                    width: 0.5,
-                  ),
+                  // Karanlık modda hafif sınır ekleyelim ki karışmasın
+                  border: isDark
+                      ? Border.all(color: Colors.white10, width: 0.5)
+                      : null,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // REPLY GÖSTERİMİ (Eğer bu mesaj bir cevapsa)
+                    // REPLY KUTUSU
                     if (replyTo != null)
                       Container(
                         padding: const EdgeInsets.all(5),
                         margin: const EdgeInsets.only(bottom: 5),
                         decoration: BoxDecoration(
-                          color: Colors.black12,
+                          color: Colors.black.withOpacity(0.1),
                           border: const Border(
                             left: BorderSide(color: Colors.orange, width: 3),
                           ),
@@ -1143,8 +1161,8 @@ class _GroupChatViewState extends State<GroupChatView> {
                             ),
                             Text(
                               replyTo['text'] ?? 'Media',
-                              style: const TextStyle(
-                                color: Colors.grey,
+                              style: TextStyle(
+                                color: textColor.withOpacity(0.7),
                                 fontSize: 10,
                               ),
                               maxLines: 1,
@@ -1154,25 +1172,20 @@ class _GroupChatViewState extends State<GroupChatView> {
                         ),
                       ),
 
-                    // MEDYA (LİSTE / FİLM)
                     if (msg['list_id'] != null) _buildClickableListCard(msg),
                     if (msg['movie_id'] != null) _buildClickableMovieCard(msg),
 
-                    // METİN
                     if (msg['text'] != null &&
                         msg['text'].toString().isNotEmpty)
                       Text(
                         msg['text'],
-                        style: TextStyle(
-                          color: isMe ? Colors.white : AppTheme.textColor,
-                          fontSize: 16,
-                        ),
+                        style: TextStyle(color: textColor, fontSize: 16),
                       ),
                   ],
                 ),
               ),
 
-              // ALT BİLGİLER (Like & Seen Sayısı)
+              // Alt Bilgiler (Like & Seen)
               Padding(
                 padding: const EdgeInsets.only(top: 2, right: 4),
                 child: Row(
@@ -1190,7 +1203,6 @@ class _GroupChatViewState extends State<GroupChatView> {
                       ),
                       const SizedBox(width: 8),
                     ],
-                    // Eğer ben yazdıysam görenleri kısaca göster (Detay için tıklayacak)
                     if (isMe && seenBy.isNotEmpty)
                       Row(
                         children: [

@@ -13,7 +13,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserListDetailView extends StatefulWidget {
   final String listId;
-  final String listName; // Başlangıç için (Stream yüklenene kadar)
+  final String listName; // Başlangıç için
   final List items; // Başlangıç için
   final String type; // 'movie', 'movies' veya 'actor'
 
@@ -30,21 +30,37 @@ class UserListDetailView extends StatefulWidget {
 }
 
 class _UserListDetailViewState extends State<UserListDetailView> {
+  // Helper: Mevcut tema durumunu al
+  bool get isDark => MovieManager.instance.isDarkMode;
+  Color get dialogBg => isDark ? AppTheme.surfaceDark : Colors.white;
+  Color get dialogText => isDark ? Colors.white : Colors.black;
+  Color get hintColor => isDark ? Colors.grey : Colors.black54;
+  Color get inputFill => isDark ? Colors.black26 : Colors.grey.shade200;
+
   // İsim değiştirme penceresi
   void _showRenameDialog(String currentName) {
     final controller = TextEditingController(text: currentName);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.surfaceDark,
-        title: const Text(
+        backgroundColor: dialogBg,
+        title: Text(
           "Listeyi Yeniden Adlandır",
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: dialogText),
         ),
         content: TextField(
           controller: controller,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(hintText: "Yeni isim..."),
+          style: TextStyle(color: dialogText),
+          decoration: InputDecoration(
+            hintText: "Yeni isim...",
+            hintStyle: TextStyle(color: hintColor),
+            filled: true,
+            fillColor: inputFill,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide.none,
+            ),
+          ),
         ),
         actions: [
           TextButton(
@@ -57,7 +73,6 @@ class _UserListDetailViewState extends State<UserListDetailView> {
             ),
             onPressed: () async {
               if (controller.text.trim().isNotEmpty) {
-                // Sadece veritabanını güncelle, StreamBuilder ekranı otomatik güncelleyecek
                 await MovieManager.instance.renameCustomList(
                   widget.listId,
                   controller.text.trim(),
@@ -76,7 +91,7 @@ class _UserListDetailViewState extends State<UserListDetailView> {
   void _showShareSheet(String currentListName, int itemCount) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppTheme.backgroundBlack,
+      backgroundColor: isDark ? AppTheme.backgroundBlack : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -86,10 +101,10 @@ class _UserListDetailViewState extends State<UserListDetailView> {
           height: 500,
           child: Column(
             children: [
-              const Text(
+              Text(
                 "Listeyi Paylaş",
                 style: TextStyle(
-                  color: Colors.white,
+                  color: dialogText,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
@@ -102,10 +117,10 @@ class _UserListDetailViewState extends State<UserListDetailView> {
                     if (!snapshot.hasData)
                       return const Center(child: CircularProgressIndicator());
                     if (snapshot.data!.docs.isEmpty)
-                      return const Center(
+                      return Center(
                         child: Text(
                           "Arkadaşın yok.",
-                          style: TextStyle(color: Colors.grey),
+                          style: TextStyle(color: hintColor),
                         ),
                       );
 
@@ -118,15 +133,19 @@ class _UserListDetailViewState extends State<UserListDetailView> {
                         final email = data['email'] ?? 'Unknown';
                         return ListTile(
                           leading: CircleAvatar(
-                            backgroundColor: AppTheme.surfaceDark,
+                            backgroundColor: isDark
+                                ? AppTheme.surfaceDark
+                                : Colors.grey.shade200,
                             child: Text(
                               email[0].toUpperCase(),
-                              style: const TextStyle(color: Colors.white),
+                              style: TextStyle(
+                                color: isDark ? Colors.white : Colors.black,
+                              ),
                             ),
                           ),
                           title: Text(
                             email,
-                            style: const TextStyle(color: Colors.white),
+                            style: TextStyle(color: dialogText),
                           ),
                           trailing: Icon(
                             Icons.send,
@@ -164,191 +183,224 @@ class _UserListDetailViewState extends State<UserListDetailView> {
 
   @override
   Widget build(BuildContext context) {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null)
-      return const Scaffold(
-        body: Center(child: Text("Hata: Giriş yapılmamış")),
-      );
+    // [ÖNEMLİ] Tema değişikliklerini dinlemek için AnimatedBuilder
+    return AnimatedBuilder(
+      animation: MovieManager.instance,
+      builder: (context, child) {
+        // Dinamik Renkler
+        final bool isDark = MovieManager.instance.isDarkMode;
+        final Color bgColor = isDark
+            ? AppTheme.backgroundBlack
+            : const Color(0xFFF2F2F7);
+        final Color surfaceColor = isDark ? AppTheme.surfaceDark : Colors.white;
+        final Color textColor = isDark ? Colors.white : Colors.black;
+        final Color subTextColor = isDark ? Colors.grey : Colors.grey.shade600;
+        final Color iconColor = isDark ? Colors.white : Colors.black;
 
-    // --- BURASI DEĞİŞTİ: ARTIK CANLI DİNLİYORUZ ---
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('lists')
-          .doc(widget.listId)
-          .snapshots(),
-      builder: (context, snapshot) {
-        // Yüklenirken veya hata varsa eski veriyi (widget'tan geleni) gösterelim ki ekran boş kalmasın
-        String listName = widget.listName;
-        List currentItems = widget.items;
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid == null)
+          return const Scaffold(
+            body: Center(child: Text("Hata: Giriş yapılmamış")),
+          );
 
-        if (snapshot.hasData &&
-            snapshot.data != null &&
-            snapshot.data!.exists) {
-          final data = snapshot.data!.data() as Map<String, dynamic>;
-          listName = data['name'] ?? widget.listName;
-          // 'items' yoksa 'movies'e bak (eski uyumluluk)
-          currentItems =
-              data['items'] as List? ?? data['movies'] as List? ?? [];
-        } else if (snapshot.connectionState == ConnectionState.active &&
-            !snapshot.data!.exists) {
-          // Liste silinmişse geri at
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (context.mounted) context.pop();
-          });
-          return const SizedBox();
-        }
+        return StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('users')
+              .doc(uid)
+              .collection('lists')
+              .doc(widget.listId)
+              .snapshots(),
+          builder: (context, snapshot) {
+            String listName = widget.listName;
+            List currentItems = widget.items;
 
-        final bool isPersonList = widget.type == 'actor';
+            if (snapshot.hasData &&
+                snapshot.data != null &&
+                snapshot.data!.exists) {
+              final data = snapshot.data!.data() as Map<String, dynamic>;
+              listName = data['name'] ?? widget.listName;
+              currentItems =
+                  data['items'] as List? ?? data['movies'] as List? ?? [];
+            } else if (snapshot.connectionState == ConnectionState.active &&
+                !snapshot.data!.exists) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (context.mounted) context.pop();
+              });
+              return const SizedBox();
+            }
 
-        return Scaffold(
-          backgroundColor: AppTheme.backgroundBlack,
-          appBar: AppBar(
-            backgroundColor: AppTheme.backgroundBlack,
-            title: Text(listName, style: const TextStyle(color: Colors.white)),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => context.pop(),
-            ),
-            actions: [
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert, color: Colors.white),
-                color: AppTheme.surfaceDark,
-                onSelected: (val) {
-                  if (val == 'rename') _showRenameDialog(listName);
-                  if (val == 'share')
-                    _showShareSheet(listName, currentItems.length);
-                },
-                itemBuilder: (ctx) => [
-                  const PopupMenuItem(
-                    value: 'rename',
-                    child: Text(
-                      "Adını Değiştir",
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'share',
-                    child: Text(
-                      "Paylaş",
-                      style: TextStyle(color: Colors.white),
-                    ),
+            final bool isPersonList = widget.type == 'actor';
+
+            return Scaffold(
+              backgroundColor: bgColor,
+              appBar: AppBar(
+                backgroundColor: isDark
+                    ? AppTheme.backgroundBlack
+                    : Colors.white,
+                elevation: isDark ? 0 : 1,
+                title: Text(listName, style: TextStyle(color: textColor)),
+                leading: IconButton(
+                  icon: Icon(Icons.arrow_back, color: iconColor),
+                  onPressed: () => context.pop(),
+                ),
+                actions: [
+                  PopupMenuButton<String>(
+                    icon: Icon(Icons.more_vert, color: iconColor),
+                    color: surfaceColor,
+                    onSelected: (val) {
+                      if (val == 'rename') _showRenameDialog(listName);
+                      if (val == 'share')
+                        _showShareSheet(listName, currentItems.length);
+                    },
+                    itemBuilder: (ctx) => [
+                      PopupMenuItem(
+                        value: 'rename',
+                        child: Text(
+                          "Adını Değiştir",
+                          style: TextStyle(color: textColor),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'share',
+                        child: Text(
+                          "Paylaş",
+                          style: TextStyle(color: textColor),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
-          body: currentItems.isEmpty
-              ? const Center(
-                  child: Text(
-                    "Bu liste boş.",
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: currentItems.length,
-                  itemBuilder: (context, index) {
-                    final item = currentItems[index] as Map<String, dynamic>;
-
-                    // Verileri güvenli çekme
-                    String title = item['title'] ?? item['name'] ?? 'Unknown';
-                    String? image = item['poster_path'] ?? item['profile_path'];
-                    String? releaseDate =
-                        item['release_date']; // Sadece filmlerde olur
-
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
-                        color: AppTheme.surfaceDark,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white10),
+              body: currentItems.isEmpty
+                  ? Center(
+                      child: Text(
+                        "Bu liste boş.",
+                        style: TextStyle(color: subTextColor),
                       ),
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.all(10),
-                        leading: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: image != null
-                              ? CachedNetworkImage(
-                                  imageUrl: image,
-                                  width: 50,
-                                  height: 75,
-                                  fit: BoxFit.cover,
-                                  placeholder: (c, u) =>
-                                      Container(color: AppTheme.surfaceDark),
-                                  errorWidget: (c, u, e) => Container(
-                                    color: Colors.grey,
-                                    child: const Icon(Icons.error),
-                                  ),
-                                )
-                              : Container(
-                                  width: 50,
-                                  height: 75,
-                                  color: Colors.grey,
-                                  child: Icon(
-                                    isPersonList ? Icons.person : Icons.movie,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                        ),
-                        title: Text(
-                          title,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: releaseDate != null
-                            ? Text(
-                                releaseDate,
-                                style: const TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 12,
-                                ),
-                              )
-                            : null,
-                        trailing: IconButton(
-                          icon: const Icon(
-                            Icons.remove_circle_outline,
-                            color: Colors.redAccent,
-                          ),
-                          onPressed: () async {
-                            // Silme işlemi (Stream sayesinde anlık güncellenecek)
-                            await MovieManager.instance
-                                .removeMovieFromCustomList(widget.listId, item);
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: currentItems.length,
+                      itemBuilder: (context, index) {
+                        final item =
+                            currentItems[index] as Map<String, dynamic>;
 
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text("Öğe silindi."),
-                                  duration: Duration(seconds: 1),
-                                  backgroundColor: Colors.redAccent,
-                                ),
-                              );
-                            }
-                          },
-                        ),
-                        onTap: () {
-                          // Detay yönlendirmesi
-                          if (isPersonList) {
-                            context.push(
-                              '/person-detail',
-                              extra: Person.fromTMDB(item),
-                            );
-                          } else {
-                            context.push(
-                              '/movie-detail',
-                              extra: Movie.fromMap(item),
-                            );
-                          }
-                        },
-                      ),
-                    );
-                  },
-                ),
+                        String title =
+                            item['title'] ?? item['name'] ?? 'Unknown';
+                        String? image =
+                            item['poster_path'] ?? item['profile_path'];
+                        String? releaseDate = item['release_date'];
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: surfaceColor,
+                            borderRadius: BorderRadius.circular(12),
+                            border: isDark
+                                ? Border.all(color: Colors.white10)
+                                : null,
+                            boxShadow: isDark
+                                ? []
+                                : [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 5,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                          ),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.all(10),
+                            leading: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: image != null
+                                  ? CachedNetworkImage(
+                                      imageUrl: image,
+                                      width: 50,
+                                      height: 75,
+                                      fit: BoxFit.cover,
+                                      placeholder: (c, u) => Container(
+                                        color: isDark
+                                            ? AppTheme.surfaceDark
+                                            : Colors.grey.shade300,
+                                      ),
+                                      errorWidget: (c, u, e) => Container(
+                                        color: Colors.grey,
+                                        child: const Icon(Icons.error),
+                                      ),
+                                    )
+                                  : Container(
+                                      width: 50,
+                                      height: 75,
+                                      color: Colors.grey,
+                                      child: Icon(
+                                        isPersonList
+                                            ? Icons.person
+                                            : Icons.movie,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                            ),
+                            title: Text(
+                              title,
+                              style: TextStyle(
+                                color: textColor,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: releaseDate != null
+                                ? Text(
+                                    releaseDate,
+                                    style: TextStyle(
+                                      color: subTextColor,
+                                      fontSize: 12,
+                                    ),
+                                  )
+                                : null,
+                            trailing: IconButton(
+                              icon: const Icon(
+                                Icons.remove_circle_outline,
+                                color: Colors.redAccent,
+                              ),
+                              onPressed: () async {
+                                await MovieManager.instance
+                                    .removeMovieFromCustomList(
+                                      widget.listId,
+                                      item,
+                                    );
+
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text("Öğe silindi."),
+                                      duration: Duration(seconds: 1),
+                                      backgroundColor: Colors.redAccent,
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                            onTap: () {
+                              if (isPersonList) {
+                                context.push(
+                                  '/person-detail',
+                                  extra: Person.fromTMDB(item),
+                                );
+                              } else {
+                                context.push(
+                                  '/movie-detail',
+                                  extra: Movie.fromMap(item),
+                                );
+                              }
+                            },
+                          ),
+                        );
+                      },
+                    ),
+            );
+          },
         );
       },
     );
