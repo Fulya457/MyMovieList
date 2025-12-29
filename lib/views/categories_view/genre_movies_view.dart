@@ -4,11 +4,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/app/theme.dart';
 import 'package:mymovielist/data/movie_manager.dart';
 import 'package:mymovielist/data/genre_service.dart';
-import 'package:mymovielist/models/movie_model.dart';
 
 class GenreMoviesView extends StatefulWidget {
   final String genre;
@@ -49,7 +47,7 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceDark,
         title: Text(
-          "Yeni Liste Oluştur",
+          "Create New List",
           style: TextStyle(color: AppTheme.textColor),
         ),
         content: Column(
@@ -59,7 +57,7 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
               controller: nameController,
               style: TextStyle(color: AppTheme.textColor),
               decoration: InputDecoration(
-                hintText: "Liste Adı (örn: İzlenecekler)",
+                hintText: "List Name (e.g., To Watch Lists)",
                 hintStyle: TextStyle(
                   color: AppTheme.textColor.withValues(alpha: 0.5),
                 ),
@@ -87,14 +85,12 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
                 if (mounted) {
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Liste başarıyla oluşturuldu!"),
-                    ),
+                    const SnackBar(content: Text("List created successfully!")),
                   );
                 }
               }
             },
-            child: const Text("Oluştur", style: TextStyle(color: Colors.white)),
+            child: const Text("Create", style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -117,7 +113,7 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "Listeye Ekle: ${movie.title}",
+                "Add to List: ${movie.title}",
                 style: TextStyle(
                   color: AppTheme.textColor, // Dinamik
                   fontSize: 18,
@@ -140,7 +136,7 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
                   child: Icon(Icons.add, color: AppTheme.primaryBlue),
                 ),
                 title: Text(
-                  "Yeni Liste Oluştur",
+                  "Create New List",
                   style: TextStyle(
                     color: AppTheme.primaryBlue,
                     fontWeight: FontWeight.bold,
@@ -169,7 +165,7 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
                     if (docs.isEmpty) {
                       return Center(
                         child: Text(
-                          "Henüz listeniz yok.",
+                          "You don't have a list yet.",
                           style: TextStyle(
                             color: AppTheme.textColor.withValues(alpha: 0.5),
                           ),
@@ -221,7 +217,7 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
                                 Navigator.pop(ctx);
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text("Listeye eklendi!"),
+                                    content: Text("Added to list!"),
                                   ),
                                 );
                               }
@@ -315,7 +311,7 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
                 SliverFillRemaining(
                   child: Center(
                     child: Text(
-                      "Bu türde film bulunamadı.",
+                      "No movie found in this genre.",
                       style: TextStyle(
                         color: AppTheme.textColor.withValues(alpha: 0.5),
                       ),

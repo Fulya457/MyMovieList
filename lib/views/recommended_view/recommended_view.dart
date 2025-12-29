@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:mymovielist/app/theme.dart';
 import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/data/movie_manager.dart';
-import 'package:mymovielist/models/movie_model.dart';
 
 class RecommendedView extends StatefulWidget {
   const RecommendedView({super.key});

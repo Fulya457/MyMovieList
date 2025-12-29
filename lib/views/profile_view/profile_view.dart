@@ -469,7 +469,7 @@ class ProfileView extends StatelessWidget {
                           color: Colors.orangeAccent,
                         ),
                         value: MovieManager.instance.areNotificationsEnabled,
-                        activeColor: AppTheme.primaryBlue,
+                        activeThumbColor: AppTheme.primaryBlue,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(15),
                         ),

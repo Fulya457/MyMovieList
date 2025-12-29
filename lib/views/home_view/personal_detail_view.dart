@@ -6,8 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mymovielist/app/theme.dart';
 import 'package:mymovielist/data/movie_manager.dart';
-import 'package:mymovielist/models/movie_model.dart';
-import 'package:mymovielist/models/person_model.dart';
 
 // Widget
 import 'package:mymovielist/views/home_view/widgets/movie_card.dart';
@@ -64,14 +62,14 @@ class _PersonDetailViewState extends State<PersonDetailView> {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceDark,
         title: Text(
-          "Yeni Kişi Listesi",
+          "New Contact List",
           style: TextStyle(color: AppTheme.textColor), // Mavi/Beyaz Yazı
         ),
         content: TextField(
           controller: nameController,
           style: TextStyle(color: AppTheme.textColor), // Mavi/Beyaz Yazı
           decoration: InputDecoration(
-            hintText: "Liste Adı...",
+            hintText: "List Name...",
             hintStyle: TextStyle(
               color: AppTheme.textColor.withValues(alpha: 0.5),
             ),
@@ -103,7 +101,7 @@ class _PersonDetailViewState extends State<PersonDetailView> {
                 }
               }
             },
-            child: const Text("Oluştur", style: TextStyle(color: Colors.white)),
+            child: const Text("Create", style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -125,7 +123,7 @@ class _PersonDetailViewState extends State<PersonDetailView> {
           child: Column(
             children: [
               Text(
-                "Listeye Ekle: ${widget.person.name}",
+                "Add to List: ${widget.person.name}",
                 style: TextStyle(
                   color: AppTheme.textColor, // Mavi/Beyaz Yazı
                   fontSize: 18,
@@ -153,7 +151,7 @@ class _PersonDetailViewState extends State<PersonDetailView> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              "Hiç kişi listeniz yok.",
+                              "You don't have a contact list.",
                               style: TextStyle(
                                 color: AppTheme.textColor.withValues(
                                   alpha: 0.5,
@@ -169,7 +167,7 @@ class _PersonDetailViewState extends State<PersonDetailView> {
                                 _showCreateListDialog();
                               },
                               child: const Text(
-                                "Yeni Kişi Listesi Oluştur",
+                                "Create New Contact List",
                                 style: TextStyle(color: Colors.white),
                               ),
                             ),
@@ -215,7 +213,7 @@ class _PersonDetailViewState extends State<PersonDetailView> {
                               if (mounted) {
                                 Navigator.pop(ctx);
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text("Eklendi!")),
+                                  const SnackBar(content: Text("Added!")),
                                 );
                               }
                             }
@@ -384,7 +382,7 @@ class _PersonDetailViewState extends State<PersonDetailView> {
                     padding: const EdgeInsets.all(40),
                     child: Center(
                       child: Text(
-                        "Film bulunamadı.",
+                        "Movie not found.",
                         style: TextStyle(
                           color: AppTheme.textColor.withValues(alpha: 0.5),
                         ),

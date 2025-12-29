@@ -68,15 +68,6 @@ class _GroupChatViewState extends State<GroupChatView> {
       _replyToMessage = null;
     });
 
-    // [GÜNCELLENDİ] Liste paylaşımı yapılırken 'items' verisi de gidiyor mu kontrol et
-    // MovieManager.sendGroupMessage içinde bu mantık olmalı.
-    // Eğer MovieManager'ı güncellemediysen, burada manuel map oluşturup göndermek daha güvenli.
-
-    // Şimdilik MovieManager'ın güncel olduğunu varsayıyoruz.
-    // Değilse MovieManager.dart dosyasındaki sendGroupMessage fonksiyonuna
-    // "if (sharedList.containsKey('items')) data['list_items'] = sharedList['items'];"
-    // satırını eklemeyi unutma!
-
     await MovieManager.instance.sendGroupMessage(
       widget.groupId,
       text,
@@ -97,7 +88,6 @@ class _GroupChatViewState extends State<GroupChatView> {
     }
   }
 
-  // [YENİ] Grup Bilgisi Düzenleme Penceresi
   void _showEditGroupDialog(String currentName, String currentDesc) {
     final nameCtrl = TextEditingController(text: currentName);
     final descCtrl = TextEditingController(text: currentDesc);
@@ -157,27 +147,23 @@ class _GroupChatViewState extends State<GroupChatView> {
                 if (mounted) {
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Grup bilgileri güncellendi."),
-                    ),
+                    const SnackBar(content: Text("Group information updated.")),
                   );
                 }
               }
             },
-            child: const Text("Kaydet", style: TextStyle(color: Colors.white)),
+            child: const Text("Save", style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
   }
 
-  // [YENİ] Görüldü İşaretleme
   void _markAsSeen(String docId, List<dynamic> seenBy) {
     final myUid = FirebaseAuth.instance.currentUser?.uid;
     final myEmail = FirebaseAuth.instance.currentUser?.email;
     if (myUid == null) return;
 
-    // Zaten gördüysem tekrar DB yazma
     final alreadySeen = seenBy.any((e) => e['uid'] == myUid);
     if (!alreadySeen) {
       MovieManager.instance.markGroupMessageAsSeen(
@@ -188,7 +174,6 @@ class _GroupChatViewState extends State<GroupChatView> {
     }
   }
 
-  // --- MEDYA PAYLAŞIM MENÜSÜ ---
   void _showAttachmentMenu() {
     showModalBottomSheet(
       context: context,
@@ -203,7 +188,7 @@ class _GroupChatViewState extends State<GroupChatView> {
           child: Column(
             children: [
               Text(
-                "Paylaş",
+                "Share",
                 style: TextStyle(
                   color: AppTheme.textColor,
                   fontSize: 18,
@@ -216,7 +201,7 @@ class _GroupChatViewState extends State<GroupChatView> {
                 children: [
                   _buildAttachOption(
                     icon: Icons.movie,
-                    label: "Film Bul",
+                    label: "Find Movie",
                     color: Colors.blueAccent,
                     onTap: () {
                       Navigator.pop(ctx);
@@ -225,7 +210,7 @@ class _GroupChatViewState extends State<GroupChatView> {
                   ),
                   _buildAttachOption(
                     icon: Icons.list_alt,
-                    label: "Listelerim",
+                    label: "My Lists",
                     color: Colors.orangeAccent,
                     onTap: () {
                       Navigator.pop(ctx);
@@ -234,7 +219,7 @@ class _GroupChatViewState extends State<GroupChatView> {
                   ),
                   _buildAttachOption(
                     icon: Icons.favorite,
-                    label: "Favoriler",
+                    label: "Favorites",
                     color: Colors.redAccent,
                     onTap: () {
                       Navigator.pop(ctx);
@@ -287,7 +272,7 @@ class _GroupChatViewState extends State<GroupChatView> {
                 controller: searchCtrl,
                 style: TextStyle(color: AppTheme.textColor),
                 decoration: InputDecoration(
-                  hintText: "Film adı yazın...",
+                  hintText: "Write the movie's name...",
                   hintStyle: TextStyle(color: Colors.grey),
                   suffixIcon: IconButton(
                     icon: Icon(Icons.search, color: AppTheme.primaryBlue),
@@ -295,7 +280,7 @@ class _GroupChatViewState extends State<GroupChatView> {
                       Navigator.pop(ctx);
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text("Bu özellik yakında eklenecek!"),
+                          content: Text("This feature will be added soon!"),
                         ),
                       );
                     },
@@ -305,7 +290,7 @@ class _GroupChatViewState extends State<GroupChatView> {
               const Expanded(
                 child: Center(
                   child: Text(
-                    "Film paylaşmak için filmin detay sayfasına gidip 'Paylaş' butonunu kullanabilirsiniz.",
+                    "To share a movie, go to the movie's details page and use the 'Share' button.",
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.grey),
                   ),
@@ -324,23 +309,25 @@ class _GroupChatViewState extends State<GroupChatView> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceDark,
-        title: Text("Liste Seç", style: TextStyle(color: AppTheme.textColor)),
+        title: Text("Select List", style: TextStyle(color: AppTheme.textColor)),
         content: SizedBox(
           width: double.maxFinite,
           height: 300,
           child: StreamBuilder<QuerySnapshot>(
             stream: MovieManager.instance.getUserListsStream(),
             builder: (context, snapshot) {
-              if (!snapshot.hasData)
+              if (!snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
+              }
               final docs = snapshot.data!.docs;
-              if (docs.isEmpty)
+              if (docs.isEmpty) {
                 return const Center(
                   child: Text(
-                    "Listeniz yok.",
+                    "You don't have a list.",
                     style: TextStyle(color: Colors.grey),
                   ),
                 );
+              }
 
               return ListView.builder(
                 itemCount: docs.length,
@@ -377,9 +364,9 @@ class _GroupChatViewState extends State<GroupChatView> {
   void _shareFavorites() {
     final favMovies = MovieManager.instance.favoriteMovies;
     if (favMovies.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Favori listeniz boş.")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Your favorites list is empty.")),
+      );
       return;
     }
 
@@ -401,7 +388,7 @@ class _GroupChatViewState extends State<GroupChatView> {
     // [DÜZELTME] Artık yerel fonksiyonu kullanıyoruz
     _sendListMessage({
       'id': 'favorites',
-      'name': 'Favorilerim',
+      'name': 'My Favorites',
       'count': favMovies.length,
       'type': 'movies',
       'items': itemsMap, // Veriler burada
@@ -426,10 +413,12 @@ class _GroupChatViewState extends State<GroupChatView> {
                   .doc(widget.groupId)
                   .snapshots(),
               builder: (context, snapshot) {
-                if (!snapshot.hasData)
+                if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
-                if (!snapshot.data!.exists)
-                  return const Center(child: Text("Grup bulunamadı."));
+                }
+                if (!snapshot.data!.exists) {
+                  return const Center(child: Text("Group not found."));
+                }
 
                 final data = snapshot.data!.data() as Map<String, dynamic>;
                 final members = List<String>.from(data['members'] ?? []);
@@ -536,7 +525,7 @@ class _GroupChatViewState extends State<GroupChatView> {
                       const SizedBox(height: 5),
                       Center(
                         child: Text(
-                          "${members.length} Üye",
+                          "${members.length} Member",
                           style: const TextStyle(color: Colors.grey),
                         ),
                       ),
@@ -565,7 +554,7 @@ class _GroupChatViewState extends State<GroupChatView> {
                             foregroundColor: Colors.red,
                           ),
                           icon: const Icon(Icons.delete_forever),
-                          label: const Text("Grubu Sil"),
+                          label: const Text("Delete Group"),
                           onPressed: () {
                             showDialog(
                               context: context,
@@ -576,13 +565,13 @@ class _GroupChatViewState extends State<GroupChatView> {
                                   style: TextStyle(color: Colors.white),
                                 ),
                                 content: const Text(
-                                  "Bu grubu kalıcı olarak silmek istediğine emin misin?",
+                                  "Are you sure you want to permanently delete this group?",
                                   style: TextStyle(color: Colors.white70),
                                 ),
                                 actions: [
                                   TextButton(
                                     onPressed: () => Navigator.pop(c),
-                                    child: const Text("İptal"),
+                                    child: const Text("Cancel"),
                                   ),
                                   TextButton(
                                     onPressed: () async {
@@ -722,7 +711,7 @@ class _GroupChatViewState extends State<GroupChatView> {
         child: Column(
           children: [
             Text(
-              "Grup İkonunu Değiştir",
+              "Change Group Icon",
               style: TextStyle(
                 color: AppTheme.textColor,
                 fontSize: 16,
@@ -745,7 +734,7 @@ class _GroupChatViewState extends State<GroupChatView> {
                       Navigator.pop(ctx); // Penceryi kapat
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text("Grup ikonu güncellendi."),
+                          content: Text("The group icon has been updated."),
                         ),
                       );
                     },
@@ -801,7 +790,7 @@ class _GroupChatViewState extends State<GroupChatView> {
           if (!groupSnap.hasData || !groupSnap.data!.exists) {
             return const Center(
               child: Text(
-                "Grup mevcut değil veya silindi.",
+                "The group either doesn't exist or has been deleted.",
                 style: TextStyle(color: Colors.white),
               ),
             );
@@ -862,7 +851,7 @@ class _GroupChatViewState extends State<GroupChatView> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            "Yanıt: ${_replyToMessage!['sender']}",
+                            "Response: ${_replyToMessage!['sender']}",
                             style: TextStyle(color: Colors.grey),
                           ),
                         ),
@@ -872,7 +861,7 @@ class _GroupChatViewState extends State<GroupChatView> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            "Ekli: ${_draftMovie!.title}",
+                            "Added: ${_draftMovie!.title}",
                             style: TextStyle(color: Colors.grey),
                           ),
                         ),
@@ -903,7 +892,7 @@ class _GroupChatViewState extends State<GroupChatView> {
                         controller: _msgController,
                         style: TextStyle(color: AppTheme.textColor),
                         decoration: InputDecoration(
-                          hintText: "Mesaj...",
+                          hintText: "Message...",
                           filled: true,
                           fillColor: AppTheme.surfaceDark,
                           border: OutlineInputBorder(
@@ -955,7 +944,7 @@ class _GroupChatViewState extends State<GroupChatView> {
               ListTile(
                 leading: const Icon(Icons.reply, color: Colors.blueAccent),
                 title: Text(
-                  "Yanıtla",
+                  "Reply",
                   style: TextStyle(color: AppTheme.textColor),
                 ),
                 onTap: () {
@@ -964,7 +953,7 @@ class _GroupChatViewState extends State<GroupChatView> {
                     _replyToMessage = {
                       'id': docId,
                       'sender': senderName,
-                      'text': msg['text'] ?? 'Medya',
+                      'text': msg['text'] ?? 'Media',
                     };
                   });
                 },
@@ -973,7 +962,7 @@ class _GroupChatViewState extends State<GroupChatView> {
               ListTile(
                 leading: const Icon(Icons.favorite, color: Colors.redAccent),
                 title: Text(
-                  "Beğen",
+                  "Like",
                   style: TextStyle(color: AppTheme.textColor),
                 ),
                 onTap: () {
@@ -988,7 +977,7 @@ class _GroupChatViewState extends State<GroupChatView> {
               ListTile(
                 leading: const Icon(Icons.visibility, color: Colors.green),
                 title: Text(
-                  "Görenler",
+                  "who see",
                   style: TextStyle(color: AppTheme.textColor),
                 ),
                 onTap: () {
@@ -1009,14 +998,14 @@ class _GroupChatViewState extends State<GroupChatView> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceDark,
-        title: Text("Görenler", style: TextStyle(color: AppTheme.textColor)),
+        title: Text("who see", style: TextStyle(color: AppTheme.textColor)),
         content: SizedBox(
           width: double.maxFinite,
           height: 300,
           child: seenBy.isEmpty
               ? const Center(
                   child: Text(
-                    "Henüz kimse görmedi.",
+                    "No one has seen it yet.",
                     style: TextStyle(color: Colors.grey),
                   ),
                 )
@@ -1041,7 +1030,7 @@ class _GroupChatViewState extends State<GroupChatView> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text("Kapat"),
+            child: const Text("Close"),
           ),
         ],
       ),
@@ -1085,12 +1074,12 @@ class _GroupChatViewState extends State<GroupChatView> {
           _replyToMessage = {
             'id': docId,
             'sender': senderName,
-            'text': msg['text'] ?? 'Medya',
+            'text': msg['text'] ?? 'Media',
           };
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Mesaj yanıtlanıyor..."),
+            content: Text("Replying to message..."),
             duration: Duration(seconds: 1),
           ),
         );
@@ -1252,7 +1241,7 @@ class _GroupChatViewState extends State<GroupChatView> {
           // Eski mesajlar veya veri yoksa
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text("Bu liste görüntülenemiyor (Eski mesaj)."),
+              content: Text("This list cannot be displayed (Old message)."),
             ),
           );
         }
@@ -1270,7 +1259,7 @@ class _GroupChatViewState extends State<GroupChatView> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                msg['list_name'] ?? 'Liste',
+                msg['list_name'] ?? 'List',
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -1380,7 +1369,7 @@ class _GroupChatViewState extends State<GroupChatView> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                msg['movie_title'] ?? 'Film',
+                msg['movie_title'] ?? 'Movie',
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -1401,7 +1390,7 @@ class _GroupChatViewState extends State<GroupChatView> {
     final msgData = {
       'sender_id': user.uid,
       'sender_email': user.email,
-      'text': "Bir liste paylaştı",
+      'text': "Shared a list",
       'created_at': FieldValue.serverTimestamp(),
       'likes': [],
       'seen_by': [],
@@ -1451,7 +1440,10 @@ class SharedListDisplayView extends StatelessWidget {
       ),
       body: items.isEmpty
           ? const Center(
-              child: Text("Liste boş", style: TextStyle(color: Colors.grey)),
+              child: Text(
+                "List is empty",
+                style: TextStyle(color: Colors.grey),
+              ),
             )
           : ListView.builder(
               itemCount: items.length,
@@ -1477,7 +1469,7 @@ class SharedListDisplayView extends StatelessWidget {
                           )
                         : const Icon(Icons.movie, color: Colors.grey, size: 40),
                     title: Text(
-                      item['title'] ?? 'Bilinmeyen Film',
+                      item['title'] ?? 'Unknown Movie',
                       style: TextStyle(
                         color: AppTheme.textColor,
                         fontWeight: FontWeight.bold,

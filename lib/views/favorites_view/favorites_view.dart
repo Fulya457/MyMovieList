@@ -52,7 +52,7 @@ class _FavoritesViewState extends State<FavoritesView>
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceDark,
         title: Text(
-          "Yeni Liste Oluştur",
+          "Create New List",
           style: TextStyle(color: AppTheme.textColor),
         ),
         content: Column(
@@ -62,7 +62,7 @@ class _FavoritesViewState extends State<FavoritesView>
               controller: nameController,
               style: TextStyle(color: AppTheme.textColor),
               decoration: InputDecoration(
-                hintText: "Liste Adı...",
+                hintText: "List Name...",
                 hintStyle: TextStyle(
                   color: AppTheme.textColor.withValues(alpha: 0.5),
                 ),
@@ -72,11 +72,11 @@ class _FavoritesViewState extends State<FavoritesView>
             ),
             const SizedBox(height: 20),
             DropdownButtonFormField<String>(
-              value: selectedType,
+              initialValue: selectedType,
               dropdownColor: AppTheme.surfaceDark,
               style: TextStyle(color: AppTheme.textColor),
               decoration: const InputDecoration(
-                labelText: "Liste Türü",
+                labelText: "List Type",
                 filled: true,
                 fillColor: Colors.black12,
               ),
@@ -84,14 +84,14 @@ class _FavoritesViewState extends State<FavoritesView>
                 DropdownMenuItem(
                   value: 'movies',
                   child: Text(
-                    "Film Listesi",
+                    "Movie List",
                     style: TextStyle(color: AppTheme.textColor),
                   ),
                 ),
                 DropdownMenuItem(
                   value: 'actor',
                   child: Text(
-                    "Kişi Listesi",
+                    "Actor List",
                     style: TextStyle(color: AppTheme.textColor),
                   ),
                 ),
@@ -103,7 +103,7 @@ class _FavoritesViewState extends State<FavoritesView>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text("İptal"),
+            child: const Text("Cancel"),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -128,12 +128,12 @@ class _FavoritesViewState extends State<FavoritesView>
                     if (snapshot.docs.isNotEmpty) {
                       final newListId = snapshot.docs.first.id;
                       for (var item in autoAddItems) {
-                        if (item is Movie)
+                        if (item is Movie) {
                           await MovieManager.instance.addMovieToCustomList(
                             newListId,
                             item,
                           );
-                        else if (item is Person)
+                        } else if (item is Person)
                           await MovieManager.instance.addItemToCustomList(
                             newListId,
                             item.toMap(),
@@ -145,7 +145,7 @@ class _FavoritesViewState extends State<FavoritesView>
                 if (mounted) {
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("İşlem tamamlandı!")),
+                    const SnackBar(content: Text("Transaction completed!")),
                   );
                 }
               }
@@ -171,7 +171,9 @@ class _FavoritesViewState extends State<FavoritesView>
 
     if (itemsToAdd.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Bu kategoride favorin yok.")),
+        const SnackBar(
+          content: Text("You don't have a favorite in this category."),
+        ),
       );
       return;
     }
@@ -202,14 +204,16 @@ class _FavoritesViewState extends State<FavoritesView>
                 child: StreamBuilder<QuerySnapshot>(
                   stream: MovieManager.instance.getUserListsStream(),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData)
+                    if (!snapshot.hasData) {
                       return const Center(child: CircularProgressIndicator());
+                    }
                     final docs = snapshot.data!.docs;
                     final validLists = docs.where((d) {
                       final data = d.data() as Map<String, dynamic>;
                       final type = data['type'] ?? 'movies';
-                      if (typeFilter == 'movies')
+                      if (typeFilter == 'movies') {
                         return type == 'movies' || type == 'movie';
+                      }
                       return type == 'actor';
                     }).toList();
 
@@ -227,7 +231,7 @@ class _FavoritesViewState extends State<FavoritesView>
                             );
                           },
                           child: const Text(
-                            "Yeni Liste Oluştur ve Kaydet",
+                            "Create and Save New List",
                             style: TextStyle(color: Colors.white),
                           ),
                         ),
@@ -252,26 +256,27 @@ class _FavoritesViewState extends State<FavoritesView>
                           onTap: () async {
                             Navigator.pop(ctx);
                             for (var item in itemsToAdd) {
-                              if (item is Movie)
+                              if (item is Movie) {
                                 await MovieManager.instance
                                     .addMovieToCustomList(
                                       validLists[index].id,
                                       item,
                                     );
-                              else if (item is Person)
+                              } else if (item is Person)
                                 await MovieManager.instance.addItemToCustomList(
                                   validLists[index].id,
                                   item.toMap(),
                                 );
                             }
-                            if (mounted)
+                            if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text(
-                                    "Tüm favoriler listeye eklendi!",
+                                    "All favorites have been added to the list.!",
                                   ),
                                 ),
                               );
+                            }
                           },
                         );
                       },
@@ -290,7 +295,7 @@ class _FavoritesViewState extends State<FavoritesView>
     if (movies.isEmpty) {
       return Center(
         child: Text(
-          "Favori filminiz yok.",
+          "You don't have a favorite movie.",
           style: TextStyle(color: AppTheme.textColor.withValues(alpha: 0.5)),
         ),
       );
@@ -343,7 +348,7 @@ class _FavoritesViewState extends State<FavoritesView>
     if (people.isEmpty) {
       return Center(
         child: Text(
-          "Favori kişi yok.",
+          "No favorite person.",
           style: TextStyle(color: AppTheme.textColor.withValues(alpha: 0.5)),
         ),
       );
@@ -434,7 +439,7 @@ class _FavoritesViewState extends State<FavoritesView>
                       ),
                       child: Center(
                         child: Text(
-                          "FAVORİLERİM",
+                          "MY FAVORITES",
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.w900,
@@ -457,9 +462,9 @@ class _FavoritesViewState extends State<FavoritesView>
                     labelColor: AppTheme.primaryBlue,
                     unselectedLabelColor: Colors.grey,
                     tabs: const [
-                      Tab(text: "Filmler"),
-                      Tab(text: "Aktörler"),
-                      Tab(text: "Yönetmen"),
+                      Tab(text: "Movies"),
+                      Tab(text: "Actors"),
+                      Tab(text: "Director"),
                     ],
                   ),
                 ),
@@ -479,7 +484,7 @@ class _FavoritesViewState extends State<FavoritesView>
             backgroundColor: AppTheme.primaryBlue,
             icon: const Icon(Icons.playlist_add_check, color: Colors.white),
             label: const Text(
-              "Listeye Kaydet",
+              "Save to List",
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,

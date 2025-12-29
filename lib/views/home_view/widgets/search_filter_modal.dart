@@ -33,7 +33,7 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
           const SizedBox(height: 20),
 
           Text(
-            "Filtrele",
+            "Filter",
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
@@ -44,7 +44,7 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
 
           // --- ROL SEÇİMİ ---
           Text(
-            "Kişiler",
+            "Person",
             style: TextStyle(
               fontWeight: FontWeight.bold,
               color: AppTheme.textColor,
@@ -53,11 +53,11 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
           const SizedBox(height: 10),
           Row(
             children: [
-              _buildFilterChip("Aktör", manager.filterActor, (val) {
+              _buildFilterChip("Actor", manager.filterActor, (val) {
                 setState(() => manager.filterActor = val);
               }),
               const SizedBox(width: 10),
-              _buildFilterChip("Yönetmen", manager.filterDirector, (val) {
+              _buildFilterChip("Director", manager.filterDirector, (val) {
                 setState(() => manager.filterDirector = val);
               }),
             ],
@@ -67,7 +67,7 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
 
           // --- TÜR SEÇİMİ ---
           Text(
-            "Türler",
+            "Genres",
             style: TextStyle(
               fontWeight: FontWeight.bold,
               color: AppTheme.textColor,

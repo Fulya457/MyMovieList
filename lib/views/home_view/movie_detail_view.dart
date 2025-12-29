@@ -25,7 +25,7 @@ class MovieDetailView extends StatefulWidget {
 
 class _MovieDetailViewState extends State<MovieDetailView> {
   late YoutubePlayerController _controller;
-  bool _isPlayerReady = false;
+  final bool _isPlayerReady = false;
 
   @override
   void initState() {
@@ -300,7 +300,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
           child: Column(
             children: [
               Text(
-                "Paylaş",
+                "Share",
                 style: TextStyle(
                   color: AppTheme.textColor,
                   fontSize: 18,
@@ -318,8 +318,8 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                         unselectedLabelColor: Colors.grey,
                         indicatorColor: AppTheme.primaryBlue,
                         tabs: const [
-                          Tab(text: "Arkadaşlar"),
-                          Tab(text: "Gruplar"),
+                          Tab(text: "Friends"),
+                          Tab(text: "Groups"),
                         ],
                       ),
                       const SizedBox(height: 10),
@@ -330,18 +330,20 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                             StreamBuilder<QuerySnapshot>(
                               stream: MovieManager.instance.getFriendsStream(),
                               builder: (context, snapshot) {
-                                if (!snapshot.hasData)
+                                if (!snapshot.hasData) {
                                   return const Center(
                                     child: CircularProgressIndicator(),
                                   );
+                                }
                                 final docs = snapshot.data!.docs;
-                                if (docs.isEmpty)
+                                if (docs.isEmpty) {
                                   return const Center(
                                     child: Text(
-                                      "Arkadaş bulunamadı.",
+                                      "No friends found.",
                                       style: TextStyle(color: Colors.grey),
                                     ),
                                   );
+                                }
 
                                 return ListView.builder(
                                   itemCount: docs.length,
@@ -388,10 +390,11 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                             StreamBuilder<QuerySnapshot>(
                               stream: MovieManager.instance.getGroupsStream(),
                               builder: (context, snapshot) {
-                                if (!snapshot.hasData)
+                                if (!snapshot.hasData) {
                                   return const Center(
                                     child: CircularProgressIndicator(),
                                   );
+                                }
                                 final docs = snapshot.data!.docs;
 
                                 // [YENİ] Sadece "members" listesinde benim UID'min olduğu grupları filtrele
@@ -407,7 +410,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                 if (myGroups.isEmpty) {
                                   return const Center(
                                     child: Text(
-                                      "Üye olduğunuz grup yok.",
+                                      "There are no groups you are a member of.",
                                       style: TextStyle(color: Colors.grey),
                                     ),
                                   );
@@ -539,7 +542,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('İptal'),
+                  child: const Text('Cancel'),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
@@ -555,12 +558,12 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                     );
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Yorum eklendi!")),
+                        const SnackBar(content: Text("Comment added!")),
                       );
                     }
                   },
                   child: const Text(
-                    'Gönder',
+                    'Share',
                     style: TextStyle(color: Colors.white),
                   ),
                 ),
@@ -676,7 +679,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                         children: widget.movie.genres
                             .map(
                               (genre) => InkWell(
-                                onTap: () => context.push('/list/${genre}'),
+                                onTap: () => context.push('/list/$genre'),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 10,
@@ -855,8 +858,9 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                       );
                                     }
                                   }
-                                  if (friendRatings.isEmpty)
+                                  if (friendRatings.isEmpty) {
                                     return const SizedBox();
+                                  }
                                   return Padding(
                                     padding: const EdgeInsets.only(top: 8.0),
                                     child: Text(
@@ -1095,17 +1099,18 @@ class _MovieDetailViewState extends State<MovieDetailView> {
               StreamBuilder<QuerySnapshot>(
                 stream: MovieManager.instance.getReviewsStream(widget.movie.id),
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting)
+                  if (snapshot.connectionState == ConnectionState.waiting) {
                     return const SliverToBoxAdapter(
                       child: Center(child: CircularProgressIndicator()),
                     );
+                  }
                   final docs = snapshot.data?.docs ?? [];
-                  if (docs.isEmpty)
+                  if (docs.isEmpty) {
                     return SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.all(20),
                         child: Text(
-                          "Henüz yorum yok. İlk sen ol!",
+                          "No comments yet. Be the first!",
                           style: TextStyle(
                             color: AppTheme.textColor.withValues(alpha: 0.5),
                           ),
@@ -1113,6 +1118,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                         ),
                       ),
                     );
+                  }
                   return SliverList(
                     delegate: SliverChildBuilderDelegate((context, index) {
                       final doc = docs[index];
@@ -1150,7 +1156,7 @@ class _ReviewCardState extends State<ReviewCard> {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceDark,
         title: Text(
-          "Yorumu Düzenle",
+          "Edit Comment",
           style: TextStyle(color: AppTheme.textColor),
         ),
         content: TextField(
@@ -1172,7 +1178,7 @@ class _ReviewCardState extends State<ReviewCard> {
               );
               if (mounted) Navigator.pop(ctx);
             },
-            child: const Text("Kaydet"),
+            child: const Text("Save"),
           ),
         ],
       ),
@@ -1185,16 +1191,16 @@ class _ReviewCardState extends State<ReviewCard> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceDark,
-        title: Text("Yanıtla", style: TextStyle(color: AppTheme.textColor)),
+        title: Text("Reply", style: TextStyle(color: AppTheme.textColor)),
         content: TextField(
           controller: replyController,
           style: TextStyle(color: AppTheme.textColor),
-          decoration: const InputDecoration(hintText: "Cevabın..."),
+          decoration: const InputDecoration(hintText: "Your answer..."),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text("İptal"),
+            child: const Text("Cancel"),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -1205,7 +1211,7 @@ class _ReviewCardState extends State<ReviewCard> {
               if (mounted) Navigator.pop(ctx);
               setState(() => showReplies = true);
             },
-            child: const Text("Gönder"),
+            child: const Text("Share"),
           ),
         ],
       ),
@@ -1271,17 +1277,18 @@ class _ReviewCardState extends State<ReviewCard> {
                     icon: const Icon(Icons.more_vert, color: Colors.grey),
                     onSelected: (value) {
                       if (value == 'edit') _editReview();
-                      if (value == 'delete')
+                      if (value == 'delete') {
                         MovieManager.instance.deleteReview(widget.doc.id);
+                      }
                     },
                     itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'edit',
-                        child: Text("Düzenle"),
-                      ),
+                      const PopupMenuItem(value: 'edit', child: Text("Edit")),
                       const PopupMenuItem(
                         value: 'delete',
-                        child: Text("Sil", style: TextStyle(color: Colors.red)),
+                        child: Text(
+                          "Delete",
+                          style: TextStyle(color: Colors.red),
+                        ),
                       ),
                     ],
                   ),
@@ -1301,7 +1308,7 @@ class _ReviewCardState extends State<ReviewCard> {
             ),
             if (data['is_edited'] == true)
               Text(
-                "(düzenlendi)",
+                "(Edited)",
                 style: TextStyle(
                   color: AppTheme.textColor.withValues(alpha: 0.5),
                   fontSize: 10,
@@ -1328,7 +1335,7 @@ class _ReviewCardState extends State<ReviewCard> {
                 TextButton.icon(
                   icon: const Icon(Icons.reply, size: 18, color: Colors.grey),
                   label: const Text(
-                    "Yanıtla",
+                    "Reply",
                     style: TextStyle(color: Colors.grey),
                   ),
                   onPressed: _replyToReview,
@@ -1337,7 +1344,7 @@ class _ReviewCardState extends State<ReviewCard> {
                 TextButton(
                   onPressed: () => setState(() => showReplies = !showReplies),
                   child: Text(
-                    showReplies ? "Cevapları Gizle" : "Cevapları Gör",
+                    showReplies ? "Hide Answers" : "View Answers",
                     style: TextStyle(color: AppTheme.primaryBlue),
                   ),
                 ),
@@ -1348,17 +1355,18 @@ class _ReviewCardState extends State<ReviewCard> {
                 stream: MovieManager.instance.getRepliesStream(widget.doc.id),
                 builder: (context, snapshot) {
                   final replies = snapshot.data?.docs ?? [];
-                  if (replies.isEmpty)
+                  if (replies.isEmpty) {
                     return Padding(
                       padding: const EdgeInsets.only(left: 20),
                       child: Text(
-                        "Henüz yanıt yok.",
+                        "No response yet.",
                         style: TextStyle(
                           color: AppTheme.textColor.withValues(alpha: 0.5),
                           fontSize: 12,
                         ),
                       ),
                     );
+                  }
                   return Padding(
                     padding: const EdgeInsets.only(left: 20, top: 5),
                     child: Column(

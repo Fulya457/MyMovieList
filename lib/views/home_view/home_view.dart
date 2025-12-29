@@ -1,7 +1,6 @@
 // Dosya: lib/views/home_view/home_view.dart
 
 import 'dart:async';
-import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -11,7 +10,6 @@ import 'package:go_router/go_router.dart';
 import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/app/theme.dart';
 import 'package:mymovielist/data/movie_manager.dart';
-import 'package:mymovielist/models/movie_model.dart';
 
 // Widget Imports
 import 'package:mymovielist/views/home_view/widgets/movie_card.dart';

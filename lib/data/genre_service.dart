@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:mymovielist/data/movie_manager.dart'; // Manager'a erişim
-import 'package:mymovielist/models/movie_model.dart'; // Movie Modeline erişim
+// Movie Modeline erişim
 
 // HATA ÇÖZÜMÜ: Const hatasını önlemek için API Key'i buraya direkt string olarak yazdım.
 const String _API_KEY = "cea49e6756dd9655a98066426a1b934d";

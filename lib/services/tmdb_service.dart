@@ -137,8 +137,9 @@ class TmdbService {
         List<dynamic> crew = data['crew'] ?? [];
 
         // Yönetmense sadece yönettikleri
-        if (person.knownFor == 'Directing')
+        if (person.knownFor == 'Directing') {
           crew = crew.where((c) => c['job'] == 'Director').toList();
+        }
 
         var allCredits = [...cast, ...crew];
         final ids = <int>{};
@@ -223,8 +224,9 @@ class TmdbService {
       final res = await http.get(
         Uri.parse('$_BASE_URL/movie/$id?api_key=$_API_KEY'),
       );
-      if (res.statusCode == 200)
+      if (res.statusCode == 200) {
         return Movie.fromTMDB(json.decode(res.body), genreMap);
+      }
     } catch (e) {}
     return null;
   }

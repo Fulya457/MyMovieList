@@ -69,17 +69,17 @@ class SocialService {
 
       // 2. Doğrulama başarılıysa şifreyi güncelle
       await user.updatePassword(newPassword);
-      print("Şifre başarıyla değiştirildi.");
+      print("The password has been changed successfully.");
     } on FirebaseAuthException catch (e) {
       if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
-        throw 'Mevcut şifrenizi yanlış girdiniz.';
+        throw 'You have entered your current password incorrectly.';
       } else if (e.code == 'weak-password') {
-        throw 'Yeni şifreniz çok zayıf. En az 6 karakter olmalı.';
+        throw 'Your new password is too weak. It must be at least 6 characters long.';
       } else {
-        throw 'Hata: ${e.message}';
+        throw 'Error: ${e.message}';
       }
     } catch (e) {
-      throw 'Beklenmedik bir hata oluştu.';
+      throw 'An unexpected error occurred.';
     }
   }
 
@@ -127,7 +127,7 @@ class SocialService {
       });
       // Hareket Dökümü: Favoriye Ekleme
       await logUserActivity(
-        "${movie.title} favorilere eklendi.",
+        "${movie.title} added to favorites.",
         movie.id,
         'favorite',
       );
@@ -181,7 +181,7 @@ class SocialService {
           'items': [],
         });
     // Hareket Dökümü: Liste Oluşturma
-    await logUserActivity("Yeni liste oluşturuldu: $name", 0, 'list_create');
+    await logUserActivity("New list created: $name", 0, 'list_create');
   }
 
   Future<void> addToList(String listId, Map<String, dynamic> itemData) async {
@@ -260,7 +260,7 @@ class SocialService {
     // Karşı tarafa bildirim gönder
     await createNotification(
       targetUid,
-      "Sana arkadaşlık isteği gönderdi.",
+      "Sent you a friend request.",
       0,
       'friend_request',
     );
@@ -332,7 +332,9 @@ class SocialService {
     final chatId = _getChatId(currentUid!, friendUid);
     final chatRef = _firestore.collection('chats').doc(chatId);
     final msgs = await chatRef.collection('messages').get();
-    for (var m in msgs.docs) await m.reference.delete();
+    for (var m in msgs.docs) {
+      await m.reference.delete();
+    }
     await chatRef.delete();
   }
 
@@ -368,11 +370,11 @@ class SocialService {
     Map<String, dynamic>? sharedList,
   }) async {
     if (currentUid == null) {
-      print("❌ HATA: Kullanıcı giriş yapmamış.");
+      print("❌ ERROR: The user is not logged in.");
       return;
     }
 
-    print("🚀 İşlem Başladı: Mesaj gönderiliyor... (Alıcı: $receiverUid)");
+    print("🚀 Process Started: Message being sent... (Receiver: $receiverUid)");
 
     // 1. ÖNCE MESAJI KAYDET (CHATS)
     try {
@@ -403,9 +405,9 @@ class SocialService {
           .collection('messages')
           .add(msgData);
 
-      print("✅ ADIM 1 BAŞARILI: Mesaj 'chats' koleksiyonuna yazıldı.");
+      print("✅ STEP 1 SUCCESSFUL: Message written to 'chats' collection.");
     } catch (e) {
-      print("🔥 ADIM 1 HATASI (Chat Yazma): $e");
+      print("🔥 STEP 1 ERROR (Writing Chat): $e");
       // Mesaj yazılamadıysa bildirimi de gönderme, çık.
       return;
     }
@@ -413,13 +415,13 @@ class SocialService {
     // 2. SONRA BİLDİRİMİ OLUŞTUR (NOTIFICATIONS)
     // Bunu ayrı bir try-catch içine aldık ki yukarıdaki ile bağımsız çalışsın
     try {
-      print("🔔 ADIM 2 BAŞLIYOR: Bildirim oluşturuluyor...");
+      print("🔔 STEP 2 BEGINS: Creating a notification...");
 
       await _firestore.collection('notifications').add({
         'recipient_id': receiverUid, // BURASI ÇOK ÖNEMLİ: Alıcının ID'si
         'sender_id': currentUid, // Gönderen biziz
         'message':
-            "Sana bir mesaj gönderdi: ${text.length > 20 ? text.substring(0, 20) + '...' : text}",
+            "Sent you a message: ${text.length > 20 ? '${text.substring(0, 20)}...' : text}",
         'type': 'message',
         'is_read': false,
         'timestamp': FieldValue.serverTimestamp(),
@@ -428,10 +430,10 @@ class SocialService {
       });
 
       print(
-        "✅ ADIM 2 BAŞARILI: Bildirim 'notifications' koleksiyonuna EKLENDİ!",
+        "✅ STEP 2 SUCCESSFUL: Notification ADDED to 'notifications' collection!",
       );
     } catch (e) {
-      print("🔥 ADIM 2 HATASI (Bildirim Oluşturma): $e");
+      print("🔥 ERROR IN STEP 2 (Creating a Notification): $e");
     }
   }
 
@@ -468,13 +470,13 @@ class SocialService {
         .doc(currentUid)
         .collection('lists')
         .add({
-          'name': "$listName (Kopya)",
+          'name': "$listName (Copy)",
           'type': type,
           'created_at': FieldValue.serverTimestamp(),
           'items': items,
         });
 
-    await logUserActivity("$listName listesini kopyaladın.", 0, 'list_import');
+    await logUserActivity("$listName You copied the list.", 0, 'list_import');
   }
 
   Future<List<dynamic>> fetchListItems(String userId, String listId) async {
@@ -529,11 +531,12 @@ class SocialService {
       hasRated = true;
       oldRating = (prev.docs.first.data()['rating'] ?? 0).toDouble();
       final batch = _firestore.batch();
-      for (var d in prev.docs)
+      for (var d in prev.docs) {
         batch.update(d.reference, {
           'rating': rating,
           'profile_icon_id': iconId,
         });
+      }
       await batch.commit();
     }
 
@@ -584,7 +587,7 @@ class SocialService {
 
     // YENİ EKLENDİ: Kendi Hareket Dökümüne Ekle 📝
     await logUserActivity(
-      "${movie.title} filmine yorum yaptın.",
+      "${movie.title} You commented on the movie.",
       movie.id,
       'review',
     );
@@ -638,7 +641,7 @@ class SocialService {
         if (doc.data()?['user_id'] != currentUid) {
           createNotification(
             doc.data()?['user_id'],
-            "Birisi yorumunu beğendi.",
+            "Someone liked your comment.",
             doc.data()?['movie_id'],
             'like',
           );
@@ -646,7 +649,7 @@ class SocialService {
 
         // Hareket Dökümü: Beğeni yaptın
         await logUserActivity(
-          "Bir yorumu beğendin.",
+          "You liked a comment.",
           doc.data()?['movie_id'],
           'like',
         );
@@ -669,7 +672,7 @@ class SocialService {
     if (parent.exists && parent.data()?['user_id'] != currentUid) {
       createNotification(
         parent.data()?['user_id'],
-        "Yorumuna cevap geldi.",
+        "You received a reply to your comment.",
         parent.data()?['movie_id'],
         'reply',
       );
@@ -677,7 +680,7 @@ class SocialService {
 
     // Hareket Dökümü: Cevap verdin
     await logUserActivity(
-      "Bir yoruma cevap verdin.",
+      "You replied to a comment.",
       parent.data()?['movie_id'],
       'reply',
     );
@@ -701,9 +704,11 @@ class SocialService {
         'is_read': false,
         'timestamp': FieldValue.serverTimestamp(),
       });
-      print("✅ Bildirim başarıyla veritabanına eklendi! (Alıcı: $recipientId)");
+      print(
+        "✅ The notification has been successfully added to the database! (Receiver: $recipientId)",
+      );
     } catch (e) {
-      print("🔥 KRİTİK HATA (Bildirim Oluşturma): $e");
+      print("🔥 CRITICAL ERROR (Creating a Notification): $e");
     }
   }
 

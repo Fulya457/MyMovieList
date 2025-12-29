@@ -35,7 +35,7 @@ class _UserListsViewState extends State<UserListsView> {
             return AlertDialog(
               backgroundColor: dialogBg,
               title: Text(
-                "Yeni Liste Oluştur",
+                "Create New List",
                 style: TextStyle(color: dialogText),
               ),
               content: Column(
@@ -45,7 +45,7 @@ class _UserListsViewState extends State<UserListsView> {
                     controller: nameController,
                     style: TextStyle(color: dialogText),
                     decoration: InputDecoration(
-                      hintText: "Liste Adı...",
+                      hintText: "List name...",
                       hintStyle: TextStyle(color: hintColor),
                       filled: true,
                       fillColor: inputFill,
@@ -57,11 +57,11 @@ class _UserListsViewState extends State<UserListsView> {
                   ),
                   const SizedBox(height: 20),
                   DropdownButtonFormField<String>(
-                    value: selectedType,
+                    initialValue: selectedType,
                     dropdownColor: dialogBg,
                     style: TextStyle(color: dialogText),
                     decoration: InputDecoration(
-                      labelText: "Liste Türü",
+                      labelText: "List Type",
                       labelStyle: TextStyle(color: AppTheme.primaryBlue),
                       filled: true,
                       fillColor: inputFill,
@@ -74,14 +74,14 @@ class _UserListsViewState extends State<UserListsView> {
                       DropdownMenuItem(
                         value: 'movies',
                         child: Text(
-                          "Film Listesi",
+                          "Movie List",
                           style: TextStyle(color: dialogText),
                         ),
                       ),
                       DropdownMenuItem(
                         value: 'actor',
                         child: Text(
-                          "Kişi Listesi",
+                          "Actor List",
                           style: TextStyle(color: dialogText),
                         ),
                       ),
@@ -93,7 +93,7 @@ class _UserListsViewState extends State<UserListsView> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx),
-                  child: const Text("İptal"),
+                  child: const Text("Cancel"),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
@@ -109,7 +109,7 @@ class _UserListsViewState extends State<UserListsView> {
                     }
                   },
                   child: const Text(
-                    "Oluştur",
+                    "Create",
                     style: TextStyle(color: Colors.white),
                   ),
                 ),
@@ -128,15 +128,12 @@ class _UserListsViewState extends State<UserListsView> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: dialogBg,
-        title: Text(
-          "Listeyi Yeniden Adlandır",
-          style: TextStyle(color: dialogText),
-        ),
+        title: Text("Rename the list", style: TextStyle(color: dialogText)),
         content: TextField(
           controller: controller,
           style: TextStyle(color: dialogText),
           decoration: InputDecoration(
-            hintText: "Yeni isim...",
+            hintText: "New name..",
             hintStyle: TextStyle(color: hintColor),
             filled: true,
             fillColor: inputFill,
@@ -149,7 +146,7 @@ class _UserListsViewState extends State<UserListsView> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text("İptal"),
+            child: const Text("Cancel"),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -164,7 +161,7 @@ class _UserListsViewState extends State<UserListsView> {
                 if (mounted) Navigator.pop(ctx);
               }
             },
-            child: const Text("Kaydet", style: TextStyle(color: Colors.white)),
+            child: const Text("Save", style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -187,7 +184,7 @@ class _UserListsViewState extends State<UserListsView> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "Listeyi Paylaş",
+                "Share List",
                 style: TextStyle(
                   color: dialogText,
                   fontSize: 18,
@@ -199,15 +196,17 @@ class _UserListsViewState extends State<UserListsView> {
                 child: StreamBuilder<QuerySnapshot>(
                   stream: MovieManager.instance.getFriendsStream(),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData)
+                    if (!snapshot.hasData) {
                       return const Center(child: CircularProgressIndicator());
-                    if (snapshot.data!.docs.isEmpty)
+                    }
+                    if (snapshot.data!.docs.isEmpty) {
                       return Center(
                         child: Text(
-                          "Arkadaşın yok.",
+                          "You have no friends.",
                           style: TextStyle(color: hintColor),
                         ),
                       );
+                    }
 
                     return ListView.builder(
                       itemCount: snapshot.data!.docs.length,
@@ -273,9 +272,9 @@ class _UserListsViewState extends State<UserListsView> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: dialogBg,
-        title: Text("Listeyi Sil?", style: TextStyle(color: dialogText)),
+        title: Text("Delete List?", style: TextStyle(color: dialogText)),
         content: Text(
-          "Bu işlem geri alınamaz.",
+          "This action is irreversible.",
           style: TextStyle(color: hintColor),
         ),
         actions: [
@@ -290,7 +289,7 @@ class _UserListsViewState extends State<UserListsView> {
               if (mounted) {
                 ScaffoldMessenger.of(
                   context,
-                ).showSnackBar(const SnackBar(content: Text("Liste silindi.")));
+                ).showSnackBar(const SnackBar(content: Text("List deleted.")));
               }
             },
             child: const Text("Sil", style: TextStyle(color: Colors.redAccent)),
@@ -321,7 +320,7 @@ class _UserListsViewState extends State<UserListsView> {
           appBar: AppBar(
             backgroundColor: isDark ? AppTheme.backgroundBlack : Colors.white,
             elevation: isDark ? 0 : 1,
-            title: Text('Listelerim', style: TextStyle(color: textColor)),
+            title: Text('My lists', style: TextStyle(color: textColor)),
             leading: IconButton(
               icon: Icon(Icons.arrow_back, color: iconColor),
               onPressed: () => context.pop(),
@@ -329,8 +328,8 @@ class _UserListsViewState extends State<UserListsView> {
           ),
           floatingActionButton: FloatingActionButton(
             backgroundColor: AppTheme.primaryBlue,
-            child: const Icon(Icons.add, color: Colors.white),
             onPressed: _showCreateListDialog,
+            child: const Icon(Icons.add, color: Colors.white),
           ),
           body: StreamBuilder<QuerySnapshot>(
             stream: MovieManager.instance.getUserListsStream(),
@@ -346,7 +345,7 @@ class _UserListsViewState extends State<UserListsView> {
               if (docs.isEmpty) {
                 return Center(
                   child: Text(
-                    "Henüz bir listen yok. + butonuna bas.",
+                    "You don't have a list yet. Press the + button.",
                     style: TextStyle(color: subTextColor),
                   ),
                 );
@@ -411,7 +410,7 @@ class _UserListsViewState extends State<UserListsView> {
                             : null,
                       ),
                       title: Text(
-                        data['name'] ?? 'İsimsiz',
+                        data['name'] ?? 'Nameless',
                         style: TextStyle(
                           color: textColor,
                           fontWeight: FontWeight.bold,
@@ -419,7 +418,7 @@ class _UserListsViewState extends State<UserListsView> {
                         ),
                       ),
                       subtitle: Text(
-                        "${items.length} Öğe • ${type == 'actor' ? 'Kişi' : 'Film'}",
+                        "${items.length} Öğe • ${type == 'actor' ? 'Actor' : 'Movie'}",
                         style: TextStyle(color: subTextColor, fontSize: 13),
                       ),
                       trailing: PopupMenuButton<String>(
@@ -427,29 +426,30 @@ class _UserListsViewState extends State<UserListsView> {
                         color: surfaceColor,
                         onSelected: (value) {
                           if (value == 'share') _showShareSheet(data, doc.id);
-                          if (value == 'rename')
+                          if (value == 'rename') {
                             _showRenameDialog(doc.id, data['name']);
+                          }
                           if (value == 'delete') _confirmDelete(doc.id);
                         },
                         itemBuilder: (context) => [
                           PopupMenuItem(
                             value: 'share',
                             child: Text(
-                              "Paylaş",
+                              "Share",
                               style: TextStyle(color: textColor),
                             ),
                           ),
                           PopupMenuItem(
                             value: 'rename',
                             child: Text(
-                              "Adını Değiştir",
+                              "Change Name",
                               style: TextStyle(color: textColor),
                             ),
                           ),
                           const PopupMenuItem(
                             value: 'delete',
                             child: Text(
-                              "Sil",
+                              "Delete",
                               style: TextStyle(color: Colors.redAccent),
                             ),
                           ),

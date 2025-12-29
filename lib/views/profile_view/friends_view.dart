@@ -38,13 +38,13 @@ class _FriendsViewState extends State<FriendsView>
         return AlertDialog(
           backgroundColor: AppTheme.surfaceDark,
           title: Text(
-            "Arkadaş Ekle",
+            "Add Friend",
             style: TextStyle(color: AppTheme.textColor),
           ),
           content: TextField(
             style: TextStyle(color: AppTheme.textColor),
             decoration: InputDecoration(
-              hintText: "E-posta adresi girin...",
+              hintText: "Enter email address....",
               hintStyle: TextStyle(
                 color: AppTheme.textColor.withValues(alpha: 0.5),
               ),
@@ -57,7 +57,7 @@ class _FriendsViewState extends State<FriendsView>
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text("İptal"),
+              child: const Text("Cancel"),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -76,19 +76,20 @@ class _FriendsViewState extends State<FriendsView>
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
-                          "${users.first['email']} kullanıcısına istek gönderildi!",
+                          "${users.first['email']} a request has been sent",
                         ),
                       ),
                     );
                   } else {
-                    if (mounted)
+                    if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Kullanıcı bulunamadı.")),
+                        const SnackBar(content: Text("User not found.")),
                       );
+                    }
                   }
                 }
               },
-              child: const Text("Ekle", style: TextStyle(color: Colors.white)),
+              child: const Text("Add", style: TextStyle(color: Colors.white)),
             ),
           ],
         );
@@ -102,7 +103,7 @@ class _FriendsViewState extends State<FriendsView>
       backgroundColor: AppTheme.backgroundBlack,
       appBar: AppBar(
         title: Text(
-          'Sosyal Çevre',
+          'Social Environment',
           style: TextStyle(color: AppTheme.textColor),
         ),
         backgroundColor: AppTheme.backgroundBlack,
@@ -113,8 +114,8 @@ class _FriendsViewState extends State<FriendsView>
           labelColor: AppTheme.primaryBlue,
           unselectedLabelColor: Colors.grey,
           tabs: const [
-            Tab(text: "Arkadaşlarım"),
-            Tab(text: "İstekler"),
+            Tab(text: "My Frends"),
+            Tab(text: "Requests"),
           ],
         ),
         actions: [
@@ -135,18 +136,20 @@ class _FriendsViewState extends State<FriendsView>
     return StreamBuilder<QuerySnapshot>(
       stream: MovieManager.instance.getFriendsStream(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting)
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
+        }
         final docs = snapshot.data?.docs ?? [];
-        if (docs.isEmpty)
+        if (docs.isEmpty) {
           return Center(
             child: Text(
-              "Henüz arkadaşın yok.",
+              "You don't have any friends yet.",
               style: TextStyle(
                 color: AppTheme.textColor.withValues(alpha: 0.5),
               ),
             ),
           );
+        }
 
         return ListView.builder(
           padding: const EdgeInsets.all(16),
@@ -227,18 +230,20 @@ class _FriendsViewState extends State<FriendsView>
     return StreamBuilder<QuerySnapshot>(
       stream: MovieManager.instance.getFriendRequestsStream(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
+        }
         final docs = snapshot.data!.docs;
-        if (docs.isEmpty)
+        if (docs.isEmpty) {
           return Center(
             child: Text(
-              "Gelen istek yok.",
+              "There is no incoming request.",
               style: TextStyle(
                 color: AppTheme.textColor.withValues(alpha: 0.5),
               ),
             ),
           );
+        }
 
         return ListView.builder(
           padding: const EdgeInsets.all(16),

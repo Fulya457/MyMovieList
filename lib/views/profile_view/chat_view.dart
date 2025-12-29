@@ -114,7 +114,7 @@ class _ChatViewState extends State<ChatView> {
     }
 
     if (listData != null) {
-      _sendListMessage(listData, text.isEmpty ? "Bir liste paylaştı" : text);
+      _sendListMessage(listData, text.isEmpty ? "Shared a list" : text);
       return; // Liste fonksiyonu kendi kaydeder
     }
 
@@ -129,7 +129,7 @@ class _ChatViewState extends State<ChatView> {
         .add(msgData);
 
     // Son Mesajı Güncelle
-    _updateLastMessage(text.isNotEmpty ? text : "Medya");
+    _updateLastMessage(text.isNotEmpty ? text : "Media");
     _scrollDown();
   }
 
@@ -140,7 +140,7 @@ class _ChatViewState extends State<ChatView> {
   ]) async {
     final msgData = {
       'sender_id': myUid,
-      'text': text ?? "Bir liste paylaştı",
+      'text': text ?? "Shared a list",
       'timestamp': FieldValue.serverTimestamp(),
       'seen': false,
       'list_id': listData['id'],
@@ -162,7 +162,7 @@ class _ChatViewState extends State<ChatView> {
         .collection('messages')
         .add(msgData);
 
-    _updateLastMessage("Bir liste paylaştı");
+    _updateLastMessage("Shared a list");
     _scrollDown();
   }
 
@@ -188,9 +188,9 @@ class _ChatViewState extends State<ChatView> {
   void _shareFavorites() {
     final favMovies = MovieManager.instance.favoriteMovies;
     if (favMovies.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Favori listeniz boş.")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Your favorites list is empty.")),
+      );
       return;
     }
 
@@ -211,7 +211,7 @@ class _ChatViewState extends State<ChatView> {
     // Listeyi Gönder
     _sendListMessage({
       'id': 'favorites', // Özel ID
-      'name': 'Favorilerim',
+      'name': 'My Favorites',
       'count': favMovies.length,
       'type': 'movies',
       'items': itemsMap, // Veri burada
@@ -226,7 +226,7 @@ class _ChatViewState extends State<ChatView> {
     try {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("Liste kopyalanıyor...")));
+      ).showSnackBar(const SnackBar(content: Text("Copying list...")));
       final items = await SocialService.instance.fetchListItems(
         originalOwnerId,
         listData['list_id'],
@@ -234,7 +234,7 @@ class _ChatViewState extends State<ChatView> {
       if (items.isEmpty) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text("Liste boş.")));
+        ).showSnackBar(const SnackBar(content: Text("The list is empty.")));
         return;
       }
       await SocialService.instance.importListFromUser(
@@ -242,15 +242,17 @@ class _ChatViewState extends State<ChatView> {
         items,
         listData['type'] ?? 'movies',
       );
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text("Kaydedildi!")));
+        ).showSnackBar(const SnackBar(content: Text("Saved!")));
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text("Hata oluştu.")));
+        ).showSnackBar(const SnackBar(content: Text("Error occurred.")));
+      }
     }
   }
 
@@ -281,8 +283,9 @@ class _ChatViewState extends State<ChatView> {
                   .split('@')[0]
                   .toUpperCase();
               final idx = data['profile_icon_id'] ?? 0;
-              if (idx < MovieManager.instance.profileIcons.length)
+              if (idx < MovieManager.instance.profileIcons.length) {
                 iconUrl = MovieManager.instance.profileIcons[idx];
+              }
             } else {
               displayName = (widget.extras['targetEmail'] ?? '')
                   .toString()
@@ -319,8 +322,9 @@ class _ChatViewState extends State<ChatView> {
                   .orderBy('timestamp', descending: true)
                   .snapshots(),
               builder: (context, snapshot) {
-                if (!snapshot.hasData)
+                if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
+                }
                 final docs = snapshot.data!.docs;
                 return ListView.builder(
                   controller: _scrollController,
@@ -394,7 +398,7 @@ class _ChatViewState extends State<ChatView> {
                     controller: _msgController,
                     style: TextStyle(color: AppTheme.textColor),
                     decoration: InputDecoration(
-                      hintText: "Mesaj...",
+                      hintText: "Message...",
                       filled: true,
                       fillColor: AppTheme.surfaceDark,
                       border: OutlineInputBorder(
@@ -444,8 +448,8 @@ class _ChatViewState extends State<ChatView> {
       onLongPress: () => setState(
         () => _replyToMessage = {
           'id': docId,
-          'text': msg['text'] ?? 'Medya',
-          'sender': isMe ? 'Ben' : 'Kullanıcı',
+          'text': msg['text'] ?? 'Media',
+          'sender': isMe ? 'Ben' : 'User',
         },
       ),
       child: Align(

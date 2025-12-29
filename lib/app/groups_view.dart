@@ -33,7 +33,7 @@ class _GroupsViewState extends State<GroupsView> {
           return AlertDialog(
             backgroundColor: AppTheme.surfaceDark,
             title: Text(
-              "Yeni Grup Kur",
+              "Create New Group",
               style: TextStyle(color: AppTheme.textColor),
             ),
             content: SizedBox(
@@ -44,7 +44,7 @@ class _GroupsViewState extends State<GroupsView> {
                   children: [
                     // İkon Seçici Başlık
                     const Text(
-                      "Grup İkonu Seç",
+                      "Select Group Icon",
                       style: TextStyle(color: Colors.grey, fontSize: 12),
                     ),
                     const SizedBox(height: 10),
@@ -95,7 +95,7 @@ class _GroupsViewState extends State<GroupsView> {
                       controller: nameController,
                       style: TextStyle(color: AppTheme.textColor),
                       decoration: InputDecoration(
-                        hintText: "Grup Adı",
+                        hintText: "Group Name",
                         hintStyle: TextStyle(
                           color: AppTheme.textColor.withValues(alpha: 0.5),
                         ),
@@ -112,7 +112,7 @@ class _GroupsViewState extends State<GroupsView> {
                       controller: descController,
                       style: TextStyle(color: AppTheme.textColor),
                       decoration: InputDecoration(
-                        hintText: "Açıklama (Örn: Korku filmi severler)",
+                        hintText: "Description (e.g., Horror movie lovers)",
                         hintStyle: TextStyle(
                           color: AppTheme.textColor.withValues(alpha: 0.5),
                         ),
@@ -131,7 +131,7 @@ class _GroupsViewState extends State<GroupsView> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text("İptal"),
+                child: const Text("Cancel"),
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
@@ -147,7 +147,7 @@ class _GroupsViewState extends State<GroupsView> {
                     if (mounted) {
                       Navigator.pop(ctx);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Grup oluşturuldu!")),
+                        const SnackBar(content: Text("Group created!")),
                       );
                     }
                   }
@@ -173,7 +173,7 @@ class _GroupsViewState extends State<GroupsView> {
       appBar: AppBar(
         backgroundColor: AppTheme.backgroundBlack,
         title: Text(
-          "Film Toplulukları",
+          "Film Societies",
           style: TextStyle(color: AppTheme.textColor),
         ),
         leading: IconButton(
@@ -185,7 +185,10 @@ class _GroupsViewState extends State<GroupsView> {
         onPressed: _showCreateGroupDialog,
         backgroundColor: AppTheme.primaryBlue,
         icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text("Grup Kur", style: TextStyle(color: Colors.white)),
+        label: const Text(
+          "Create a Group",
+          style: TextStyle(color: Colors.white),
+        ),
       ),
       body: Column(
         children: [
@@ -197,7 +200,7 @@ class _GroupsViewState extends State<GroupsView> {
               onChanged: (val) =>
                   setState(() => _searchText = val.toLowerCase()),
               decoration: InputDecoration(
-                hintText: "Grup ara...",
+                hintText: "Search group...",
                 hintStyle: TextStyle(
                   color: AppTheme.textColor.withValues(alpha: 0.5),
                 ),
@@ -276,7 +279,7 @@ class _GroupsViewState extends State<GroupsView> {
                         subtitle: Padding(
                           padding: const EdgeInsets.only(top: 6.0),
                           child: Text(
-                            "${data['description']}\n${members.length} Üye",
+                            "${data['description']}\n${members.length} Member",
                             style: TextStyle(
                               color: AppTheme.textColor.withValues(alpha: 0.6),
                               height: 1.4,
@@ -305,13 +308,13 @@ class _GroupsViewState extends State<GroupsView> {
                                   );
                                 },
                                 child: const Text(
-                                  "Sohbet",
+                                  "Chat",
                                   style: TextStyle(color: Colors.green),
                                 ),
                               )
                             : (isPending
                                   ? const Text(
-                                      "İstek Gönderildi",
+                                      "Request Sent",
                                       style: TextStyle(color: Colors.orange),
                                     )
                                   : ElevatedButton(
@@ -321,19 +324,20 @@ class _GroupsViewState extends State<GroupsView> {
                                       onPressed: () async {
                                         await MovieManager.instance
                                             .requestJoinGroup(doc.id);
-                                        if (mounted)
+                                        if (mounted) {
                                           ScaffoldMessenger.of(
                                             context,
                                           ).showSnackBar(
                                             const SnackBar(
                                               content: Text(
-                                                "Katılma isteği gönderildi.",
+                                                "A request to join has been sent.",
                                               ),
                                             ),
                                           );
+                                        }
                                       },
                                       child: const Text(
-                                        "Katıl",
+                                        "Join",
                                         style: TextStyle(color: Colors.white),
                                       ),
                                     )),

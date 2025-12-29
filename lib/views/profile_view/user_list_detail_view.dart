@@ -44,15 +44,12 @@ class _UserListDetailViewState extends State<UserListDetailView> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: dialogBg,
-        title: Text(
-          "Listeyi Yeniden Adlandır",
-          style: TextStyle(color: dialogText),
-        ),
+        title: Text("Rename the list", style: TextStyle(color: dialogText)),
         content: TextField(
           controller: controller,
           style: TextStyle(color: dialogText),
           decoration: InputDecoration(
-            hintText: "Yeni isim...",
+            hintText: "New name...",
             hintStyle: TextStyle(color: hintColor),
             filled: true,
             fillColor: inputFill,
@@ -65,7 +62,7 @@ class _UserListDetailViewState extends State<UserListDetailView> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text("İptal"),
+            child: const Text("Cancel"),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -102,7 +99,7 @@ class _UserListDetailViewState extends State<UserListDetailView> {
           child: Column(
             children: [
               Text(
-                "Listeyi Paylaş",
+                "Share List",
                 style: TextStyle(
                   color: dialogText,
                   fontSize: 18,
@@ -114,15 +111,17 @@ class _UserListDetailViewState extends State<UserListDetailView> {
                 child: StreamBuilder<QuerySnapshot>(
                   stream: MovieManager.instance.getFriendsStream(),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData)
+                    if (!snapshot.hasData) {
                       return const Center(child: CircularProgressIndicator());
-                    if (snapshot.data!.docs.isEmpty)
+                    }
+                    if (snapshot.data!.docs.isEmpty) {
                       return Center(
                         child: Text(
-                          "Arkadaşın yok.",
+                          "You have no friends.",
                           style: TextStyle(color: hintColor),
                         ),
                       );
+                    }
 
                     return ListView.builder(
                       itemCount: snapshot.data!.docs.length,
@@ -198,10 +197,11 @@ class _UserListDetailViewState extends State<UserListDetailView> {
         final Color iconColor = isDark ? Colors.white : Colors.black;
 
         final uid = FirebaseAuth.instance.currentUser?.uid;
-        if (uid == null)
+        if (uid == null) {
           return const Scaffold(
-            body: Center(child: Text("Hata: Giriş yapılmamış")),
+            body: Center(child: Text("Error: Not logged in")),
           );
+        }
 
         return StreamBuilder<DocumentSnapshot>(
           stream: FirebaseFirestore.instance
@@ -249,21 +249,22 @@ class _UserListDetailViewState extends State<UserListDetailView> {
                     color: surfaceColor,
                     onSelected: (val) {
                       if (val == 'rename') _showRenameDialog(listName);
-                      if (val == 'share')
+                      if (val == 'share') {
                         _showShareSheet(listName, currentItems.length);
+                      }
                     },
                     itemBuilder: (ctx) => [
                       PopupMenuItem(
                         value: 'rename',
                         child: Text(
-                          "Adını Değiştir",
+                          "Change Name",
                           style: TextStyle(color: textColor),
                         ),
                       ),
                       PopupMenuItem(
                         value: 'share',
                         child: Text(
-                          "Paylaş",
+                          "Share",
                           style: TextStyle(color: textColor),
                         ),
                       ),
@@ -274,7 +275,7 @@ class _UserListDetailViewState extends State<UserListDetailView> {
               body: currentItems.isEmpty
                   ? Center(
                       child: Text(
-                        "Bu liste boş.",
+                        "This list is empty.",
                         style: TextStyle(color: subTextColor),
                       ),
                     )
@@ -374,7 +375,9 @@ class _UserListDetailViewState extends State<UserListDetailView> {
                                 if (mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
-                                      content: Text("Öğe silindi."),
+                                      content: Text(
+                                        "The item has been deleted.",
+                                      ),
                                       duration: Duration(seconds: 1),
                                       backgroundColor: Colors.redAccent,
                                     ),

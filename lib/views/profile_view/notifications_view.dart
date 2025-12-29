@@ -44,15 +44,15 @@ class _NotificationsViewState extends State<NotificationsView>
     if (_tabController.index == 0) {
       // 0. İndeks: Bildirimler
       SocialService.instance.clearAllNotifications();
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Tüm bildirimler silindi.")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("All notifications have been deleted.")),
+      );
     } else {
       // 1. İndeks: Hareket Dökümü
       SocialService.instance
           .clearAllActivities(); // SocialService'e eklediğin fonksiyon
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Hareket geçmişi temizlendi.")),
+        const SnackBar(content: Text("The activity history has been cleared.")),
       );
     }
   }
@@ -66,7 +66,7 @@ class _NotificationsViewState extends State<NotificationsView>
           backgroundColor: AppTheme.backgroundBlack,
           appBar: AppBar(
             title: Text(
-              'İletişim Merkezi',
+              'Contact Center',
               style: TextStyle(color: AppTheme.primaryBlue),
             ),
             backgroundColor: AppTheme.backgroundBlack,
@@ -77,8 +77,8 @@ class _NotificationsViewState extends State<NotificationsView>
               labelColor: AppTheme.primaryBlue,
               unselectedLabelColor: Colors.grey,
               tabs: const [
-                Tab(text: "Bildirimler"),
-                Tab(text: "Hareket Dökümü"),
+                Tab(text: "Notifications"),
+                Tab(text: "Motion Transcript"),
               ],
             ),
             actions: [
@@ -86,8 +86,8 @@ class _NotificationsViewState extends State<NotificationsView>
                 icon: const Icon(Icons.delete_sweep, color: Colors.redAccent),
                 // Tooltip o anki sekmeye göre değişir
                 tooltip: _tabController.index == 0
-                    ? "Bildirimleri Temizle"
-                    : "Geçmişi Temizle",
+                    ? "Clear Notifications"
+                    : "Clear History",
                 onPressed: _handleClearAction, // Dinamik fonksiyon
               ),
             ],
@@ -121,10 +121,7 @@ class _NotificationListTabState extends State<NotificationListTab>
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
       return Center(
-        child: Text(
-          "Giriş yapın.",
-          style: TextStyle(color: AppTheme.textColor),
-        ),
+        child: Text("Sign in", style: TextStyle(color: AppTheme.textColor)),
       );
     }
 
@@ -147,7 +144,7 @@ class _NotificationListTabState extends State<NotificationListTab>
             if (docs.isEmpty) {
               return Center(
                 child: Text(
-                  "Henüz bir bildirim yok.",
+                  "There's no notification yet.",
                   style: TextStyle(
                     color: AppTheme.textColor.withValues(alpha: 0.5),
                   ),
@@ -246,7 +243,7 @@ class _ActivityLogTabState extends State<ActivityLogTab>
             if (docs.isEmpty) {
               return Center(
                 child: Text(
-                  "Henüz bir hareketiniz yok.",
+                  "You haven't made any move yet.",
                   style: TextStyle(
                     color: AppTheme.textColor.withValues(alpha: 0.5),
                   ),

@@ -51,7 +51,7 @@ class CategoriesView extends StatelessWidget {
                     ),
                     child: Center(
                       child: Text(
-                        'KATEGORİLER',
+                        'CATEGORIES',
                         style: TextStyle(
                           color: AppTheme.textColor,
                           fontWeight: FontWeight.w900,
@@ -77,7 +77,7 @@ class CategoriesView extends StatelessWidget {
                 SliverFillRemaining(
                   child: Center(
                     child: Text(
-                      'Kategori yüklenemedi.',
+                      'Category could not be loaded.',
                       style: TextStyle(
                         color: AppTheme.textColor.withValues(alpha: 0.5),
                       ),

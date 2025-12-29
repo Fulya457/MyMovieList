@@ -12,14 +12,15 @@ class UserReviewsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null)
-      return const Scaffold(body: Center(child: Text("Giriş yapmalısınız.")));
+    if (user == null) {
+      return const Scaffold(body: Center(child: Text("You must log in.")));
+    }
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
       appBar: AppBar(
         title: Text(
-          "Değerlendirmelerim",
+          "My reviews",
           style: TextStyle(color: AppTheme.primaryBlue),
         ),
         backgroundColor: AppTheme.backgroundBlack,
@@ -41,7 +42,7 @@ class UserReviewsView extends StatelessWidget {
           if (snapshot.hasError) {
             return const Center(
               child: Text(
-                "Yüklenirken hata oluştu.",
+                "An error occurred during loading.",
                 style: TextStyle(color: Colors.red),
               ),
             );
@@ -61,7 +62,7 @@ class UserReviewsView extends StatelessWidget {
                   ),
                   SizedBox(height: 15),
                   Text(
-                    "Henüz hiç yorum yapmadınız.",
+                    "You haven't commented yet.",
                     style: TextStyle(color: Colors.grey, fontSize: 16),
                   ),
                 ],
