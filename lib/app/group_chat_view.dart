@@ -96,10 +96,7 @@ class _GroupChatViewState extends State<GroupChatView> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceDark,
-        title: Text(
-          "Grubu Düzenle",
-          style: TextStyle(color: AppTheme.textColor),
-        ),
+        title: Text("Edit Group", style: TextStyle(color: AppTheme.textColor)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -107,7 +104,7 @@ class _GroupChatViewState extends State<GroupChatView> {
               controller: nameCtrl,
               style: TextStyle(color: AppTheme.textColor),
               decoration: InputDecoration(
-                labelText: "Grup Adı",
+                labelText: "Group Name",
                 labelStyle: TextStyle(color: Colors.grey),
                 enabledBorder: UnderlineInputBorder(
                   borderSide: BorderSide(color: Colors.grey),
@@ -119,7 +116,7 @@ class _GroupChatViewState extends State<GroupChatView> {
               controller: descCtrl,
               style: TextStyle(color: AppTheme.textColor),
               decoration: InputDecoration(
-                labelText: "Açıklama",
+                labelText: "Description",
                 labelStyle: TextStyle(color: Colors.grey),
                 enabledBorder: UnderlineInputBorder(
                   borderSide: BorderSide(color: Colors.grey),
@@ -131,7 +128,7 @@ class _GroupChatViewState extends State<GroupChatView> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text("İptal"),
+            child: const Text("Cancel"),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(

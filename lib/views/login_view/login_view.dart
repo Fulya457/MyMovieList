@@ -14,7 +14,7 @@ String _getMemberName(String email) {
   if (email.contains('@')) {
     return email.substring(0, email.indexOf('@'));
   }
-  return 'Kullanıcı';
+  return 'User';
 }
 
 class LoginView extends StatefulWidget {
@@ -74,13 +74,13 @@ class _LoginViewState extends State<LoginView> {
     final String password = _passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
-      _showErrorDialog("Lütfen tüm alanları doldurunuz.");
+      _showErrorDialog("Please fill in all fields.");
       return;
     }
 
     // ŞİFRE UZUNLUĞU KONTROLÜ (Sadece kayıt olurken)
     if (!_isLogin && password.length < 6) {
-      _showErrorDialog("Şifreniz en az 6 karakter olmalıdır.");
+      _showErrorDialog("Your password must be at least 6 characters long.");
       return;
     }
 
@@ -141,21 +141,22 @@ class _LoginViewState extends State<LoginView> {
         if (mounted) context.go(AppRouters.welcome, extra: memberName);
       }
     } on FirebaseAuthException catch (e) {
-      String message = 'İşlem başarısız.';
+      String message = 'The operation failed.';
       if (e.code == 'user-not-found' ||
           e.code == 'wrong-password' ||
           e.code == 'invalid-credential') {
-        message = 'Kullanıcı adı veya şifre hatalı.';
+        message = 'The username or password is incorrect.';
       } else if (e.code == 'email-already-in-use') {
-        message = 'Bu e-posta adresi zaten kullanımda.';
+        message = 'This email address is already in use.';
       } else if (e.code == 'invalid-email') {
-        message = 'Geçersiz e-posta formatı.';
+        message = 'Invalid email format.';
       } else if (e.code == 'weak-password') {
-        message = 'Şifre çok zayıf. En az 6 karakter olmalı.';
+        message =
+            'The password is too weak. It needs to be at least 6 characters long.';
       }
       _showErrorDialog(message);
     } catch (e) {
-      _showErrorDialog('Beklenmeyen hata: $e');
+      _showErrorDialog('Unexpected error: $e');
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -166,11 +167,11 @@ class _LoginViewState extends State<LoginView> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.black.withOpacity(0.8),
-        title: const Text('Hata', style: TextStyle(color: Colors.red)),
+        title: const Text('Error', style: TextStyle(color: Colors.red)),
         content: Text(message, style: const TextStyle(color: Colors.white)),
         actions: <Widget>[
           TextButton(
-            child: const Text('Tamam', style: TextStyle(color: Colors.amber)),
+            child: const Text('OK', style: TextStyle(color: Colors.amber)),
             onPressed: () => Navigator.of(ctx).pop(),
           ),
         ],
@@ -325,7 +326,7 @@ class _LoginViewState extends State<LoginView> {
                               ),
                             ),
                             child: Text(
-                              _isLogin ? 'GİRİŞ YAP' : 'KAYIT OL',
+                              _isLogin ? 'LOG IN' : 'SIGN UP',
                               style: const TextStyle(
                                 fontSize: 18,
                                 color: Colors.white,
@@ -345,8 +346,8 @@ class _LoginViewState extends State<LoginView> {
                     },
                     child: Text(
                       _isLogin
-                          ? "Hesabın yok mu? Kayıt Ol"
-                          : "Zaten hesabın var mı? Giriş Yap",
+                          ? "Don't have an account? Sign up"
+                          : "Do you already have an account? Log in",
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 16,

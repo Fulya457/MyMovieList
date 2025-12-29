@@ -91,7 +91,7 @@ final router = GoRouter(
       builder: (context, state) {
         if (state.extra is! Movie) {
           return const Scaffold(
-            body: Center(child: Text("Hata: Film verisi yok")),
+            body: Center(child: Text("Error: No movie data found.")),
           );
         }
         return MovieDetailView(movie: state.extra as Movie);
@@ -103,7 +103,7 @@ final router = GoRouter(
       builder: (context, state) {
         if (state.extra is! Person) {
           return const Scaffold(
-            body: Center(child: Text("Hata: Kişi verisi yok")),
+            body: Center(child: Text("Error: No personal data found.")),
           );
         }
         return PersonDetailView(person: state.extra as Person);

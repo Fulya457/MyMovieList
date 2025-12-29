@@ -44,7 +44,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           duration: const Duration(milliseconds: 1000),
           curve: Curves.easeIn,
           child: Text(
-            'Merhaba, ${widget.userName}',
+            'Hello, ${widget.userName}',
             textAlign: TextAlign.center,
             style: const TextStyle(
               fontSize: 48,
