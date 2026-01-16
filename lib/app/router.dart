@@ -26,6 +26,7 @@ import 'package:mymovielist/views/profile_view/chat_view.dart';
 import 'package:mymovielist/views/profile_view/user_lists_view.dart';
 import 'package:mymovielist/views/profile_view/user_list_detail_view.dart';
 import 'package:mymovielist/views/profile_view/user_reviews_view.dart';
+import 'package:mymovielist/views/profile_view/admin_panel_view.dart'; // Admin Panel importu
 import 'package:mymovielist/app/groups_view.dart';
 import 'package:mymovielist/app/group_chat_view.dart';
 
@@ -38,11 +39,10 @@ class AppRouters {
   static const String login = '/login';
   static const String welcome = '/welcome';
   static const String home = '/home';
-  static const String categories =
-      '/categories'; // 'list' yerine daha açıklayıcı
+  static const String categories = '/categories';
   static const String favorites = '/favorites';
   static const String recommends = '/recommends';
-  static const String genreMovies = 'genre-movies'; // İsim olarak kullanacağız
+  static const String genreMovies = 'genre-movies';
 
   // Detaylar
   static const String movieDetail = '/movie-detail';
@@ -58,6 +58,9 @@ class AppRouters {
   static const String userReviews = '/user-reviews';
   static const String groups = '/groups';
   static const String groupChat = '/group-chat';
+
+  // Admin [EKLENDİ]
+  static const String adminPanel = '/admin-panel';
 }
 
 // --- 2. ROUTER AYARLARI ---
@@ -91,7 +94,7 @@ final router = GoRouter(
       builder: (context, state) {
         if (state.extra is! Movie) {
           return const Scaffold(
-            body: Center(child: Text("Error: No movie data found.")),
+            body: Center(child: Text("Hata: Film verisi yok")),
           );
         }
         return MovieDetailView(movie: state.extra as Movie);
@@ -103,13 +106,13 @@ final router = GoRouter(
       builder: (context, state) {
         if (state.extra is! Person) {
           return const Scaffold(
-            body: Center(child: Text("Error: No personal data found.")),
+            body: Center(child: Text("Hata: Kişi verisi yok")),
           );
         }
         return PersonDetailView(person: state.extra as Person);
       },
     ),
-    // Tür Sayfası (Home'dan direkt çağrılırsa diye burada da var)
+    // Tür Sayfası
     GoRoute(
       path: '/genre/:genre',
       name: AppRouters.genreMovies,
@@ -167,6 +170,14 @@ final router = GoRouter(
         );
       },
     ),
+
+    // --- ADMIN PANEL ROTASI [EKLENDİ] ---
+    GoRoute(
+      path: AppRouters.adminPanel,
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const AdminPanelView(),
+    ),
+
     // --- GRUP ROTALARI ---
     GoRoute(
       path: AppRouters.groups,
@@ -178,7 +189,6 @@ final router = GoRouter(
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) {
         final data = state.extra as Map<String, dynamic>;
-        // [GÜNCELLENDİ] sharedMovie ve groupIconUrl parametreleri eklendi
         return GroupChatView(
           groupId: data['groupId'],
           groupName: data['groupName'],
@@ -205,7 +215,7 @@ final router = GoRouter(
           ],
         ),
 
-        // B. Categories Tab (DÜZELTİLDİ: Alt Rota Eklendi)
+        // B. Categories Tab
         StatefulShellBranch(
           navigatorKey: _shellNavigatorCat,
           routes: [
@@ -213,10 +223,8 @@ final router = GoRouter(
               path: AppRouters.categories,
               builder: (context, state) => const CategoriesView(),
               routes: [
-                // Kategoriler sayfasından bir türe tıklanınca buraya düşecek
-                // Böylece alt menü kaybolacak ve geri butonu çalışacak
                 GoRoute(
-                  path: ':genre', // Örn: /categories/Action
+                  path: ':genre',
                   parentNavigatorKey: _rootNavigatorKey,
                   builder: (context, state) {
                     final genreName =

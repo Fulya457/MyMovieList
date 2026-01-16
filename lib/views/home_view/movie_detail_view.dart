@@ -1255,13 +1255,54 @@ class _ReviewCardState extends State<ReviewCard> {
                       backgroundImage: NetworkImage(iconUrl),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      data['user_name'] ?? 'User',
-                      style: const TextStyle(
-                        color: Colors.amber,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    // --- ADMIN PARLAMA VE ROL KONTROLÜ BAŞLANGIÇ ---
+                    (() {
+                      final String role = data['user_role'] ?? 'user';
+                      final bool isAdmin = role == 'admin';
+
+                      return Row(
+                        children: [
+                          Text(
+                            data['user_name'] ?? 'User',
+                            style: TextStyle(
+                              // Adminse Amber (Sarı), değilse mevcut stil
+                              color: isAdmin
+                                  ? Colors.amber
+                                  : AppTheme.primaryBlue,
+                              fontWeight: FontWeight.bold,
+                              // ŞIK PARLAMA EFEKTİ (Sadece Adminlere)
+                              shadows: isAdmin
+                                  ? [
+                                      Shadow(
+                                        blurRadius: 10.0,
+                                        color: Colors.amber.withOpacity(0.8),
+                                        offset: const Offset(0, 0),
+                                      ),
+                                      Shadow(
+                                        blurRadius: 20.0,
+                                        color: Colors.orange.withOpacity(0.5),
+                                        offset: const Offset(0, 0),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                          ),
+                          if (isAdmin) ...[
+                            const SizedBox(width: 4),
+                            Text(
+                              "(Admin)",
+                              style: TextStyle(
+                                color: Colors.amber.withValues(alpha: 0.9),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ],
+                        ],
+                      );
+                    })(),
+                    // --- ADMIN PARLAMA VE ROL KONTROLÜ BİTİŞ ---
                     const SizedBox(width: 8),
                     const Icon(Icons.star, color: Colors.amber, size: 14),
                     Text(

@@ -96,8 +96,20 @@ class _LoginViewState extends State<LoginView> {
           password: password,
         );
 
-        // [ÖNEMLİ EKLEME]
-        // Giriş başarılı oldu, hemen kullanıcının temasını çek!
+        // [YENİ]: BLOK KONTROLÜ
+        final userDocSnapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userCredential.user!.uid)
+            .get();
+
+        if (userDocSnapshot.exists &&
+            userDocSnapshot.data()?['is_blocked'] == true) {
+          await FirebaseAuth.instance.signOut();
+          _showErrorDialog("Hesabınız kötü kullanım sebebiyle blocklandı.");
+          return; // İşlemi burada durdur ve ana sayfaya gönderme
+        }
+
+        // Giriş başarılı ve bloksuz ise temayı çek!
         await MovieManager.instance.loadUserTheme();
       } else {
         // --- KAYIT OLMA ---
@@ -121,9 +133,11 @@ class _LoginViewState extends State<LoginView> {
             'favorites': [],
             'profile_icon_id': 0,
             'is_dark_mode': true, // Varsayılan tema
+            'is_blocked': false, // Yeni kullanıcılar bloksuz başlar
+            'role': 'user', // Varsayılan rol
           });
         } else {
-          // Giriş yapıldıysa ve belge yoksa oluştur (Güvenlik önlemi)
+          // Giriş yapıldıysa ve belge yoksa oluştur (Güvenlik önlemi & Admin listesi için)
           final snapshot = await userDoc.get();
           if (!snapshot.exists) {
             await userDoc.set({
@@ -133,6 +147,8 @@ class _LoginViewState extends State<LoginView> {
               'favorites': [],
               'profile_icon_id': 0,
               'is_dark_mode': true,
+              'is_blocked': false,
+              'role': 'user',
             });
           }
         }

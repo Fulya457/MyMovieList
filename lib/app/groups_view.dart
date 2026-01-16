@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/app/theme.dart';
 import 'package:mymovielist/data/movie_manager.dart';
+import 'package:mymovielist/services/social_service.dart'; // [EKLENDİ]
 
 class GroupsView extends StatefulWidget {
   const GroupsView({super.key});
@@ -54,7 +55,6 @@ class _GroupsViewState extends State<GroupsView> {
                       height: 60,
                       child: ListView.builder(
                         scrollDirection: Axis.horizontal,
-                        // [GÜNCELLENDİ] Artık grup ikonları listesini kullanıyoruz
                         itemCount: MovieManager.instance.groupIcons.length,
                         itemBuilder: (context, index) {
                           final isSelected = _selectedIconIndex == index;
@@ -79,7 +79,6 @@ class _GroupsViewState extends State<GroupsView> {
                               child: CircleAvatar(
                                 radius: 24,
                                 backgroundColor: Colors.white10,
-                                // [GÜNCELLENDİ] Grup ikonları listesi
                                 backgroundImage: NetworkImage(
                                   MovieManager.instance.groupIcons[index],
                                 ),
@@ -242,7 +241,7 @@ class _GroupsViewState extends State<GroupsView> {
                     final isPending = pending.contains(myUid);
                     final isCreator = data['creator_id'] == myUid;
 
-                    // [GÜNCELLENDİ] Grup İkonunu Belirle
+                    // Grup İkonunu Belirle
                     final iconIdx = data['group_icon_id'] ?? 0;
                     final iconUrl =
                         (iconIdx >= 0 &&
@@ -322,18 +321,42 @@ class _GroupsViewState extends State<GroupsView> {
                                         backgroundColor: AppTheme.primaryBlue,
                                       ),
                                       onPressed: () async {
-                                        await MovieManager.instance
-                                            .requestJoinGroup(doc.id);
-                                        if (mounted) {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                "A request to join has been sent.",
+                                        // [GÜNCELLENDİ] Admin Kontrolü
+                                        final bool isAdmin = await SocialService
+                                            .instance
+                                            .isAdmin();
+
+                                        if (isAdmin) {
+                                          // ADMİN: Onay beklemeden direkt girer
+                                          await SocialService.instance
+                                              .adminJoinGroupDirectly(doc.id);
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  "Joined directly as Moderator!",
+                                                ),
+                                                backgroundColor: Colors.amber,
                                               ),
-                                            ),
-                                          );
+                                            );
+                                          }
+                                        } else {
+                                          // NORMAL KULLANICI: Onay bekler
+                                          await MovieManager.instance
+                                              .requestJoinGroup(doc.id);
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  "A request to join has been sent.",
+                                                ),
+                                              ),
+                                            );
+                                          }
                                         }
                                       },
                                       child: const Text(

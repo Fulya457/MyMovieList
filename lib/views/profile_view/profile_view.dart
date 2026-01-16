@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/app/theme.dart';
 import 'package:mymovielist/data/movie_manager.dart';
+import 'package:mymovielist/services/social_service.dart'; // EKLENDİ
 
 class ProfileView extends StatelessWidget {
   const ProfileView({super.key});
@@ -430,7 +431,24 @@ class ProfileView extends StatelessWidget {
                 padding: const EdgeInsets.all(20),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
+                    // --- MODERATOR PANEL KONTROLÜ ---
+                    FutureBuilder<bool>(
+                      future: SocialService.instance.isAdmin(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.done &&
+                            snapshot.data == true) {
+                          return _buildMenuItem(
+                            icon: Icons.admin_panel_settings,
+                            text: "Moderator Panel",
+                            color: Colors.redAccent,
+                            onTap: () => context.push('/admin-panel'),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
                     const SizedBox(height: 10),
+
                     Text(
                       "Account Settings",
                       style: TextStyle(

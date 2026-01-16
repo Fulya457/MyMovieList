@@ -25,6 +25,8 @@ class SocialService {
         'created_at': FieldValue.serverTimestamp(),
         'favorites_movies': [],
         'profile_icon_id': 0,
+        'role': 'user', // [DÜZELTİLDİ] Varsayılan rol
+        'is_blocked': false, // [DÜZELTİLDİ] Varsayılan blok durumu
       });
     }
   }
@@ -47,7 +49,7 @@ class SocialService {
     });
   }
 
-  // --- ŞİFRE DEĞİŞTİRME (Re-Auth Ekli) ---
+  // --- ŞİFRE DEĞİŞTİRME ---
   Future<void> changePassword(
     String currentPassword,
     String newPassword,
@@ -58,16 +60,12 @@ class SocialService {
     if (user == null || email == null) return;
 
     try {
-      // 1. Önce kullanıcıyı yeniden doğrula (Re-authenticate)
-      // Bu işlem, "requires-recent-login" hatasını çözer.
       AuthCredential credential = EmailAuthProvider.credential(
         email: email,
         password: currentPassword,
       );
 
       await user.reauthenticateWithCredential(credential);
-
-      // 2. Doğrulama başarılıysa şifreyi güncelle
       await user.updatePassword(newPassword);
       print("The password has been changed successfully.");
     } on FirebaseAuthException catch (e) {
@@ -87,9 +85,7 @@ class SocialService {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    // Batch işlemi ile toplu silme
     final batch = _firestore.batch();
-
     final snapshots = await _firestore
         .collection('user_activities')
         .where('user_id', isEqualTo: uid)
@@ -98,7 +94,6 @@ class SocialService {
     for (var doc in snapshots.docs) {
       batch.delete(doc.reference);
     }
-
     await batch.commit();
   }
 
@@ -125,7 +120,6 @@ class SocialService {
       await _firestore.collection('users').doc(currentUid).update({
         'favorites_movies': FieldValue.arrayUnion([movie.toMap()]),
       });
-      // Hareket Dökümü: Favoriye Ekleme
       await logUserActivity(
         "${movie.title} added to favorites.",
         movie.id,
@@ -180,7 +174,6 @@ class SocialService {
           'created_at': FieldValue.serverTimestamp(),
           'items': [],
         });
-    // Hareket Dökümü: Liste Oluşturma
     await logUserActivity("New list created: $name", 0, 'list_create');
   }
 
@@ -257,7 +250,6 @@ class SocialService {
           'timestamp': FieldValue.serverTimestamp(),
         });
 
-    // Karşı tarafa bildirim gönder
     await createNotification(
       targetUid,
       "Sent you a friend request.",
@@ -305,7 +297,6 @@ class SocialService {
     );
     await batch.commit();
 
-    // Karşı tarafa kabul edildi bildirimi
     await createNotification(
       requesterUid,
       "Arkadaşlık isteğini kabul etti.",
@@ -360,23 +351,14 @@ class SocialService {
   String _getChatId(String userA, String userB) =>
       userA.compareTo(userB) < 0 ? "${userA}_$userB" : "${userB}_$userA";
 
-  // --- CHAT VE BİLDİRİM DEBUG SÜRÜMÜ ---
-
-  // --- GÜNCELLENMİŞ sendMessage FONKSİYONU ---
   Future<void> sendMessage(
     String receiverUid,
     String text, {
     Movie? sharedMovie,
     Map<String, dynamic>? sharedList,
   }) async {
-    if (currentUid == null) {
-      print("❌ ERROR: The user is not logged in.");
-      return;
-    }
+    if (currentUid == null) return;
 
-    print("🚀 Process Started: Message being sent... (Receiver: $receiverUid)");
-
-    // 1. ÖNCE MESAJI KAYDET (CHATS)
     try {
       final chatId = _getChatId(currentUid!, receiverUid);
 
@@ -398,42 +380,28 @@ class SocialService {
         msgData['list_count'] = sharedList['count'];
       }
 
-      // Mesajı Chat'e yaz
       await _firestore
           .collection('chats')
           .doc(chatId)
           .collection('messages')
           .add(msgData);
-
-      print("✅ STEP 1 SUCCESSFUL: Message written to 'chats' collection.");
     } catch (e) {
-      print("🔥 STEP 1 ERROR (Writing Chat): $e");
-      // Mesaj yazılamadıysa bildirimi de gönderme, çık.
-      return;
+      print("Chat Send Error: $e");
     }
 
-    // 2. SONRA BİLDİRİMİ OLUŞTUR (NOTIFICATIONS)
-    // Bunu ayrı bir try-catch içine aldık ki yukarıdaki ile bağımsız çalışsın
     try {
-      print("🔔 STEP 2 BEGINS: Creating a notification...");
-
       await _firestore.collection('notifications').add({
-        'recipient_id': receiverUid, // BURASI ÇOK ÖNEMLİ: Alıcının ID'si
-        'sender_id': currentUid, // Gönderen biziz
+        'recipient_id': receiverUid,
+        'sender_id': currentUid,
         'message':
             "Sent you a message: ${text.length > 20 ? '${text.substring(0, 20)}...' : text}",
         'type': 'message',
         'is_read': false,
         'timestamp': FieldValue.serverTimestamp(),
-        // Eğer film varsa ID'sini ekle, yoksa 0
         'movie_id': sharedMovie?.id ?? 0,
       });
-
-      print(
-        "✅ STEP 2 SUCCESSFUL: Notification ADDED to 'notifications' collection!",
-      );
     } catch (e) {
-      print("🔥 ERROR IN STEP 2 (Creating a Notification): $e");
+      print("Notif Send Error: $e");
     }
   }
 
@@ -499,10 +467,12 @@ class SocialService {
   // --- YORUMLAR VE BİLDİRİMLER ---
   Stream<DocumentSnapshot> getMovieLiveRating(int movieId) =>
       _firestore.collection('app_movies').doc(movieId.toString()).snapshots();
+
   Stream<QuerySnapshot> getReviewsStream(int movieId) => _firestore
       .collection('reviews')
       .where('movie_id', isEqualTo: movieId)
       .snapshots();
+
   Stream<QuerySnapshot> getRepliesStream(String reviewId) => _firestore
       .collection('reviews')
       .doc(reviewId)
@@ -512,12 +482,19 @@ class SocialService {
 
   Future<void> addReview(Movie movie, double rating, String comment) async {
     if (currentUid == null) return;
-    final userName = currentEmail?.split('@')[0] ?? 'User';
+
+    // 1. Kullanıcın rolünü ve ikonunu çekiyoruz
     final userDoc = await _firestore.collection('users').doc(currentUid).get();
-    int iconId =
-        (userDoc.exists && userDoc.data()!.containsKey('profile_icon_id'))
-        ? userDoc.data()!['profile_icon_id']
+    final userData = userDoc.data();
+
+    // ROLÜ ALIYORUZ: Eğer dökümanda role yoksa varsayılan 'user' yap
+    final String userRole = userData?['role'] ?? 'user';
+
+    int iconId = (userDoc.exists && userData!.containsKey('profile_icon_id'))
+        ? userData['profile_icon_id']
         : 0;
+
+    final userName = currentEmail?.split('@')[0] ?? 'User';
 
     final prev = await _firestore
         .collection('reviews')
@@ -535,17 +512,20 @@ class SocialService {
         batch.update(d.reference, {
           'rating': rating,
           'profile_icon_id': iconId,
+          'user_role': userRole, // Rolü burada da güncelliyoruz
         });
       }
       await batch.commit();
     }
 
+    // 2. Yorum koleksiyonuna 'user_role' alanını ekliyoruz
     await _firestore.collection('reviews').add({
       'movie_id': movie.id,
       'movie_title': movie.title,
       'poster_path': movie.poster,
       'user_id': currentUid,
       'user_name': userName,
+      'user_role': userRole, // BURASI KRİTİK 👈
       'profile_icon_id': iconId,
       'rating': rating,
       'comment': comment,
@@ -553,7 +533,7 @@ class SocialService {
       'timestamp': FieldValue.serverTimestamp(),
     });
 
-    // Film puanını güncelleme işlemleri (Transaction)
+    // --- Film Puanı Güncelleme (Transaction) kısmı aynı kalıyor ---
     final movieRef = _firestore
         .collection('app_movies')
         .doc(movie.id.toString());
@@ -585,7 +565,6 @@ class SocialService {
       }
     });
 
-    // YENİ EKLENDİ: Kendi Hareket Dökümüne Ekle 📝
     await logUserActivity(
       "${movie.title} You commented on the movie.",
       movie.id,
@@ -637,7 +616,6 @@ class SocialService {
           'likes': FieldValue.arrayUnion([currentUid]),
         });
 
-        // Bildirim: Yorum sahibine
         if (doc.data()?['user_id'] != currentUid) {
           createNotification(
             doc.data()?['user_id'],
@@ -647,7 +625,6 @@ class SocialService {
           );
         }
 
-        // Hareket Dökümü: Beğeni yaptın
         await logUserActivity(
           "You liked a comment.",
           doc.data()?['movie_id'],
@@ -668,7 +645,6 @@ class SocialService {
       'timestamp': FieldValue.serverTimestamp(),
     });
 
-    // Bildirim: Yorum sahibine cevap verildi
     if (parent.exists && parent.data()?['user_id'] != currentUid) {
       createNotification(
         parent.data()?['user_id'],
@@ -678,7 +654,6 @@ class SocialService {
       );
     }
 
-    // Hareket Dökümü: Cevap verdin
     await logUserActivity(
       "You replied to a comment.",
       parent.data()?['movie_id'],
@@ -686,9 +661,7 @@ class SocialService {
     );
   }
 
-  // --- BİLDİRİM VE AKTİVİTE YÖNETİMİ ---
-
-  // 1. Karşı tarafa bildirim gönderir (Gelen Kutusu için)
+  // --- BİLDİRİM VE AKTİVİTE ---
   Future<void> createNotification(
     String recipientId,
     String message,
@@ -704,27 +677,22 @@ class SocialService {
         'is_read': false,
         'timestamp': FieldValue.serverTimestamp(),
       });
-      print(
-        "✅ The notification has been successfully added to the database! (Receiver: $recipientId)",
-      );
     } catch (e) {
-      print("🔥 CRITICAL ERROR (Creating a Notification): $e");
+      print("Notification Error: $e");
     }
   }
 
-  // 2. Kendi hareketlerini kaydeder (Hareket Dökümü için)
   Future<void> logUserActivity(String text, int? movieId, String type) async {
     if (currentUid == null) return;
     await _firestore.collection('user_activities').add({
       'user_id': currentUid,
       'text': text,
       'movie_id': movieId ?? 0,
-      'type': type, // 'review', 'like', 'list', 'reply'
+      'type': type,
       'timestamp': FieldValue.serverTimestamp(),
     });
   }
 
-  // 3. Bildirimleri sil
   Future<void> clearAllNotifications() async {
     if (currentUid == null) return;
     final batch = _firestore.batch();
@@ -738,12 +706,9 @@ class SocialService {
     }
     await batch.commit();
   }
-  // ... Mevcut clearAllNotifications fonksiyonunun altına ekle ...
 
-  // Hareket Dökümünü (Activity Log) Temizle
   Future<void> clearAllActivities() async {
     if (currentUid == null) return;
-
     final batch = _firestore.batch();
     final snapshots = await _firestore
         .collection('user_activities')
@@ -756,26 +721,20 @@ class SocialService {
     await batch.commit();
   }
 
-  // 4. Okunmamış bildirimleri dinle
   Stream<QuerySnapshot> getUnreadNotificationsStream() {
-    if (currentUid == null) {
-      return const Stream.empty();
-    }
-    // İndeks hatasını önlemek için basitleştirilmiş sorgu
+    if (currentUid == null) return const Stream.empty();
     return _firestore
         .collection('notifications')
         .where('recipient_id', isEqualTo: currentUid)
         .snapshots();
   }
 
-  // 5. Bildirimi okundu işaretle
   Future<void> markNotificationAsRead(String docId) async {
     await _firestore.collection('notifications').doc(docId).update({
       'is_read': true,
     });
   }
 
-  // --- FİLM VERİLERİ ---
   Future<List<Movie>> fetchAppTopRatedMovies() async {
     try {
       final qs = await _firestore
@@ -788,5 +747,63 @@ class SocialService {
     } catch (e) {
       return [];
     }
+  }
+
+  // --- [YENİ] MODERATOR PANEL ÖZELLİKLERİ ---
+
+  // --- [YENİ] MODERATOR PANEL ÖZELLİKLERİ (TEMİZLENDİ) ---
+
+  // 1. Kullanıcın admin olup olmadığını kontrol et
+  Future<bool> isAdmin() async {
+    if (currentUid == null) return false;
+    try {
+      final doc = await _firestore.collection('users').doc(currentUid).get();
+      return doc.exists && doc.data()?['role'] == 'admin';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // 2. TÜM yorumları çek
+  Stream<QuerySnapshot> getAllReviewsStream() {
+    return _firestore
+        .collection('reviews')
+        .orderBy('timestamp', descending: true)
+        .snapshots();
+  }
+
+  // 3. Global kullanıcı listesini çek (DÜZELTİLDİ: Tüm kullanıcılar görünür)
+  Stream<QuerySnapshot> getAllUsersStream() {
+    // orderBy kaldırıldı çünkü created_at alanı olmayan kullanıcıları listeden eliyordu.
+    return _firestore.collection('users').snapshots();
+  }
+
+  // 4. Global grup listesini çek
+  Stream<QuerySnapshot> getAllGroupsStream() {
+    return _firestore.collection('groups').snapshots();
+  }
+
+  // 5. Herhangi bir grubu sil (Admin yetkisiyle)
+  Future<void> adminDeleteGroup(String groupId) async {
+    await _firestore.collection('groups').doc(groupId).delete();
+  }
+
+  // 6. Kullanıcıyı Blokla veya Engelini Kaldır (Hata düzeltildi)
+  Future<void> adminToggleBlock(String userId, bool blockStatus) async {
+    try {
+      await _firestore.collection('users').doc(userId).update({
+        'is_blocked': blockStatus,
+      });
+    } catch (e) {
+      print("Block Error: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> adminJoinGroupDirectly(String groupId) async {
+    if (currentUid == null) return;
+    await _firestore.collection('groups').doc(groupId).update({
+      'members': FieldValue.arrayUnion([currentUid]),
+    });
   }
 }
