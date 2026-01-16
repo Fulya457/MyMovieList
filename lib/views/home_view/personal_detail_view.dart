@@ -1,4 +1,4 @@
-// Dosya: lib/views/home_view/personal_detail_view.dart
+// File: lib/views/home_view/personal_detail_view.dart
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import 'package:mymovielist/app/theme.dart';
 import 'package:mymovielist/data/movie_manager.dart';
 
-// Widget
 import 'package:mymovielist/views/home_view/widgets/movie_card.dart';
 
 class PersonDetailView extends StatefulWidget {
@@ -25,21 +24,18 @@ class _PersonDetailViewState extends State<PersonDetailView> {
   @override
   void initState() {
     super.initState();
-    // İlk başta tüm filmleri göster
+
     _filteredMovies = widget.person.filmography;
 
-    // Detayları çek (Biyografi ve Tam Filmografi)
     MovieManager.instance.fetchPersonDetails(widget.person).then((_) {
       if (mounted) {
         setState(() {
-          // Veri güncellenince listeyi de güncelle
           _filteredMovies = widget.person.filmography;
         });
       }
     });
   }
 
-  // FİLM ARAMA FONKSİYONU
   void _searchMovies(String query) {
     if (query.isEmpty) {
       setState(() {
@@ -54,7 +50,6 @@ class _PersonDetailViewState extends State<PersonDetailView> {
     }
   }
 
-  // --- LİSTE OLUŞTURMA PENCERESİ ---
   void _showCreateListDialog() {
     final nameController = TextEditingController();
     showDialog(
@@ -108,7 +103,6 @@ class _PersonDetailViewState extends State<PersonDetailView> {
     );
   }
 
-  // LİSTEYE EKLEME PENCERESİ
   void _showAddToListSheet() {
     showModalBottomSheet(
       context: context,
@@ -125,7 +119,7 @@ class _PersonDetailViewState extends State<PersonDetailView> {
               Text(
                 "Add to List: ${widget.person.name}",
                 style: TextStyle(
-                  color: AppTheme.textColor, // Mavi/Beyaz Yazı
+                  color: AppTheme.textColor,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
@@ -233,7 +227,6 @@ class _PersonDetailViewState extends State<PersonDetailView> {
 
   @override
   Widget build(BuildContext context) {
-    // AnimatedBuilder eklenerek tema değişimi dinleniyor
     return AnimatedBuilder(
       animation: MovieManager.instance,
       builder: (context, child) {
@@ -241,10 +234,9 @@ class _PersonDetailViewState extends State<PersonDetailView> {
         final isFav = manager.isPersonFavorite(widget.person);
 
         return Scaffold(
-          backgroundColor: AppTheme.backgroundBlack, // Dinamik Arka Plan
+          backgroundColor: AppTheme.backgroundBlack,
           body: CustomScrollView(
             slivers: [
-              // 1. ÜST PROFİL RESMİ
               SliverAppBar(
                 backgroundColor: AppTheme.backgroundBlack,
                 expandedHeight: 350,
@@ -285,7 +277,6 @@ class _PersonDetailViewState extends State<PersonDetailView> {
                 ],
               ),
 
-              // 2. İSİM VE BİYOGRAFİ
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -295,7 +286,7 @@ class _PersonDetailViewState extends State<PersonDetailView> {
                       Text(
                         widget.person.name,
                         style: TextStyle(
-                          color: AppTheme.textColor, // Mavi/Beyaz Yazı
+                          color: AppTheme.textColor,
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
                         ),
@@ -310,11 +301,10 @@ class _PersonDetailViewState extends State<PersonDetailView> {
                       ),
                       const SizedBox(height: 20),
 
-                      // Biyografi
                       Text(
                         "Biography",
                         style: TextStyle(
-                          color: AppTheme.textColor, // Mavi/Beyaz Yazı
+                          color: AppTheme.textColor,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -335,11 +325,10 @@ class _PersonDetailViewState extends State<PersonDetailView> {
 
                       const SizedBox(height: 30),
 
-                      // --- FİLM ARAMA ALANI ---
                       Text(
                         "Filmography",
                         style: TextStyle(
-                          color: AppTheme.textColor, // Mavi/Beyaz Yazı
+                          color: AppTheme.textColor,
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
                         ),
@@ -375,7 +364,6 @@ class _PersonDetailViewState extends State<PersonDetailView> {
                 ),
               ),
 
-              // 3. FİLM IZGARASI (GRID)
               if (_filteredMovies.isEmpty)
                 SliverToBoxAdapter(
                   child: Padding(
@@ -403,7 +391,7 @@ class _PersonDetailViewState extends State<PersonDetailView> {
                         ),
                     delegate: SliverChildBuilderDelegate((context, index) {
                       final movie = _filteredMovies[index];
-                      // MovieCard kullanıyoruz (Grid modunda)
+
                       return MovieCard(movie: movie, isGrid: true);
                     }, childCount: _filteredMovies.length),
                   ),

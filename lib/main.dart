@@ -11,16 +11,12 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
 
-  // 1. Türleri Çek (Önemli)
   await MovieManager.instance.fetchGenres();
 
-  // 2. Kullanıcı Giriş Yapmışsa Temasını Yükle
-  // (Böylece uygulama açılır açılmaz doğru renklerde başlar)
   if (FirebaseAuth.instance.currentUser != null) {
     await MovieManager.instance.loadUserTheme();
   }
 
-  // 3. Filmleri Çek
   await MovieManager.instance.fetchNextPageMovies(initial: true);
 
   runApp(const MyApp());
@@ -31,7 +27,6 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ListenableBuilder: MovieManager'daki değişiklikleri (Tema vb.) dinler
     return ListenableBuilder(
       listenable: MovieManager.instance,
       builder: (context, child) {
@@ -39,7 +34,6 @@ class MyApp extends StatelessWidget {
           title: 'My Movie List',
           debugShowCheckedModeBanner: false,
 
-          // DİNAMİK TEMA: AppTheme.currentTheme artık MovieManager'a göre renk verir
           theme: AppTheme.currentTheme,
 
           routerConfig: router,
