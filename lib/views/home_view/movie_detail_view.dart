@@ -679,7 +679,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                         children: widget.movie.genres
                             .map(
                               (genre) => InkWell(
-                                onTap: () => context.push('/list/$genre'),
+                                onTap: () => context.push('/genre/$genre'),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 10,
