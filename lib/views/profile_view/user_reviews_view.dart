@@ -112,7 +112,6 @@ class UserReviewsView extends StatelessWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // POSTER (Küçük)
                         if (posterPath.isNotEmpty)
                           ClipRRect(
                             borderRadius: BorderRadius.circular(8),
@@ -131,7 +130,6 @@ class UserReviewsView extends StatelessWidget {
 
                         const SizedBox(width: 12),
 
-                        // İÇERİK
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,

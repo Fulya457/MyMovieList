@@ -32,7 +32,6 @@ class AdminPanelView extends StatelessWidget {
   }
 }
 
-// --- Yorum Yönetimi Sekmesi ---
 class _AdminReviewsTab extends StatelessWidget {
   const _AdminReviewsTab();
 
@@ -100,7 +99,6 @@ class _AdminReviewsTab extends StatelessWidget {
   }
 }
 
-// --- Grup Yönetimi Sekmesi ---
 class _AdminGroupsTab extends StatelessWidget {
   const _AdminGroupsTab();
   @override
@@ -132,9 +130,6 @@ class _AdminGroupsTab extends StatelessWidget {
     );
   }
 }
-
-// --- Kullanıcı Listesi Sekmesi ---
-// admin_panel_view.dart içindeki kullanıcılar sekmesi
 
 class _AdminUsersTab extends StatelessWidget {
   const _AdminUsersTab();

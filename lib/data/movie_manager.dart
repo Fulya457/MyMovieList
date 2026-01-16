@@ -4,16 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-// Modeller
 import 'package:mymovielist/models/movie_model.dart';
 import 'package:mymovielist/models/person_model.dart';
 
-// Servisler
 import 'package:mymovielist/data/genre_service.dart';
 import 'package:mymovielist/services/tmdb_service.dart';
 import 'package:mymovielist/services/social_service.dart';
 
-// Export
 export 'package:mymovielist/models/movie_model.dart';
 export 'package:mymovielist/models/person_model.dart';
 
@@ -21,45 +18,36 @@ class MovieManager extends ChangeNotifier {
   static final MovieManager instance = MovieManager._privateConstructor();
   MovieManager._privateConstructor();
 
-  // --- TEMA VE RENK AYARLARI ---
-  bool isDarkMode = true; // Varsayılan: Karanlık
+  bool isDarkMode = true;
   int currentBgColor = 0xFF12141C;
 
-  // --- BİLDİRİM AYARLARI (Eski Sistem) ---
-  bool areNotificationsEnabled = true; // Genel bildirim anahtarı
-  String? currentChatPartnerId; // O an mesajlaşılan kişinin ID'si (Filtre için)
+  bool areNotificationsEnabled = true;
+  String? currentChatPartnerId;
 
-  // Bildirimleri aç/kapat
   void toggleNotifications(bool value) {
     areNotificationsEnabled = value;
     notifyListeners();
   }
 
-  // Sohbete girince (Bildirim gelmesin diye ID kaydet)
   void enterChat(String partnerId) {
     currentChatPartnerId = partnerId;
   }
 
-  // Sohbetten çıkınca (Sıfırla)
   void exitChat() {
     currentChatPartnerId = null;
   }
-  // ---------------------------------
 
-  // 1. TEMAYI DEĞİŞTİR VE KAYDET
   Future<void> toggleTheme() async {
     isDarkMode = !isDarkMode;
 
-    // Rengi ayarla
     if (isDarkMode) {
-      currentBgColor = 0xFF12141C; // Orijinal Dark
+      currentBgColor = 0xFF12141C;
     } else {
-      currentBgColor = 0xFFCFD8DC; // Yeni Mavi-Gri Light
+      currentBgColor = 0xFFCFD8DC;
     }
 
-    notifyListeners(); // Arayüzü anlık güncelle
+    notifyListeners();
 
-    // --- FIRESTORE'A KAYDET ---
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
       await FirebaseFirestore.instance.collection('users').doc(uid).update({
@@ -68,7 +56,6 @@ class MovieManager extends ChangeNotifier {
     }
   }
 
-  // 2. KULLANICI GİRİŞ YAPINCA TEMAYI ÇEK
   Future<void> loadUserTheme() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -96,7 +83,6 @@ class MovieManager extends ChangeNotifier {
     }
   }
 
-  // 3. YENİ KULLANICI KONTROLÜ
   Future<void> ensureUserExistsInFirestore() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -124,11 +110,9 @@ class MovieManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Servisler
   final TmdbService _tmdbService = TmdbService.instance;
   final SocialService _socialService = SocialService.instance;
 
-  // --- VERİLER ---
   Map<int, String> _genreMap = {};
   Map<int, String> get genreMap => _genreMap;
   Map<String, int> get genreNameToId =>
@@ -177,7 +161,6 @@ class MovieManager extends ChangeNotifier {
   bool filterActor = false;
   bool filterDirector = false;
 
-  // Getterlar
   List<Movie> get allMovies => _allMovies;
   List<dynamic> get searchResults => _searchResults;
   List<Movie> get trendingMovies => _trendingMovies;
@@ -198,7 +181,6 @@ class MovieManager extends ChangeNotifier {
 
   bool isFriend(String uid) => _friendIds.contains(uid);
 
-  // --- API (TMDB) İŞLEMLERİ ---
   Future<void> fetchGenres() async {
     if (_genreMap.isNotEmpty) return;
     _genreMap = await _tmdbService.fetchGenres();
@@ -245,7 +227,6 @@ class MovieManager extends ChangeNotifier {
     if (_genreMap.isEmpty) await fetchGenres();
 
     if (filterActor || filterDirector) {
-      // Kişi Bazlı
       List<Person> people = await _tmdbService.searchPersonOnly(query);
       if (activeGenreFilters.isNotEmpty) {
         List<Movie> filteredMovies = [];
@@ -272,7 +253,6 @@ class MovieManager extends ChangeNotifier {
         }
       }
     } else {
-      // Film Bazlı
       if (query.isEmpty && activeGenreFilters.isNotEmpty) {
         final genreString = activeGenreFilters.join(',');
         _searchResults = await _tmdbService.discoverMoviesByGenre(
@@ -320,8 +300,6 @@ class MovieManager extends ChangeNotifier {
   Future<Movie?> getMovieById(int id) async {
     return await _tmdbService.getMovieById(id, _genreMap);
   }
-
-  // --- FIREBASE İŞLEMLERİ ---
 
   Future<void> toggleFavorite(Movie movie) async {
     if (isFavorite(movie)) {
@@ -384,7 +362,6 @@ class MovieManager extends ChangeNotifier {
     }
   }
 
-  // --- LİSTE YÖNETİMİ ---
   Stream<QuerySnapshot> getUserListsStream() =>
       _socialService.getUserListsStream();
 
@@ -407,7 +384,6 @@ class MovieManager extends ChangeNotifier {
   Future<void> deleteCustomList(String listId) async =>
       await _socialService.deleteList(listId);
 
-  // --- KULLANICI & PROFİL ---
   Future<void> ensureUserExists() async =>
       await _socialService.ensureUserExists();
 
@@ -429,7 +405,6 @@ class MovieManager extends ChangeNotifier {
     await _socialService.changePassword(currentPassword, newPassword);
   }
 
-  // --- ARKADAŞLIK ---
   Stream<QuerySnapshot> getFriendsStream() => _socialService.getFriendsStream();
   Stream<QuerySnapshot> getFriendRequestsStream() =>
       _socialService.getFriendRequestsStream();
@@ -451,8 +426,6 @@ class MovieManager extends ChangeNotifier {
     });
   }
 
-  // --- CHAT (BİREYSEL) ---
-  // Bireysel mesajda SocialService zaten 'notifications' tablosuna yazıyor.
   Future<void> sendMessage({
     required String receiverUid,
     required String text,
@@ -470,7 +443,6 @@ class MovieManager extends ChangeNotifier {
   Stream<QuerySnapshot> getMessagesStream(String uid) =>
       _socialService.getMessagesStream(uid);
 
-  // --- YORUMLAR (REVIEW) ---
   Stream<DocumentSnapshot> getMovieLiveRating(int id) =>
       _socialService.getMovieLiveRating(id);
   Stream<QuerySnapshot> getReviewsStream(int id) =>
@@ -495,7 +467,6 @@ class MovieManager extends ChangeNotifier {
   Future<void> replyToReview(String id, String t) async =>
       await _socialService.replyToReview(id, t);
 
-  // --- ÖNERİLER ---
   Future<void> fetchAppTopRatedMovies() async {
     _appTopRatedMovies = await _socialService.fetchAppTopRatedMovies();
     notifyListeners();
@@ -528,8 +499,6 @@ class MovieManager extends ChangeNotifier {
       await _socialService.renameList(listId, newName);
 
   Map<String, String> getActorDetails(String n) => {"bio": "...", "photo": ""};
-
-  // --- GRUP ÖZELLİKLERİ ---
 
   Future<void> createGroup(
     String name,
@@ -573,7 +542,6 @@ class MovieManager extends ChangeNotifier {
     });
   }
 
-  // 5. [GÜNCELLENDİ] Grup Mesajı Gönder (BİLDİRİM EKLENDİ)
   Future<void> sendGroupMessage(
     String groupId,
     String text, {
@@ -614,14 +582,12 @@ class MovieManager extends ChangeNotifier {
       data['reply_to'] = replyTo;
     }
 
-    // 1. Mesajı Chat'e yaz
     await FirebaseFirestore.instance
         .collection('groups')
         .doc(groupId)
         .collection('messages')
         .add(data);
 
-    // 2. [KRİTİK] Grup Üyelerine Bildirim Gönder (In-App Sistemi İçin)
     try {
       final groupDoc = await FirebaseFirestore.instance
           .collection('groups')
@@ -630,7 +596,6 @@ class MovieManager extends ChangeNotifier {
       final members = List<String>.from(groupDoc.data()?['members'] ?? []);
       final groupName = groupDoc.data()?['name'] ?? "Grup";
 
-      // Her üye için bildirim oluştur (Gönderen hariç)
       for (var memberId in members) {
         if (memberId == user.uid) continue;
 
@@ -638,7 +603,7 @@ class MovieManager extends ChangeNotifier {
           memberId,
           "Grup mesajı ($groupName): ${text.isEmpty ? 'Bir içerik paylaşıldı' : text}",
           sharedMovie != null ? sharedMovie['id'] : 0,
-          'message', // 'group_message' da yapılabilir ama AppView 'message' dinliyor
+          'message',
         );
       }
     } catch (e) {

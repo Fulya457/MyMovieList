@@ -13,9 +13,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserListDetailView extends StatefulWidget {
   final String listId;
-  final String listName; // Başlangıç için
-  final List items; // Başlangıç için
-  final String type; // 'movie', 'movies' veya 'actor'
+  final String listName;
+  final List items;
+  final String type;
 
   const UserListDetailView({
     super.key,
@@ -30,14 +30,12 @@ class UserListDetailView extends StatefulWidget {
 }
 
 class _UserListDetailViewState extends State<UserListDetailView> {
-  // Helper: Mevcut tema durumunu al
   bool get isDark => MovieManager.instance.isDarkMode;
   Color get dialogBg => isDark ? AppTheme.surfaceDark : Colors.white;
   Color get dialogText => isDark ? Colors.white : Colors.black;
   Color get hintColor => isDark ? Colors.grey : Colors.black54;
   Color get inputFill => isDark ? Colors.black26 : Colors.grey.shade200;
 
-  // İsim değiştirme penceresi
   void _showRenameDialog(String currentName) {
     final controller = TextEditingController(text: currentName);
     showDialog(
@@ -84,7 +82,6 @@ class _UserListDetailViewState extends State<UserListDetailView> {
     );
   }
 
-  // Paylaşım penceresi
   void _showShareSheet(String currentListName, int itemCount) {
     showModalBottomSheet(
       context: context,
@@ -182,11 +179,9 @@ class _UserListDetailViewState extends State<UserListDetailView> {
 
   @override
   Widget build(BuildContext context) {
-    // [ÖNEMLİ] Tema değişikliklerini dinlemek için AnimatedBuilder
     return AnimatedBuilder(
       animation: MovieManager.instance,
       builder: (context, child) {
-        // Dinamik Renkler
         final bool isDark = MovieManager.instance.isDarkMode;
         final Color bgColor = isDark
             ? AppTheme.backgroundBlack

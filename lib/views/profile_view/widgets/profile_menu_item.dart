@@ -7,22 +7,20 @@ class ProfileMenuItem extends StatelessWidget {
   final IconData icon;
   final String text;
   final VoidCallback onTap;
-  final Color? color; // YENİ: Renk parametresi eklendi
+  final Color? color;
 
   const ProfileMenuItem({
     super.key,
     required this.icon,
     required this.text,
     required this.onTap,
-    this.color, // Opsiyonel
+    this.color,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Eğer renk gönderildiyse onu kullan, yoksa Mavi (primaryBlue) kullan
     final itemColor = color ?? AppTheme.primaryBlue;
 
-    // Eğer çıkış yap butonuysa (yani renk kırmızıysa), arka planı da hafif kırmızı yapalım
     final bgColor = color == Colors.redAccent
         ? Colors.redAccent.withOpacity(0.1)
         : AppTheme.surfaceDark;

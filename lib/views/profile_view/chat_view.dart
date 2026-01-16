@@ -12,8 +12,7 @@ import 'package:mymovielist/models/movie_model.dart';
 import 'package:mymovielist/services/social_service.dart';
 
 class ChatView extends StatefulWidget {
-  final Map<String, dynamic>
-  extras; // {targetUid, targetEmail, sharedList?, sharedMovie?}
+  final Map<String, dynamic> extras;
   const ChatView({super.key, required this.extras});
 
   @override
@@ -38,12 +37,10 @@ class _ChatViewState extends State<ChatView> {
     myUid = FirebaseAuth.instance.currentUser!.uid;
     targetUid = widget.extras['targetUid'] ?? widget.extras['uid'];
 
-    // Chat ID Oluşturma (Alfabetik Sıraya Göre - Tutarlılık İçin)
     final List<String> ids = [myUid, targetUid];
     ids.sort();
     chatId = ids.join("_");
 
-    // Dışarıdan gelen paylaşımları kontrol et
     if (widget.extras.containsKey('sharedList')) {
       _attachedList = widget.extras['sharedList'];
     }
@@ -62,18 +59,13 @@ class _ChatViewState extends State<ChatView> {
     super.dispose();
   }
 
-  // --- MESAJ GÖNDERME İŞLEMLERİ (MANUEL VE GÜVENLİ) ---
-
-  // 1. Standart Mesaj / Film Paylaşımı
   void _sendMessage() async {
     final text = _msgController.text.trim();
 
-    // Eğer boşsa ve ekli dosya yoksa gönderme
     if (text.isEmpty && _attachedList == null && _attachedMovie == null) return;
 
     _msgController.clear();
 
-    // Film Verisi Hazırlığı
     Map<String, dynamic>? movieData;
     if (_attachedMovie != null) {
       movieData = {
@@ -86,20 +78,16 @@ class _ChatViewState extends State<ChatView> {
       };
     }
 
-    // Liste Verisi Hazırlığı (Buradan geliyorsa)
     Map<String, dynamic>? listData = _attachedList;
 
-    // Reply Verisi
     final replyData = _replyToMessage;
 
-    // UI Temizliği
     setState(() {
       _attachedList = null;
       _attachedMovie = null;
       _replyToMessage = null;
     });
 
-    // Firestore'a Yazma (Doğrudan Chat ID ile)
     final msgData = {
       'sender_id': myUid,
       'text': text,
@@ -115,7 +103,7 @@ class _ChatViewState extends State<ChatView> {
 
     if (listData != null) {
       _sendListMessage(listData, text.isEmpty ? "Shared a list" : text);
-      return; // Liste fonksiyonu kendi kaydeder
+      return;
     }
 
     if (replyData != null) {
@@ -128,12 +116,10 @@ class _ChatViewState extends State<ChatView> {
         .collection('messages')
         .add(msgData);
 
-    // Son Mesajı Güncelle
     _updateLastMessage(text.isNotEmpty ? text : "Media");
     _scrollDown();
   }
 
-  // 2. Liste / Favori Paylaşımı (Veri Kaybı Olmadan)
   Future<void> _sendListMessage(
     Map<String, dynamic> listData, [
     String? text,
@@ -149,7 +135,6 @@ class _ChatViewState extends State<ChatView> {
       'list_type': listData['type'] ?? 'movies',
     };
 
-    // [KRİTİK] Liste içeriğini mesajın içine gömüyoruz
     if (listData.containsKey('items')) {
       msgData['list_items'] = listData['items'];
     } else if (listData.containsKey('list_items')) {
@@ -184,7 +169,6 @@ class _ChatViewState extends State<ChatView> {
     }
   }
 
-  // --- FAVORİ PAYLAŞMA MANTIĞI ---
   void _shareFavorites() {
     final favMovies = MovieManager.instance.favoriteMovies;
     if (favMovies.isEmpty) {
@@ -194,7 +178,6 @@ class _ChatViewState extends State<ChatView> {
       return;
     }
 
-    // [ÖNEMLİ] Filmleri Map'e çeviriyoruz
     final itemsMap = favMovies
         .map(
           (m) => {
@@ -208,13 +191,12 @@ class _ChatViewState extends State<ChatView> {
         )
         .toList();
 
-    // Listeyi Gönder
     _sendListMessage({
-      'id': 'favorites', // Özel ID
+      'id': 'favorites',
       'name': 'My Favorites',
       'count': favMovies.length,
       'type': 'movies',
-      'items': itemsMap, // Veri burada
+      'items': itemsMap,
     });
   }
 
@@ -222,7 +204,6 @@ class _ChatViewState extends State<ChatView> {
     Map<String, dynamic> listData,
     String originalOwnerId,
   ) async {
-    // Import mantığı aynı kalıyor...
     try {
       ScaffoldMessenger.of(
         context,
@@ -256,7 +237,6 @@ class _ChatViewState extends State<ChatView> {
     }
   }
 
-  // --- UI ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -427,17 +407,10 @@ class _ChatViewState extends State<ChatView> {
   ) {
     final bool isDark = MovieManager.instance.isDarkMode;
 
-    // --- RENK AYARLARI ---
-    // Balon Rengi:
-    // Ben (Karanlık): Koyu Mavi | Ben (Aydınlık): Normal Mavi
-    // O (Karanlık): Koyu Gri    | O (Aydınlık): Açık Gri
     final Color bubbleColor = isMe
         ? (isDark ? const Color(0xFF1565C0) : AppTheme.primaryBlue)
         : (isDark ? AppTheme.surfaceDark : Colors.grey.shade300);
 
-    // Yazı Rengi:
-    // Ben: Hep Beyaz
-    // O (Karanlık): Beyaz | O (Aydınlık): Siyah
     final Color textColor = isMe
         ? Colors.white
         : (isDark ? AppTheme.textColor : Colors.black87);
@@ -467,7 +440,6 @@ class _ChatViewState extends State<ChatView> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Yanıtlanan Mesaj Alanı
               if (replyTo != null)
                 Container(
                   padding: const EdgeInsets.all(5),
@@ -488,13 +460,11 @@ class _ChatViewState extends State<ChatView> {
                   ),
                 ),
 
-              // Kartlar (Renk parametresini gönderiyoruz)
               if (msg['list_id'] != null)
                 _buildClickableListCard(msg, isMe, textColor),
               if (msg['movie_id'] != null)
                 _buildClickableMovieCard(msg, isMe, textColor),
 
-              // Mesaj Metni
               if (msg['text'] != null && msg['text'].toString().isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
@@ -510,7 +480,6 @@ class _ChatViewState extends State<ChatView> {
     );
   }
 
-  // --- KARTLAR VE GÜVENLİ AÇMA ---
   Widget _buildClickableListCard(
     Map<String, dynamic> msg,
     bool isMe,
@@ -519,7 +488,6 @@ class _ChatViewState extends State<ChatView> {
     final bool isFavorites = msg['list_id'] == 'favorites';
     return GestureDetector(
       onTap: () {
-        // [ÇÖZÜM BURADA] Liste içeriği mesajda varsa GÜVENLİ EKRANI aç
         if (msg.containsKey('list_items') && msg['list_items'] != null) {
           final items = List<Map<String, dynamic>>.from(msg['list_items']);
           Navigator.of(context).push(
@@ -531,7 +499,6 @@ class _ChatViewState extends State<ChatView> {
             ),
           );
         } else if (!isFavorites) {
-          // Eski normal listeler veritabanından açılır
           context.push(
             AppRouters.userListDetail,
             extra: {
@@ -637,7 +604,6 @@ class _ChatViewState extends State<ChatView> {
     );
   }
 
-  // --- MENÜLER ---
   void _showAttachmentMenu() {
     showModalBottomSheet(
       context: context,
@@ -728,7 +694,6 @@ class _ChatViewState extends State<ChatView> {
   }
 }
 
-// [GÜVENLİ LİSTE GÖRÜNTÜLEME EKRANI]
 class SharedListDisplayView extends StatelessWidget {
   final String title;
   final List<Map<String, dynamic>> items;

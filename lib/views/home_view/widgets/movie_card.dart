@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mymovielist/app/theme.dart';
-import 'package:mymovielist/models/movie_model.dart'; // Movie Modelini import et
+import 'package:mymovielist/models/movie_model.dart';
 
 class MovieCard extends StatelessWidget {
   final Movie movie;
-  final bool isGrid; // Grid görünümü mü yoksa liste görünümü mü?
+  final bool isGrid;
 
   const MovieCard({super.key, required this.movie, this.isGrid = true});
 
@@ -99,9 +99,6 @@ class MovieCard extends StatelessWidget {
               ],
             ),
           ),
-          // Buradaki butonlar HomeView'dan yönetildiği için
-          // basit tutmak adına şimdilik ikonları buraya koymadık,
-          // ana yapıda butonlar MovieCard'ın dışında tanımlanacak (ListView.builder içinde).
         ],
       ),
     );

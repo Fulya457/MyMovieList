@@ -1,4 +1,4 @@
-// Dosya: lib/views/home_view/movie_detail_view.dart
+// File: lib/views/home_view/movie_detail_view.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -11,7 +11,6 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
-// Modeller
 import 'package:mymovielist/models/movie_model.dart';
 import 'package:mymovielist/models/person_model.dart';
 
@@ -59,7 +58,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
     super.dispose();
   }
 
-  // --- YÖNETMENE GİTME FONKSİYONU ---
   void _navigateToDirector() async {
     final directorName = widget.movie.director;
     if (directorName == "Unknown" || directorName == "Loading...") return;
@@ -87,7 +85,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
     }
   }
 
-  // --- LİSTE OLUŞTURMA PENCERESİ ---
   void _showCreateListDialog(BuildContext context) {
     final TextEditingController nameController = TextEditingController();
 
@@ -172,7 +169,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
               ),
               const SizedBox(height: 10),
 
-              // --- HER ZAMAN GÖZÜKEN OLUŞTURMA BUTONU ---
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(8),
@@ -196,7 +192,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
               ),
               Divider(color: AppTheme.textColor.withValues(alpha: 0.2)),
 
-              // --- MEVCUT LİSTELER ---
               Expanded(
                 child: StreamBuilder<QuerySnapshot>(
                   stream: MovieManager.instance.getUserListsStream(),
@@ -326,7 +321,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                       Expanded(
                         child: TabBarView(
                           children: [
-                            // 1. SEKME: ARKADAŞLAR
                             StreamBuilder<QuerySnapshot>(
                               stream: MovieManager.instance.getFriendsStream(),
                               builder: (context, snapshot) {
@@ -397,7 +391,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                 }
                                 final docs = snapshot.data!.docs;
 
-                                // [YENİ] Sadece "members" listesinde benim UID'min olduğu grupları filtrele
                                 final myGroups = docs.where((doc) {
                                   final data =
                                       doc.data() as Map<String, dynamic>;
@@ -423,7 +416,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                     final groupData =
                                         groupDoc.data() as Map<String, dynamic>;
 
-                                    // İkon tutarlılığı için aynı listeyi kullan
                                     final iconIdx =
                                         groupData['group_icon_id'] ?? 0;
                                     final iconUrl =
@@ -460,8 +452,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                           extra: {
                                             'groupId': groupDoc.id,
                                             'groupName': groupData['name'],
-                                            'isCreator':
-                                                false, // Önemli değil, chat içinde kontrol ediliyor
+                                            'isCreator': false,
                                             'groupIconUrl': iconUrl,
                                             'sharedMovie': widget.movie,
                                           },
@@ -587,11 +578,10 @@ class _MovieDetailViewState extends State<MovieDetailView> {
           return CustomScrollView(
             slivers: [
               SliverAppBar(
-                expandedHeight: 400.0, // Daha büyük poster alanı
+                expandedHeight: 400.0,
                 pinned: true,
                 backgroundColor: AppTheme.backgroundBlack,
                 leading: IconButton(
-                  // Poster üzerindeki butonlar her zaman beyaz kalsın
                   icon: const Icon(Icons.arrow_back, color: Colors.white),
                   onPressed: () => context.pop(),
                 ),
@@ -658,7 +648,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                 ),
               ),
 
-              // --- İÇERİK KISMI ---
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -767,7 +756,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                         height: 20,
                       ),
 
-                      // Canlı Kullanıcı Puanı
                       StreamBuilder<DocumentSnapshot>(
                         stream: MovieManager.instance.getMovieLiveRating(
                           widget.movie.id,
@@ -1037,7 +1025,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                                   ),
                                 );
                               } else {
-                                // Fallback (Detay yoksa)
+                                // Fallback
                                 return Padding(
                                   padding: const EdgeInsets.only(right: 12.0),
                                   child: Column(
@@ -1065,7 +1053,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                         ),
                       const SizedBox(height: 20),
 
-                      // FRAGMAN (Trailer)
+                      // Trailer
                       if ((widget.movie.trailerId.isNotEmpty) &&
                           widget.movie.trailerId != 'dQw4w9WgXcQ')
                         ClipRRect(
@@ -1079,7 +1067,7 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                         ),
                       const SizedBox(height: 20),
 
-                      // REVIEWS BAŞLIĞI
+                      // REVIEWS
                       Divider(color: AppTheme.textColor.withValues(alpha: 0.2)),
                       Text(
                         "User Reviews",
@@ -1095,7 +1083,6 @@ class _MovieDetailViewState extends State<MovieDetailView> {
                 ),
               ),
 
-              // YORUM LİSTESİ
               StreamBuilder<QuerySnapshot>(
                 stream: MovieManager.instance.getReviewsStream(widget.movie.id),
                 builder: (context, snapshot) {
@@ -1255,7 +1242,7 @@ class _ReviewCardState extends State<ReviewCard> {
                       backgroundImage: NetworkImage(iconUrl),
                     ),
                     const SizedBox(width: 8),
-                    // --- ADMIN PARLAMA VE ROL KONTROLÜ BAŞLANGIÇ ---
+
                     (() {
                       final String role = data['user_role'] ?? 'user';
                       final bool isAdmin = role == 'admin';
@@ -1265,12 +1252,11 @@ class _ReviewCardState extends State<ReviewCard> {
                           Text(
                             data['user_name'] ?? 'User',
                             style: TextStyle(
-                              // Adminse Amber (Sarı), değilse mevcut stil
                               color: isAdmin
                                   ? Colors.amber
                                   : AppTheme.primaryBlue,
                               fontWeight: FontWeight.bold,
-                              // ŞIK PARLAMA EFEKTİ (Sadece Adminlere)
+
                               shadows: isAdmin
                                   ? [
                                       Shadow(
@@ -1302,7 +1288,7 @@ class _ReviewCardState extends State<ReviewCard> {
                         ],
                       );
                     })(),
-                    // --- ADMIN PARLAMA VE ROL KONTROLÜ BİTİŞ ---
+
                     const SizedBox(width: 8),
                     const Icon(Icons.star, color: Colors.amber, size: 14),
                     Text(

@@ -4,9 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:mymovielist/data/movie_manager.dart'; // Manager'a erişim
-// Movie Modeline erişim
 
-// HATA ÇÖZÜMÜ: Const hatasını önlemek için API Key'i buraya direkt string olarak yazdım.
 const String _API_KEY = "cea49e6756dd9655a98066426a1b934d";
 const String _IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
 
@@ -96,7 +94,6 @@ class GenreService extends ChangeNotifier {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
 
-        // HATA ÇÖZÜMÜ: fromTMDB'ye 2. parametre olarak Manager'daki haritayı veriyoruz
         List<Movie> newMovies = (data['results'] as List)
             .map((json) => Movie.fromTMDB(json, MovieManager.instance.genreMap))
             .toList();

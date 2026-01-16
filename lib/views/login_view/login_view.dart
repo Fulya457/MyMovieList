@@ -8,7 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/app/theme.dart';
-import 'package:mymovielist/data/movie_manager.dart'; // MovieManager eklendi
+import 'package:mymovielist/data/movie_manager.dart';
 
 String _getMemberName(String email) {
   if (email.contains('@')) {
@@ -29,10 +29,8 @@ class _LoginViewState extends State<LoginView> {
   final TextEditingController _passwordController = TextEditingController();
   bool isLoading = false;
 
-  // Giriş mi Kayıt mı modu kontrolü
   bool _isLogin = true;
 
-  // Sloganlar için değişkenler
   int _currentSloganIndex = 0;
   Timer? _sloganTimer;
 
@@ -78,7 +76,6 @@ class _LoginViewState extends State<LoginView> {
       return;
     }
 
-    // ŞİFRE UZUNLUĞU KONTROLÜ (Sadece kayıt olurken)
     if (!_isLogin && password.length < 6) {
       _showErrorDialog("Your password must be at least 6 characters long.");
       return;
@@ -90,13 +87,11 @@ class _LoginViewState extends State<LoginView> {
       UserCredential userCredential;
 
       if (_isLogin) {
-        // --- GİRİŞ YAPMA ---
         userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
           email: email,
           password: password,
         );
 
-        // [YENİ]: BLOK KONTROLÜ
         final userDocSnapshot = await FirebaseFirestore.instance
             .collection('users')
             .doc(userCredential.user!.uid)
@@ -106,13 +101,11 @@ class _LoginViewState extends State<LoginView> {
             userDocSnapshot.data()?['is_blocked'] == true) {
           await FirebaseAuth.instance.signOut();
           _showErrorDialog("Hesabınız kötü kullanım sebebiyle blocklandı.");
-          return; // İşlemi burada durdur ve ana sayfaya gönderme
+          return;
         }
 
-        // Giriş başarılı ve bloksuz ise temayı çek!
         await MovieManager.instance.loadUserTheme();
       } else {
-        // --- KAYIT OLMA ---
         userCredential = await FirebaseAuth.instance
             .createUserWithEmailAndPassword(email: email, password: password);
       }
@@ -125,19 +118,17 @@ class _LoginViewState extends State<LoginView> {
             .doc(user.uid);
 
         if (!_isLogin) {
-          // Yeni kayıt ise varsayılan verileri yaz
           await userDoc.set({
             'uid': user.uid,
             'email': user.email?.toLowerCase(),
             'created_at': FieldValue.serverTimestamp(),
             'favorites': [],
             'profile_icon_id': 0,
-            'is_dark_mode': true, // Varsayılan tema
-            'is_blocked': false, // Yeni kullanıcılar bloksuz başlar
-            'role': 'user', // Varsayılan rol
+            'is_dark_mode': true,
+            'is_blocked': false,
+            'role': 'user',
           });
         } else {
-          // Giriş yapıldıysa ve belge yoksa oluştur (Güvenlik önlemi & Admin listesi için)
           final snapshot = await userDoc.get();
           if (!snapshot.exists) {
             await userDoc.set({
@@ -202,12 +193,10 @@ class _LoginViewState extends State<LoginView> {
       backgroundColor: AppTheme.backgroundBlack,
       body: Stack(
         children: [
-          // KATMAN 1: ARKA PLAN RESMİ
           Positioned.fill(
             child: Image.asset('assets/bg1.jfif', fit: BoxFit.cover),
           ),
 
-          // KATMAN 2: BLUR
           Positioned.fill(
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
@@ -215,7 +204,6 @@ class _LoginViewState extends State<LoginView> {
             ),
           ),
 
-          // KATMAN 3: İÇERİK
           Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(32.0),
@@ -352,7 +340,6 @@ class _LoginViewState extends State<LoginView> {
                           ),
                         ),
 
-                  // Mod Değiştirme Butonu
                   const SizedBox(height: 20),
                   TextButton(
                     onPressed: () {

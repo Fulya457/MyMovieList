@@ -30,7 +30,7 @@ class CategoriesView extends StatelessWidget {
                 expandedHeight: 100,
                 pinned: true,
                 backgroundColor: AppTheme.backgroundBlack,
-                // GERİ TUŞU EKLENDİ (Ana Sayfaya döner)
+
                 leading: IconButton(
                   icon: Icon(Icons.arrow_back, color: AppTheme.textColor),
                   onPressed: () => context.go(AppRouters.home),
@@ -72,7 +72,6 @@ class CategoriesView extends StatelessWidget {
                 ),
               ),
 
-              // --- İÇERİK (GRID) ---
               if (allGenres.isEmpty)
                 SliverFillRemaining(
                   child: Center(

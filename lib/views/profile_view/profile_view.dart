@@ -299,7 +299,6 @@ class ProfileView extends StatelessWidget {
                 ),
               ),
 
-              // 2. İSTATİSTİKLER
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -358,7 +357,6 @@ class ProfileView extends StatelessWidget {
                 ),
               ),
 
-              // 3. SON FAVORİLER (Yatay)
               if (favCount > 0) ...[
                 SliverToBoxAdapter(
                   child: Padding(
@@ -426,12 +424,10 @@ class ProfileView extends StatelessWidget {
                 ),
               ],
 
-              // 4. MENÜ LİSTESİ
               SliverPadding(
                 padding: const EdgeInsets.all(20),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    // --- MODERATOR PANEL KONTROLÜ ---
                     FutureBuilder<bool>(
                       future: SocialService.instance.isAdmin(),
                       builder: (context, snapshot) {

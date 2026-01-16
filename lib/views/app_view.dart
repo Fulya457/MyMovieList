@@ -150,13 +150,12 @@ class _AppViewState extends State<AppView> {
   }
 
   void _handleNavigation(String type) {
-    // DÜZELTME: Doğru sayfalara yönlendirme
     switch (type) {
       case 'friend_request':
         context.push(AppRouters.friends);
         break;
       case 'message':
-        context.push(AppRouters.friends); // Mesajlar için de arkadaşlar sayfasına yönlendirebiliriz.
+        context.push(AppRouters.friends);
         break;
       default:
         context.push(AppRouters.notifications);

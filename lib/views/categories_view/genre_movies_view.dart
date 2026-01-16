@@ -38,7 +38,6 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
     super.dispose();
   }
 
-  // --- LİSTE OLUŞTURMA PENCERESİ (HomeView'dan Kopyalandı) ---
   void _showCreateListDialog(BuildContext context) {
     final TextEditingController nameController = TextEditingController();
 
@@ -97,7 +96,6 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
     );
   }
 
-  // --- LİSTEYE EKLEME PENCERESİ ---
   void _showAddToListSheet(BuildContext context, Movie movie) {
     showModalBottomSheet(
       context: context,
@@ -125,7 +123,6 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
               const SizedBox(height: 10),
               Divider(color: AppTheme.textColor.withValues(alpha: 0.2)),
 
-              // --- YENİ LİSTE OLUŞTUR BUTONU ---
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(8),
@@ -180,7 +177,6 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
                             docs[index].data() as Map<String, dynamic>;
                         final listId = docs[index].id;
 
-                        // Sadece film listelerini göster
                         if (listData['type'] != null &&
                             listData['type'] != 'movies' &&
                             listData['type'] != 'movie') {
@@ -253,10 +249,8 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
           return CustomScrollView(
             controller: _scrollController,
             slivers: [
-              // --- 1. PROFIL TARZI GRADIENT HEADER ---
               SliverAppBar(
-                expandedHeight:
-                    120, // Biraz yükseklik verip gradient'i gösteriyoruz
+                expandedHeight: 120,
                 pinned: true,
                 backgroundColor: AppTheme.backgroundBlack,
                 iconTheme: IconThemeData(color: AppTheme.textColor),
@@ -267,7 +261,6 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          // Üstten gelen renk (Tema rengi)
                           AppTheme.primaryBlue.withValues(
                             alpha: isDark ? 0.3 : 0.2,
                           ),
@@ -298,7 +291,6 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
                 ),
               ),
 
-              // --- 2. İÇERİK ---
               if (state.isFetching && movies.isEmpty)
                 SliverFillRemaining(
                   child: Center(
@@ -355,7 +347,6 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
                             padding: const EdgeInsets.all(8),
                             child: Row(
                               children: [
-                                // Film Posteri
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(12),
                                   child: Hero(
@@ -381,7 +372,6 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
                                 ),
                                 const SizedBox(width: 15),
 
-                                // Film Bilgileri
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
@@ -431,7 +421,6 @@ class _GenreMoviesViewState extends State<GenreMoviesView> {
                                   ),
                                 ),
 
-                                // Butonlar
                                 Column(
                                   children: [
                                     IconButton(

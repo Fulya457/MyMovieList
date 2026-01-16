@@ -37,8 +37,6 @@ class Movie {
     this.releaseDate = "Unknown Date",
   });
 
-  // HATA ÇÖZÜMÜ: genreMap parametresi eklendi ve nullable (?) yapıldı.
-  // Böylece veri gelmezse hata vermez.
   factory Movie.fromTMDB(
     Map<String, dynamic> json, [
     Map<int, String>? genreMap,
@@ -47,13 +45,12 @@ class Movie {
     List<String> genresList = [];
     List<int> gIds = [];
 
-    // Eğer dışarıdan harita gelmezse boş kabul et
     final mapToUse = genreMap ?? {};
 
     if (json['genre_ids'] is List) {
       for (var id in json['genre_ids']) {
         gIds.add(id as int);
-        // Haritada varsa al, yoksa Unknown
+
         genresList.add(mapToUse[id] ?? 'Unknown');
       }
       if (genresList.isEmpty) genresList.add("Unknown");
@@ -74,7 +71,6 @@ class Movie {
     );
   }
 
-  // Firebase'den gelen veriyi işleyen metod (Değişmedi)
   factory Movie.fromMap(Map<String, dynamic> map) {
     return Movie(
       id: map['id'] ?? 0,

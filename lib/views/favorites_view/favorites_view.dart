@@ -35,16 +35,10 @@ class _FavoritesViewState extends State<FavoritesView>
     super.dispose();
   }
 
-  // --- AKILLI LİSTE OLUŞTURMA (Önceki kodun aynısı, yer kaplamaması için özetlendi) ---
   void _showCreateListDialog(
     String defaultType, {
     List<dynamic>? autoAddItems,
   }) {
-    // ... (Buradaki kod aynı kalacak, sadece showDialog vs.)
-    // Tam kod önceki yanıtta mevcut, buraya aynısını yapıştırabilirsin veya
-    // eğer silmediysen fonksiyonu koru.
-    // Eğer silindiyse önceki cevaptan alabilirsin.
-    // Ama en temiz olsun diye buraya da kısaca ekliyorum:
     final nameController = TextEditingController();
     String selectedType = defaultType;
     showDialog(
@@ -418,7 +412,7 @@ class _FavoritesViewState extends State<FavoritesView>
                   pinned: true,
                   floating: true,
                   backgroundColor: AppTheme.backgroundBlack,
-                  // GERİ TUŞU EKLENDİ
+
                   leading: IconButton(
                     icon: Icon(Icons.arrow_back, color: AppTheme.textColor),
                     onPressed: () => context.go(AppRouters.home),

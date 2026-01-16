@@ -25,7 +25,6 @@ class _NotificationsViewState extends State<NotificationsView>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
 
-    // [YENİ]: Tab değişince AppBar'daki butonu güncellemek için dinleyici ekledik
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
         setState(() {});
@@ -39,18 +38,14 @@ class _NotificationsViewState extends State<NotificationsView>
     super.dispose();
   }
 
-  // Silme işlemini o anki sekmeye göre yapan fonksiyon
   void _handleClearAction() {
     if (_tabController.index == 0) {
-      // 0. İndeks: Bildirimler
       SocialService.instance.clearAllNotifications();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("All notifications have been deleted.")),
       );
     } else {
-      // 1. İndeks: Hareket Dökümü
-      SocialService.instance
-          .clearAllActivities(); // SocialService'e eklediğin fonksiyon
+      SocialService.instance.clearAllActivities();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("The activity history has been cleared.")),
       );
@@ -84,11 +79,11 @@ class _NotificationsViewState extends State<NotificationsView>
             actions: [
               IconButton(
                 icon: const Icon(Icons.delete_sweep, color: Colors.redAccent),
-                // Tooltip o anki sekmeye göre değişir
+
                 tooltip: _tabController.index == 0
                     ? "Clear Notifications"
                     : "Clear History",
-                onPressed: _handleClearAction, // Dinamik fonksiyon
+                onPressed: _handleClearAction,
               ),
             ],
           ),
@@ -206,7 +201,6 @@ class _NotificationListTabState extends State<NotificationListTab>
   }
 }
 
-// --- 2. HAREKET DÖKÜMÜ SEKMESİ ---
 class ActivityLogTab extends StatefulWidget {
   const ActivityLogTab({super.key});
 
@@ -298,8 +292,6 @@ class _ActivityLogTabState extends State<ActivityLogTab>
     );
   }
 }
-
-// --- YARDIMCI FONKSİYONLAR ---
 
 Widget _buildIcon(String? type) {
   IconData icon = Icons.notifications;

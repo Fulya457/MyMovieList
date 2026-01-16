@@ -17,7 +17,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Animasyonu başlat (Ekran açılır açılmaz belirme efekti)
+
     Future.delayed(Duration.zero, () {
       if (mounted) {
         setState(() {
@@ -25,7 +25,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         });
       }
     });
-    // Ana sayfaya 3 saniye sonra otomatik yönlendirme
+
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
         context.go(AppRouters.home);
@@ -38,7 +38,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
       body: Center(
-        // Belirme efekti için AnimatedOpacity kullanıldı
         child: AnimatedOpacity(
           opacity: opacityLevel,
           duration: const Duration(milliseconds: 1000),
@@ -49,7 +48,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             style: const TextStyle(
               fontSize: 48,
               fontWeight: FontWeight.bold,
-              color: Colors.amber, // "Tatlı efekt" için sarı renk
+              color: Colors.amber,
               shadows: [
                 Shadow(
                   blurRadius: 10.0,

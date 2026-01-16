@@ -15,14 +15,12 @@ class UserListsView extends StatefulWidget {
 }
 
 class _UserListsViewState extends State<UserListsView> {
-  // Helper: Mevcut tema durumunu al
   bool get isDark => MovieManager.instance.isDarkMode;
   Color get dialogBg => isDark ? AppTheme.surfaceDark : Colors.white;
   Color get dialogText => isDark ? Colors.white : Colors.black;
   Color get hintColor => isDark ? Colors.grey : Colors.black54;
   Color get inputFill => isDark ? Colors.black26 : Colors.grey.shade200;
 
-  // --- YENİ LİSTE OLUŞTURMA ---
   void _showCreateListDialog() {
     final nameController = TextEditingController();
     String selectedType = 'movies';
@@ -121,7 +119,6 @@ class _UserListsViewState extends State<UserListsView> {
     );
   }
 
-  // --- İSİM DEĞİŞTİRME ---
   void _showRenameDialog(String listId, String currentName) {
     final controller = TextEditingController(text: currentName);
     showDialog(
@@ -168,7 +165,6 @@ class _UserListsViewState extends State<UserListsView> {
     );
   }
 
-  // --- PAYLAŞMA ---
   void _showShareSheet(Map<String, dynamic> listData, String listId) {
     showModalBottomSheet(
       context: context,
@@ -266,7 +262,6 @@ class _UserListsViewState extends State<UserListsView> {
     );
   }
 
-  // --- SİLME ---
   void _confirmDelete(String listId) {
     showDialog(
       context: context,
@@ -301,11 +296,9 @@ class _UserListsViewState extends State<UserListsView> {
 
   @override
   Widget build(BuildContext context) {
-    // [ÖNEMLİ] Temayı dinamik dinlemek için AnimatedBuilder
     return AnimatedBuilder(
       animation: MovieManager.instance,
       builder: (context, child) {
-        // Dinamik Renkler
         final bool isDark = MovieManager.instance.isDarkMode;
         final Color bgColor = isDark
             ? AppTheme.backgroundBlack

@@ -8,14 +8,14 @@ import 'package:go_router/go_router.dart';
 import 'package:mymovielist/app/router.dart';
 import 'package:mymovielist/app/theme.dart';
 import 'package:mymovielist/data/movie_manager.dart';
-import 'package:mymovielist/models/movie_model.dart'; // Movie modeli eklendi
+import 'package:mymovielist/models/movie_model.dart';
 
 class GroupChatView extends StatefulWidget {
   final String groupId;
   final String groupName;
   final bool isCreator;
   final String? groupIconUrl;
-  final Movie? sharedMovie; // [YENİ] Taslak film parametresi
+  final Movie? sharedMovie;
 
   const GroupChatView({
     super.key,
@@ -34,14 +34,13 @@ class _GroupChatViewState extends State<GroupChatView> {
   final TextEditingController _msgController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
-  // [YENİ] Taslak ve Reply Durumları
   Movie? _draftMovie;
   Map<String, dynamic>? _replyToMessage;
 
   @override
   void initState() {
     super.initState();
-    // Eğer bir film ile gelindiyse taslağa al
+
     if (widget.sharedMovie != null) {
       _draftMovie = widget.sharedMovie;
     }
@@ -300,7 +299,6 @@ class _GroupChatViewState extends State<GroupChatView> {
     );
   }
 
-  // [GÜNCELLENDİ] Normal Liste Paylaşımı
   void _showMyListsDialog() {
     showDialog(
       context: context,
@@ -357,7 +355,6 @@ class _GroupChatViewState extends State<GroupChatView> {
     );
   }
 
-  // [GÜNCELLENDİ] Favori Paylaşımı
   void _shareFavorites() {
     final favMovies = MovieManager.instance.favoriteMovies;
     if (favMovies.isEmpty) {
@@ -367,7 +364,6 @@ class _GroupChatViewState extends State<GroupChatView> {
       return;
     }
 
-    // Filmleri Map formatına çevir
     final itemsMap = favMovies
         .map(
           (m) => {
@@ -382,13 +378,12 @@ class _GroupChatViewState extends State<GroupChatView> {
         )
         .toList();
 
-    // [DÜZELTME] Artık yerel fonksiyonu kullanıyoruz
     _sendListMessage({
       'id': 'favorites',
       'name': 'My Favorites',
       'count': favMovies.length,
       'type': 'movies',
-      'items': itemsMap, // Veriler burada
+      'items': itemsMap,
     });
   }
 
@@ -441,7 +436,6 @@ class _GroupChatViewState extends State<GroupChatView> {
                   child: ListView(
                     controller: scrollController,
                     children: [
-                      // İkon ve Değiştirme Butonu (Mevcut kodun aynısı)
                       Center(
                         child: SizedBox(
                           width: 100,
@@ -486,7 +480,6 @@ class _GroupChatViewState extends State<GroupChatView> {
                       ),
                       const SizedBox(height: 15),
 
-                      // [GÜNCELLENDİ] İsim ve Düzenleme Butonu Yan Yana
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -508,8 +501,6 @@ class _GroupChatViewState extends State<GroupChatView> {
                                 color: Colors.grey,
                               ),
                               onPressed: () {
-                                // Dialog açılınca bottom sheet kapanmasın diye pop yapmıyoruz
-                                // İsteğe bağlı olarak pop yapılabilir: Navigator.pop(ctx);
                                 _showEditGroupDialog(
                                   data['name'],
                                   data['description'] ?? "",
@@ -527,7 +518,6 @@ class _GroupChatViewState extends State<GroupChatView> {
                         ),
                       ),
 
-                      // Açıklama
                       if (data['description'] != null &&
                           data['description'].toString().isNotEmpty)
                         Padding(
@@ -543,7 +533,6 @@ class _GroupChatViewState extends State<GroupChatView> {
 
                       const SizedBox(height: 20),
 
-                      // Grup Silme Butonu (Mevcut kodun aynısı)
                       if (isAdmin) ...[
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
@@ -592,7 +581,6 @@ class _GroupChatViewState extends State<GroupChatView> {
                         const SizedBox(height: 20),
                       ],
 
-                      // Üyeler Listesi (Mevcut kodun aynısı)
                       const Divider(color: Colors.white24),
                       Text(
                         "Üyeler",
@@ -647,7 +635,6 @@ class _GroupChatViewState extends State<GroupChatView> {
                         );
                       }),
 
-                      // Bekleyen İstekler (Mevcut kodun aynısı)
                       if (isAdmin && pending.isNotEmpty) ...[
                         const Divider(color: Colors.white24),
                         const Text(
@@ -697,7 +684,6 @@ class _GroupChatViewState extends State<GroupChatView> {
     );
   }
 
-  // --- İKON DEĞİŞTİRME MENÜSÜ ---
   void _showIconPicker() {
     showModalBottomSheet(
       context: context,
@@ -723,7 +709,6 @@ class _GroupChatViewState extends State<GroupChatView> {
                 itemBuilder: (context, index) {
                   return GestureDetector(
                     onTap: () {
-                      // İkonu güncelle
                       MovieManager.instance.updateGroupIcon(
                         widget.groupId,
                         index,
@@ -761,7 +746,7 @@ class _GroupChatViewState extends State<GroupChatView> {
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
-      // AppBar'ı sadeleştiriyoruz, başlık artık body içinde
+
       appBar: AppBar(
         backgroundColor: AppTheme.surfaceDark,
         elevation: 0,
@@ -776,14 +761,13 @@ class _GroupChatViewState extends State<GroupChatView> {
           ),
         ],
       ),
-      // Body'yi StreamBuilder ile sarıyoruz ki Header güncel kalsın
+
       body: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance
             .collection('groups')
             .doc(widget.groupId)
             .snapshots(),
         builder: (context, groupSnap) {
-          // Grup silindiyse veya veri yoksa güvenli çıkış
           if (!groupSnap.hasData || !groupSnap.data!.exists) {
             return const Center(
               child: Text(
@@ -796,10 +780,8 @@ class _GroupChatViewState extends State<GroupChatView> {
 
           return Column(
             children: [
-              // 1. ŞIK GRUP BAŞLIĞI (EN ÜSTTE)
               _buildGroupHeader(groupData),
 
-              // 2. MESAJ LİSTESİ
               Expanded(
                 child: StreamBuilder<QuerySnapshot>(
                   stream: MovieManager.instance.getGroupMessagesStream(
@@ -836,7 +818,6 @@ class _GroupChatViewState extends State<GroupChatView> {
                 ),
               ),
 
-              // 3. REPLY / DRAFT GÖSTERGESİ
               if (_replyToMessage != null || _draftMovie != null)
                 Container(
                   padding: const EdgeInsets.all(8),
@@ -874,7 +855,6 @@ class _GroupChatViewState extends State<GroupChatView> {
                   ),
                 ),
 
-              // 4. INPUT ALANI
               Container(
                 padding: const EdgeInsets.all(10),
                 color: AppTheme.backgroundBlack,
@@ -917,7 +897,6 @@ class _GroupChatViewState extends State<GroupChatView> {
     );
   }
 
-  // [YENİ] Mesaj Seçenekleri Menüsü (Tek Tıklama ile Açılır)
   void _showMessageOptions(
     String docId,
     Map<String, dynamic> msg,
@@ -955,7 +934,7 @@ class _GroupChatViewState extends State<GroupChatView> {
                   });
                 },
               ),
-              // 2. Beğen
+
               ListTile(
                 leading: const Icon(Icons.favorite, color: Colors.redAccent),
                 title: Text(
@@ -970,7 +949,7 @@ class _GroupChatViewState extends State<GroupChatView> {
                   );
                 },
               ),
-              // 3. Görenler
+
               ListTile(
                 leading: const Icon(Icons.visibility, color: Colors.green),
                 title: Text(
@@ -989,7 +968,6 @@ class _GroupChatViewState extends State<GroupChatView> {
     );
   }
 
-  // [YENİ] Görenler Listesi Penceresi
   void _showSeenByList(List seenBy) {
     showDialog(
       context: context,
@@ -1044,25 +1022,16 @@ class _GroupChatViewState extends State<GroupChatView> {
     final likes = List<String>.from(msg['likes'] ?? []);
     final replyTo = msg['reply_to'] as Map<String, dynamic>?;
 
-    // [YENİ] Tema Kontrolü
     final bool isDark = MovieManager.instance.isDarkMode;
 
-    // --- RENK AYARLARI ---
-    // Balon Rengi:
-    // Ben (Karanlık): Koyu/Tok Mavi | Ben (Aydınlık): Normal Parlak Mavi
-    // O (Karanlık): Koyu Gri        | O (Aydınlık): Açık Gri
     final Color bubbleColor = isMe
         ? (isDark ? const Color(0xFF1565C0) : AppTheme.primaryBlue)
         : (isDark ? AppTheme.surfaceDark : Colors.grey.shade300);
 
-    // Yazı Rengi:
-    // Ben: Hep Beyaz
-    // O (Karanlık): Beyaz | O (Aydınlık): Siyah
     final Color textColor = isMe
         ? Colors.white
         : (isDark ? AppTheme.textColor : Colors.black87);
 
-    // İsim Rengi (Karşı taraf için)
     final Color nameColor = isDark ? Colors.orange : Colors.deepOrange;
 
     return GestureDetector(
@@ -1109,13 +1078,12 @@ class _GroupChatViewState extends State<GroupChatView> {
                   ),
                 ),
 
-              // Mesaj Kutusu
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: bubbleColor,
                   borderRadius: BorderRadius.circular(12),
-                  // Karanlık modda hafif sınır ekleyelim ki karışmasın
+
                   border: isDark
                       ? Border.all(color: Colors.white10, width: 0.5)
                       : null,
@@ -1123,7 +1091,6 @@ class _GroupChatViewState extends State<GroupChatView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // REPLY KUTUSU
                     if (replyTo != null)
                       Container(
                         padding: const EdgeInsets.all(5),
@@ -1171,7 +1138,6 @@ class _GroupChatViewState extends State<GroupChatView> {
                 ),
               ),
 
-              // Alt Bilgiler (Like & Seen)
               Padding(
                 padding: const EdgeInsets.only(top: 2, right: 4),
                 child: Row(
@@ -1217,15 +1183,12 @@ class _GroupChatViewState extends State<GroupChatView> {
     );
   }
 
-  // [GÜNCELLENMİŞ] Tıklanabilir Liste Kartı
   Widget _buildClickableListCard(Map<String, dynamic> msg) {
     return GestureDetector(
       onTap: () {
-        // Liste içeriği mesajın içinde var mı?
         if (msg.containsKey('list_items') && msg['list_items'] != null) {
           final items = List<Map<String, dynamic>>.from(msg['list_items']);
 
-          // GÜVENLİ EKRANI AÇ
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => SharedListDisplayView(
@@ -1235,7 +1198,6 @@ class _GroupChatViewState extends State<GroupChatView> {
             ),
           );
         } else {
-          // Eski mesajlar veya veri yoksa
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text("This list cannot be displayed (Old message)."),
@@ -1269,7 +1231,6 @@ class _GroupChatViewState extends State<GroupChatView> {
     );
   }
 
-  // [GÜNCELLENDİ] Daha Kompakt Grup Başlığı
   Widget _buildGroupHeader(Map<String, dynamic> groupData) {
     final iconIdx = groupData['group_icon_id'] ?? 0;
     final iconUrl = MovieManager.instance.groupIcons.length > iconIdx
@@ -1280,7 +1241,7 @@ class _GroupChatViewState extends State<GroupChatView> {
 
     return Container(
       width: double.infinity,
-      // Paddingleri azalttık (Daha yukarı çekildi)
+
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
       decoration: BoxDecoration(
         color: AppTheme.surfaceDark,
@@ -1297,7 +1258,6 @@ class _GroupChatViewState extends State<GroupChatView> {
         ],
       ),
       child: Row(
-        // Column yerine Row kullandık (Yatay yerleşim daha az yer kaplar)
         children: [
           CircleAvatar(
             radius: 24, // İkon küçültüldü
@@ -1313,7 +1273,7 @@ class _GroupChatViewState extends State<GroupChatView> {
                   name,
                   style: TextStyle(
                     color: AppTheme.textColor,
-                    fontSize: 16, // Font küçültüldü
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                   maxLines: 1,
@@ -1324,7 +1284,7 @@ class _GroupChatViewState extends State<GroupChatView> {
                     desc,
                     style: TextStyle(
                       color: AppTheme.textColor.withValues(alpha: 0.6),
-                      fontSize: 12, // Açıklama fontu küçültüldü
+                      fontSize: 12,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1337,11 +1297,9 @@ class _GroupChatViewState extends State<GroupChatView> {
     );
   }
 
-  // [YENİ] Tıklanabilir Film Kartı
   Widget _buildClickableMovieCard(Map<String, dynamic> msg) {
     return GestureDetector(
       onTap: () {
-        // Filmi oluştur ve detaya git
         final m = Movie.fromMap({
           'id': msg['movie_id'],
           'title': msg['movie_title'],
@@ -1379,7 +1337,6 @@ class _GroupChatViewState extends State<GroupChatView> {
     );
   }
 
-  // [YENİ] Listeyi ve İçeriğini Garantili Kaydetme Fonksiyonu
   Future<void> _sendListMessage(Map<String, dynamic> listData) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -1397,7 +1354,6 @@ class _GroupChatViewState extends State<GroupChatView> {
       'list_type': listData['type'] ?? 'movies',
     };
 
-    // [KRİTİK] Liste içeriğini mesajın içine gömüyoruz
     if (listData.containsKey('items')) {
       msgData['list_items'] = listData['items'];
     }
@@ -1411,7 +1367,6 @@ class _GroupChatViewState extends State<GroupChatView> {
     _scrollDown();
   }
 }
-// BU KODU DOSYANIN EN ALTINA YAPIŞTIR
 
 class SharedListDisplayView extends StatelessWidget {
   final String title;
@@ -1488,11 +1443,7 @@ class SharedListDisplayView extends StatelessWidget {
                             ],
                           )
                         : null,
-                    onTap: () {
-                      // Film detayına gitmek için:
-                      // final m = Movie.fromMap(item);
-                      // context.push('/movie-detail', extra: m);
-                    },
+                    onTap: () {},
                   ),
                 );
               },

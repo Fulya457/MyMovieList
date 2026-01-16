@@ -281,13 +281,12 @@ class _HomeViewState extends State<HomeView> {
 
   @override
   Widget build(BuildContext context) {
-    // [DÜZELTME]: AnimatedBuilder en dışta, Scaffold içinde.
     return AnimatedBuilder(
       animation: MovieManager.instance,
       builder: (context, child) {
         final manager = MovieManager.instance;
         final isDark = manager.isDarkMode;
-        // Arama veya filtre aktif mi?
+
         final isSearching =
             _searchController.text.isNotEmpty ||
             manager.activeGenreFilters.isNotEmpty ||
@@ -295,12 +294,10 @@ class _HomeViewState extends State<HomeView> {
             manager.filterDirector;
 
         return Scaffold(
-          // Rengi buradan dinamik alıyoruz
           backgroundColor: AppTheme.backgroundBlack,
           body: CustomScrollView(
             controller: _scrollController,
             slivers: [
-              // 1. HEADER (SliverAppBar)
               SliverAppBar(
                 expandedHeight: 0,
                 pinned: true,
@@ -479,7 +476,6 @@ class _HomeViewState extends State<HomeView> {
                 ),
               ),
 
-              // 3. İÇERİK (Liste veya Arama Sonuçları)
               if (isSearching) ...[
                 if (manager.searchResults.isEmpty)
                   SliverToBoxAdapter(
@@ -567,7 +563,7 @@ class _HomeViewState extends State<HomeView> {
                                   errorWidget: (c, u, e) =>
                                       Container(color: Colors.grey),
                                 ),
-                                // [DÜZELTME]: Siyah gölge yerine Tema Rengi
+
                                 Container(
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
@@ -641,7 +637,7 @@ class _HomeViewState extends State<HomeView> {
                   ),
                 ),
 
-                // POPULAR LIST (Dikey)
+                // POPULAR LIST
                 SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {

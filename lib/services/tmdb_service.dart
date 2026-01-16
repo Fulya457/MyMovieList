@@ -5,16 +5,13 @@ import 'package:http/http.dart' as http;
 import 'package:mymovielist/models/movie_model.dart';
 import 'package:mymovielist/models/person_model.dart';
 
-// API Sabitleri
 const String _API_KEY = "cea49e6756dd9655a98066426a1b934d";
 const String _BASE_URL = "https://api.themoviedb.org/3";
 
 class TmdbService {
-  // Singleton (Tekil) Yapı
   static final TmdbService instance = TmdbService._privateConstructor();
   TmdbService._privateConstructor();
 
-  // 1. Türleri Getir
   Future<Map<int, String>> fetchGenres() async {
     try {
       final response = await http.get(
@@ -30,7 +27,6 @@ class TmdbService {
     return {};
   }
 
-  // 2. Popüler Filmleri Getir
   Future<Map<String, dynamic>> fetchPopularMovies(
     int page,
     Map<int, String> genreMap,
@@ -52,7 +48,6 @@ class TmdbService {
     return {'movies': <Movie>[], 'totalPages': 0};
   }
 
-  // 3. Arama (Film ve Kişi)
   Future<Map<String, List<dynamic>>> searchMulti(
     String query,
     Map<int, String> genreMap,
@@ -83,7 +78,6 @@ class TmdbService {
     return {'movies': movies, 'people': people};
   }
 
-  // 4. Sadece Kişi Ara (Filtreleme için)
   Future<List<Person>> searchPersonOnly(String query) async {
     try {
       final response = await http.get(
@@ -103,12 +97,10 @@ class TmdbService {
     return [];
   }
 
-  // 5. Kişi Detayları ve Filmografisi
   Future<void> fetchPersonDetails(
     Person person,
     Map<int, String> genreMap,
   ) async {
-    // Detay
     try {
       final res = await http.get(
         Uri.parse('$_BASE_URL/person/${person.id}?api_key=$_API_KEY'),
@@ -136,7 +128,6 @@ class TmdbService {
         List<dynamic> cast = data['cast'] ?? [];
         List<dynamic> crew = data['crew'] ?? [];
 
-        // Yönetmense sadece yönettikleri
         if (person.knownFor == 'Directing') {
           crew = crew.where((c) => c['job'] == 'Director').toList();
         }
@@ -148,7 +139,7 @@ class TmdbService {
             movies.add(Movie.fromTMDB(item, genreMap));
           }
         }
-        // Popülerliğe göre sırala
+
         movies.sort((a, b) => b.popularity.compareTo(a.popularity));
         person.filmography = movies;
       }
@@ -157,9 +148,8 @@ class TmdbService {
     }
   }
 
-  // 6. Film Detayları (Cast ve Trailer)
   Future<void> fetchMovieExtras(Movie movie) async {
-    // Cast (Oyuncular)
+    // Cast
     try {
       final res = await http.get(
         Uri.parse('$_BASE_URL/movie/${movie.id}/credits?api_key=$_API_KEY'),
@@ -177,11 +167,8 @@ class TmdbService {
                 ? "https://image.tmdb.org/t/p/w200$pp"
                 : "";
 
-            // --- DEĞİŞİKLİK BURADA: ID EKLENDİ ---
-            // ID'yi String olarak saklıyoruz ki Map yapımız bozulmasın
             String personId = (actor['id'] ?? 0).toString();
             details.add({'name': name, 'photo': photo, 'id': personId});
-            // -------------------------------------
           }
         }
         movie.actors = castNames;
@@ -193,14 +180,12 @@ class TmdbService {
             orElse: () => null,
           );
           movie.director = dir != null ? dir['name'] : "Unknown";
-          // Yönetmen ID'si için gerekirse buraya da ekleme yapılabilir ama şimdilik isim yeterli
         }
       }
     } catch (e) {
       print(e);
     }
 
-    // Trailer (Aynı kalıyor)
     try {
       final res = await http.get(
         Uri.parse('$_BASE_URL/movie/${movie.id}/videos?api_key=$_API_KEY'),
@@ -218,7 +203,6 @@ class TmdbService {
     }
   }
 
-  // 7. ID ile Film Getir
   Future<Movie?> getMovieById(int id, Map<int, String> genreMap) async {
     try {
       final res = await http.get(
@@ -231,7 +215,7 @@ class TmdbService {
     return null;
   }
 
-  // 8. Discover (Keşfet - Tür Filtresi İçin)
+  // 8. Discover
   Future<List<Movie>> discoverMoviesByGenre(
     String genreIds,
     Map<int, String> genreMap,

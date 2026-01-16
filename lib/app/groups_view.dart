@@ -19,12 +19,12 @@ class GroupsView extends StatefulWidget {
 class _GroupsViewState extends State<GroupsView> {
   final TextEditingController _searchController = TextEditingController();
   String _searchText = "";
-  int _selectedIconIndex = 0; // Grup ikonu seçimi için
+  int _selectedIconIndex = 0;
 
   void _showCreateGroupDialog() {
     final nameController = TextEditingController();
     final descController = TextEditingController();
-    // Her açılışta ikonu sıfırla
+
     _selectedIconIndex = 0;
 
     showDialog(
@@ -43,14 +43,12 @@ class _GroupsViewState extends State<GroupsView> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // İkon Seçici Başlık
                     const Text(
                       "Select Group Icon",
                       style: TextStyle(color: Colors.grey, fontSize: 12),
                     ),
                     const SizedBox(height: 10),
 
-                    // İkon Seçici Liste
                     SizedBox(
                       height: 60,
                       child: ListView.builder(
@@ -141,7 +139,7 @@ class _GroupsViewState extends State<GroupsView> {
                     await MovieManager.instance.createGroup(
                       nameController.text.trim(),
                       descController.text.trim(),
-                      _selectedIconIndex, // Seçilen ikon
+                      _selectedIconIndex,
                     );
                     if (mounted) {
                       Navigator.pop(ctx);
@@ -241,15 +239,12 @@ class _GroupsViewState extends State<GroupsView> {
                     final isPending = pending.contains(myUid);
                     final isCreator = data['creator_id'] == myUid;
 
-                    // Grup İkonunu Belirle
                     final iconIdx = data['group_icon_id'] ?? 0;
                     final iconUrl =
                         (iconIdx >= 0 &&
                             iconIdx < MovieManager.instance.groupIcons.length)
                         ? MovieManager.instance.groupIcons[iconIdx]
-                        : MovieManager
-                              .instance
-                              .groupIcons[0]; // Hata olursa ilk ikon
+                        : MovieManager.instance.groupIcons[0];
 
                     return Card(
                       margin: const EdgeInsets.symmetric(
@@ -301,8 +296,7 @@ class _GroupsViewState extends State<GroupsView> {
                                       'groupId': doc.id,
                                       'groupName': data['name'],
                                       'isCreator': isCreator,
-                                      'groupIconUrl':
-                                          iconUrl, // İkonu sohbete taşıyoruz
+                                      'groupIconUrl': iconUrl,
                                     },
                                   );
                                 },
@@ -321,13 +315,11 @@ class _GroupsViewState extends State<GroupsView> {
                                         backgroundColor: AppTheme.primaryBlue,
                                       ),
                                       onPressed: () async {
-                                        // [GÜNCELLENDİ] Admin Kontrolü
                                         final bool isAdmin = await SocialService
                                             .instance
                                             .isAdmin();
 
                                         if (isAdmin) {
-                                          // ADMİN: Onay beklemeden direkt girer
                                           await SocialService.instance
                                               .adminJoinGroupDirectly(doc.id);
                                           if (mounted) {
@@ -343,7 +335,6 @@ class _GroupsViewState extends State<GroupsView> {
                                             );
                                           }
                                         } else {
-                                          // NORMAL KULLANICI: Onay bekler
                                           await MovieManager.instance
                                               .requestJoinGroup(doc.id);
                                           if (mounted) {

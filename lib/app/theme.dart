@@ -6,27 +6,19 @@ import 'package:mymovielist/data/movie_manager.dart';
 class AppTheme {
   AppTheme._();
 
-  // --- RENK PALETİ ---
-
-  // Karanlık Mod (Dark) - Orijinal
   static const int _darkBgInt = 0xFF12141C;
   static const Color _darkSurface = Color(0xFF1E202B);
   static const Color _darkPrimary = Color(0xFF09FBD3);
   static const Color _darkText = Color(0xFFF2F2F2);
 
-  // Aydınlık Mod (Light) - GÜNCELLENDİ
-  // Arka Plan: "Blue Grey 100" (Hafif Mavi-Gri, çiğ beyaz değil)
   static const int _lightBgInt = 0xFFCFD8DC;
 
   static const Color _lightSurface = Color(0xFFFFFFFF);
   static const Color _lightPrimary = Color(0xFF2962FF);
 
-  // Yazı Rengi: "Derin Okyanus Mavisi / Lacivert" (Net okunur, siyah değil)
   static const Color _lightText = Color(0xFF01377D);
 
   static const Color accentPink = Color(0xFFFE53BB);
-
-  // --- DİNAMİK GETTER'LAR ---
 
   static Color get primaryBlue =>
       MovieManager.instance.isDarkMode ? _darkPrimary : _lightPrimary;
@@ -44,7 +36,6 @@ class AppTheme {
   static Color get iconColor =>
       MovieManager.instance.isDarkMode ? Colors.white : const Color(0xFF455A64);
 
-  // --- TEMA OLUŞTURUCU ---
   static ThemeData get currentTheme {
     final bool isDark = MovieManager.instance.isDarkMode;
 

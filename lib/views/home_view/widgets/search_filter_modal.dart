@@ -22,13 +22,12 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
       padding: const EdgeInsets.all(20),
       height: 600,
       decoration: BoxDecoration(
-        color: AppTheme.surfaceDark, // Arka plan
+        color: AppTheme.surfaceDark,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Tutamaç Çubuğu
           Center(child: Container(width: 40, height: 4, color: Colors.grey)),
           const SizedBox(height: 20),
 
@@ -37,12 +36,11 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
-              color: AppTheme.textColor, // Başlık Rengi
+              color: AppTheme.textColor,
             ),
           ),
           const SizedBox(height: 20),
 
-          // --- ROL SEÇİMİ ---
           Text(
             "Person",
             style: TextStyle(
@@ -65,7 +63,6 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
 
           const SizedBox(height: 20),
 
-          // --- TÜR SEÇİMİ ---
           Text(
             "Genres",
             style: TextStyle(
@@ -85,7 +82,7 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
                   );
                   return FilterChip(
                     label: Text(genre.value),
-                    // Yazı Rengi: Seçiliyse Beyaz, Değilse Dinamik (Siyah/Beyaz)
+
                     labelStyle: TextStyle(
                       color: isSelected ? Colors.white : AppTheme.textColor,
                       fontWeight: FontWeight.bold,
@@ -111,7 +108,6 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
 
           const SizedBox(height: 20),
 
-          // UYGULA BUTONU
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -141,7 +137,7 @@ class _SearchFilterModalState extends State<SearchFilterModal> {
   ) {
     return FilterChip(
       label: Text(label),
-      // Yazı Rengi Düzeltildi
+
       labelStyle: TextStyle(
         color: isSelected ? Colors.white : AppTheme.textColor,
         fontWeight: FontWeight.bold,

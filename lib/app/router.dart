@@ -30,11 +30,9 @@ import 'package:mymovielist/views/profile_view/admin_panel_view.dart'; // Admin 
 import 'package:mymovielist/app/groups_view.dart';
 import 'package:mymovielist/app/group_chat_view.dart';
 
-// Modeller
 import 'package:mymovielist/models/movie_model.dart';
 import 'package:mymovielist/models/person_model.dart';
 
-// --- 1. SABİT YOLLAR (CONSTANTS) ---
 class AppRouters {
   static const String login = '/login';
   static const String welcome = '/welcome';
@@ -44,11 +42,9 @@ class AppRouters {
   static const String recommends = '/recommends';
   static const String genreMovies = 'genre-movies';
 
-  // Detaylar
   static const String movieDetail = '/movie-detail';
   static const String personDetail = '/person-detail';
 
-  // Profil ve Sosyal
   static const String profile = '/profile';
   static const String friends = '/friends';
   static const String notifications = '/notifications';
@@ -59,11 +55,9 @@ class AppRouters {
   static const String groups = '/groups';
   static const String groupChat = '/group-chat';
 
-  // Admin [EKLENDİ]
   static const String adminPanel = '/admin-panel';
 }
 
-// --- 2. ROUTER AYARLARI ---
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorHome = GlobalKey<NavigatorState>(debugLabel: 'shellHome');
 final _shellNavigatorCat = GlobalKey<NavigatorState>(debugLabel: 'shellCat');
@@ -74,7 +68,6 @@ final router = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: AppRouters.login,
   routes: [
-    // 1. Giriş ve Karşılama
     GoRoute(
       path: AppRouters.login,
       builder: (context, state) => const LoginView(),
@@ -87,7 +80,6 @@ final router = GoRouter(
       },
     ),
 
-    // 2. Detay Sayfaları (Alt menüden bağımsız tam ekran açılırlar - Root Navigator)
     GoRoute(
       path: AppRouters.movieDetail,
       parentNavigatorKey: _rootNavigatorKey,
@@ -112,7 +104,7 @@ final router = GoRouter(
         return PersonDetailView(person: state.extra as Person);
       },
     ),
-    // Tür Sayfası
+
     GoRoute(
       path: '/genre/:genre',
       name: AppRouters.genreMovies,
@@ -123,7 +115,6 @@ final router = GoRouter(
       },
     ),
 
-    // --- SOSYAL SAYFALAR (Profil Altındakiler) ---
     GoRoute(
       path: AppRouters.profile,
       parentNavigatorKey: _rootNavigatorKey,
@@ -171,14 +162,12 @@ final router = GoRouter(
       },
     ),
 
-    // --- ADMIN PANEL ROTASI [EKLENDİ] ---
     GoRoute(
       path: AppRouters.adminPanel,
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => const AdminPanelView(),
     ),
 
-    // --- GRUP ROTALARI ---
     GoRoute(
       path: AppRouters.groups,
       parentNavigatorKey: _rootNavigatorKey,
@@ -199,12 +188,10 @@ final router = GoRouter(
       },
     ),
 
-    // 3. ANA UYGULAMA (ALT MENÜLÜ YAPI)
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) =>
           AppView(navigationShell: navigationShell),
       branches: [
-        // A. Home Tab
         StatefulShellBranch(
           navigatorKey: _shellNavigatorHome,
           routes: [
@@ -215,7 +202,6 @@ final router = GoRouter(
           ],
         ),
 
-        // B. Categories Tab
         StatefulShellBranch(
           navigatorKey: _shellNavigatorCat,
           routes: [
@@ -237,7 +223,6 @@ final router = GoRouter(
           ],
         ),
 
-        // C. Favorites Tab
         StatefulShellBranch(
           navigatorKey: _shellNavigatorFav,
           routes: [
@@ -248,7 +233,6 @@ final router = GoRouter(
           ],
         ),
 
-        // D. Recommended (For You) Tab
         StatefulShellBranch(
           navigatorKey: _shellNavigatorRec,
           routes: [
@@ -262,7 +246,6 @@ final router = GoRouter(
     ),
   ],
 
-  // Yönlendirme Koruması (Guard)
   redirect: (context, state) {
     final user = FirebaseAuth.instance.currentUser;
     final isLoggingIn = state.uri.toString() == AppRouters.login;

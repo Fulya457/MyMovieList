@@ -14,7 +14,6 @@ class SocialService {
   String? get currentUid => _auth.currentUser?.uid;
   String? get currentEmail => _auth.currentUser?.email;
 
-  // --- KULLANICI İŞLEMLERİ ---
   Future<void> ensureUserExists() async {
     if (currentUid == null) return;
     final doc = await _firestore.collection('users').doc(currentUid).get();
@@ -25,8 +24,8 @@ class SocialService {
         'created_at': FieldValue.serverTimestamp(),
         'favorites_movies': [],
         'profile_icon_id': 0,
-        'role': 'user', // [DÜZELTİLDİ] Varsayılan rol
-        'is_blocked': false, // [DÜZELTİLDİ] Varsayılan blok durumu
+        'role': 'user',
+        'is_blocked': false,
       });
     }
   }
@@ -49,7 +48,6 @@ class SocialService {
     });
   }
 
-  // --- ŞİFRE DEĞİŞTİRME ---
   Future<void> changePassword(
     String currentPassword,
     String newPassword,
@@ -113,7 +111,6 @@ class SocialService {
     return users;
   }
 
-  // --- FAVORİLER ---
   Future<void> updateFavoriteMovie(Movie movie, bool isAdding) async {
     if (currentUid == null) return;
     if (isAdding) {
@@ -161,7 +158,6 @@ class SocialService {
     return {};
   }
 
-  // --- LİSTELER ---
   Future<void> createList(String name, String type) async {
     if (currentUid == null) return;
     await _firestore
@@ -236,7 +232,6 @@ class SocialService {
         .snapshots();
   }
 
-  // --- ARKADAŞLIK ---
   Future<void> sendFriendRequest(String targetUid, String targetEmail) async {
     if (currentUid == null) return;
     await _firestore
@@ -426,7 +421,6 @@ class SocialService {
         .snapshots();
   }
 
-  // --- LİSTE KOPYALAMA ---
   Future<void> importListFromUser(
     String listName,
     List<dynamic> items,
@@ -464,7 +458,6 @@ class SocialService {
     return [];
   }
 
-  // --- YORUMLAR VE BİLDİRİMLER ---
   Stream<DocumentSnapshot> getMovieLiveRating(int movieId) =>
       _firestore.collection('app_movies').doc(movieId.toString()).snapshots();
 
@@ -483,11 +476,9 @@ class SocialService {
   Future<void> addReview(Movie movie, double rating, String comment) async {
     if (currentUid == null) return;
 
-    // 1. Kullanıcın rolünü ve ikonunu çekiyoruz
     final userDoc = await _firestore.collection('users').doc(currentUid).get();
     final userData = userDoc.data();
 
-    // ROLÜ ALIYORUZ: Eğer dökümanda role yoksa varsayılan 'user' yap
     final String userRole = userData?['role'] ?? 'user';
 
     int iconId = (userDoc.exists && userData!.containsKey('profile_icon_id'))
@@ -512,20 +503,19 @@ class SocialService {
         batch.update(d.reference, {
           'rating': rating,
           'profile_icon_id': iconId,
-          'user_role': userRole, // Rolü burada da güncelliyoruz
+          'user_role': userRole,
         });
       }
       await batch.commit();
     }
 
-    // 2. Yorum koleksiyonuna 'user_role' alanını ekliyoruz
     await _firestore.collection('reviews').add({
       'movie_id': movie.id,
       'movie_title': movie.title,
       'poster_path': movie.poster,
       'user_id': currentUid,
       'user_name': userName,
-      'user_role': userRole, // BURASI KRİTİK 👈
+      'user_role': userRole,
       'profile_icon_id': iconId,
       'rating': rating,
       'comment': comment,
@@ -533,7 +523,6 @@ class SocialService {
       'timestamp': FieldValue.serverTimestamp(),
     });
 
-    // --- Film Puanı Güncelleme (Transaction) kısmı aynı kalıyor ---
     final movieRef = _firestore
         .collection('app_movies')
         .doc(movie.id.toString());
@@ -661,7 +650,6 @@ class SocialService {
     );
   }
 
-  // --- BİLDİRİM VE AKTİVİTE ---
   Future<void> createNotification(
     String recipientId,
     String message,
@@ -749,11 +737,6 @@ class SocialService {
     }
   }
 
-  // --- [YENİ] MODERATOR PANEL ÖZELLİKLERİ ---
-
-  // --- [YENİ] MODERATOR PANEL ÖZELLİKLERİ (TEMİZLENDİ) ---
-
-  // 1. Kullanıcın admin olup olmadığını kontrol et
   Future<bool> isAdmin() async {
     if (currentUid == null) return false;
     try {
@@ -764,7 +747,6 @@ class SocialService {
     }
   }
 
-  // 2. TÜM yorumları çek
   Stream<QuerySnapshot> getAllReviewsStream() {
     return _firestore
         .collection('reviews')
@@ -772,23 +754,18 @@ class SocialService {
         .snapshots();
   }
 
-  // 3. Global kullanıcı listesini çek (DÜZELTİLDİ: Tüm kullanıcılar görünür)
   Stream<QuerySnapshot> getAllUsersStream() {
-    // orderBy kaldırıldı çünkü created_at alanı olmayan kullanıcıları listeden eliyordu.
     return _firestore.collection('users').snapshots();
   }
 
-  // 4. Global grup listesini çek
   Stream<QuerySnapshot> getAllGroupsStream() {
     return _firestore.collection('groups').snapshots();
   }
 
-  // 5. Herhangi bir grubu sil (Admin yetkisiyle)
   Future<void> adminDeleteGroup(String groupId) async {
     await _firestore.collection('groups').doc(groupId).delete();
   }
 
-  // 6. Kullanıcıyı Blokla veya Engelini Kaldır (Hata düzeltildi)
   Future<void> adminToggleBlock(String userId, bool blockStatus) async {
     try {
       await _firestore.collection('users').doc(userId).update({
